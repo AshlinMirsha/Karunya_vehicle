@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendance Check-In - Karunya Bus System</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body class="pt-5 mt-4">
+
+  <div id="bg-video-container">
+    <video id="bg-video" autoplay loop muted playsinline>
+      <source src="https://www.karunya.edu/sites/default/files/video/KarunyaWebVideoLQ.mp4" type="video/mp4">
+    </video>
+    <div class="video-overlay"></div>
+  </div>
+
+  <div id="navbar-container"></div>
+
+  <div class="container py-4" style="max-width: 600px;">
+    <div class="glass-panel p-4 text-center">
+      <h3 class="fw-bold text-white mb-2"><i class="fa-solid fa-qrcode text-info me-2"></i>Bus Attendance Check-In</h3>
+      <p class="text-muted fs-7 mb-4">Verification requires an active Karunya Google login and valid GPS location within your bus route radius.</p>
+
+      <div id="checkin-result"></div>
+
+      <div class="mb-3 text-start">
+        <label class="form-label text-muted fs-7">Session QR Token Signature</label>
+        <input type="text" id="input-token" class="form-control bg-dark text-white border-secondary font-monospace" placeholder="Paste or scan QR token signature...">
+      </div>
+
+      <div class="mb-3">
+        <button id="btn-start-camera" type="button" class="btn btn-outline-light w-100">
+          <i class="fa-solid fa-camera me-2"></i>Scan QR code with camera
+        </button>
+        <video id="qr-camera-preview" class="qr-camera-preview mt-3 d-none" playsinline muted></video>
+      </div>
+
+      <div id="gps-status" class="alert alert-dark bg-opacity-50 border border-secondary text-start fs-7 mb-4">
+        <i class="fa-solid fa-location-crosshairs text-info me-2"></i>GPS location will be requested upon submission.
+      </div>
+
+      <button id="btn-submit-checkin" class="btn btn-glass-primary w-100 py-3 fs-6">
+        <i class="fa-solid fa-circle-check me-2"></i>Verify Location & Mark Attendance
+      </button>
+
+      <div class="mt-4 pt-3 border-top border-secondary text-center">
+        <small class="text-muted fs-8">
+          <i class="fa-solid fa-lock text-success me-1"></i>Protected by Karunya Cloud Verification Engine
+        </small>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module">
+    import { initCheckinPage } from '../js/qr-scanner.js';
+    document.addEventListener('DOMContentLoaded', initCheckinPage);
+  </script>
+</body>
+</html>

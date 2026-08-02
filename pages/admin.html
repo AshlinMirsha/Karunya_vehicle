@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Portal - Karunya Bus Attendance</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body class="pt-5 mt-4">
+
+  <div id="bg-video-container">
+    <video id="bg-video" autoplay loop muted playsinline>
+      <source src="https://www.karunya.edu/sites/default/files/video/KarunyaWebVideoLQ.mp4" type="video/mp4">
+    </video>
+    <div class="video-overlay"></div>
+  </div>
+
+  <div id="navbar-container"></div>
+
+  <div class="container-fluid px-4 py-4">
+
+    <!-- Top System Analytics Cards -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="glass-panel p-3 text-center">
+          <div class="text-muted fs-7 text-uppercase">Total Students</div>
+          <div id="stat-total-students" class="fs-2 fw-bold text-info">--</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="glass-panel p-3 text-center">
+          <div class="text-muted fs-7 text-uppercase">Active Buses</div>
+          <div id="stat-active-buses" class="fs-2 fw-bold text-warning">--</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="glass-panel p-3 text-center">
+          <div class="text-muted fs-7 text-uppercase">Coordinators</div>
+          <div id="stat-coordinators" class="fs-2 fw-bold text-primary">--</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="glass-panel p-3 text-center">
+          <div class="text-muted fs-7 text-uppercase">Today's Attendance Rate</div>
+          <div id="stat-today-attendance" class="fs-2 fw-bold text-success">--</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin Operations Toolbar -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h4 class="fw-bold text-white mb-0"><i class="fa-solid fa-sliders text-info me-2"></i>System Administration</h4>
+      <div class="d-flex gap-2">
+        <button id="btn-export-csv" class="btn btn-outline-info btn-sm rounded-pill px-3">
+          <i class="fa-solid fa-file-csv me-1"></i>Export CSV Report
+        </button>
+      </div>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <ul class="nav nav-tabs border-secondary mb-4" id="adminTab" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active text-white" id="students-tab" data-bs-toggle="tab" data-bs-target="#students" type="button" role="tab">Students Database</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link text-white" id="buses-tab" data-bs-toggle="tab" data-bs-target="#buses" type="button" role="tab">Bus Fleet & Geofences</button>
+      </li>
+    </ul>
+
+    <!-- Tab Contents -->
+    <div class="tab-content" id="adminTabContent">
+
+      <!-- Students Table -->
+      <div class="tab-pane fade show active" id="students" role="tabpanel">
+        <div class="glass-panel p-4">
+          <div class="table-responsive">
+            <table class="table table-dark-custom mb-0">
+              <thead>
+                <tr>
+                  <th>Reg Number</th>
+                  <th>Student Name</th>
+                  <th>Karunya Email</th>
+                  <th>Assigned Bus</th>
+                  <th>Status</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody id="admin-students-list">
+                <tr><td colspan="6" class="text-center text-muted py-3">Loading student records...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Buses Table -->
+      <div class="tab-pane fade" id="buses" role="tabpanel">
+        <div class="glass-panel p-4">
+          <div class="table-responsive">
+            <table class="table table-dark-custom mb-0">
+              <thead>
+                <tr>
+                  <th>Bus No</th>
+                  <th>Route Description</th>
+                  <th>Capacity</th>
+                  <th>GPS Coordinates</th>
+                  <th>Geofence Radius</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody id="admin-buses-list">
+                <tr><td colspan="6" class="text-center text-muted py-3">Loading fleet records...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module">
+    import { initAdminDashboard } from '../js/admin.js';
+    document.addEventListener('DOMContentLoaded', initAdminDashboard);
+  </script>
+</body>
+</html>

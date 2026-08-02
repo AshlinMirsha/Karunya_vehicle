@@ -1,0 +1,290 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root {
+  --glass-bg: oklch(17% 0.025 150 / 0.74);
+  --glass-border: oklch(92% 0.01 150 / 0.14);
+  --text-main: oklch(96% 0.008 100);
+  --text-secondary: oklch(88% 0.012 110 / 0.82);
+  --text-muted: oklch(78% 0.014 110 / 0.7);
+  --surface-dark: oklch(13% 0.02 150 / 0.66);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background-color: oklch(12% 0.018 150);
+  color: var(--text-main);
+  min-height: 100vh;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fullscreen Immersive Background Video */
+#bg-video-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -3;
+  overflow: hidden;
+}
+
+#bg-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* A muted, cinematic veil lets the campus remain visible behind the glass. */
+.video-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background:
+    linear-gradient(120deg, oklch(13% 0.025 155 / 0.47), oklch(17% 0.018 90 / 0.30)),
+    oklch(10% 0.02 150 / 0.16);
+  backdrop-filter: blur(9px) saturate(0.82);
+  -webkit-backdrop-filter: blur(9px) saturate(0.82);
+  z-index: -2;
+}
+
+/* Floating glass navigation */
+.navbar-wrapper {
+  padding: 24px;
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+  z-index: 100;
+}
+
+.glass-nav-floating {
+  background: oklch(15% 0.02 150 / 0.58);
+  backdrop-filter: blur(18px) saturate(0.9);
+  -webkit-backdrop-filter: blur(18px) saturate(0.9);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  padding: 13px 22px;
+  box-shadow: 0 16px 42px oklch(7% 0.018 150 / 0.22), inset 0 1px 0 oklch(100% 0 0 / 0.08);
+}
+
+.navbar-brand img {
+  border-radius: 50%;
+  background: oklch(92% 0.01 150 / 0.1);
+  padding: 4px;
+}
+
+.nav-status-badge {
+  background: oklch(90% 0.01 150 / 0.09);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-status-dot {
+  width: 8px;
+  height: 8px;
+  background-color: oklch(62% 0.22 25);
+  border-radius: 50%;
+  box-shadow: 0 0 8px oklch(62% 0.22 25 / 0.7);
+}
+
+.nav-status-dot.signed-in {
+  background-color: oklch(68% 0.15 155);
+  box-shadow: 0 0 8px oklch(68% 0.15 155 / 0.7);
+}
+
+/* Center Login Card Container */
+.main-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+/* The login surface is intentionally the only large glass panel on the page. */
+.glass-login-card {
+  width: 100%;
+  max-width: 418px;
+  background:
+    linear-gradient(145deg, oklch(20% 0.025 150 / 0.78), oklch(14% 0.022 105 / 0.72));
+  backdrop-filter: blur(28px) saturate(0.86);
+  -webkit-backdrop-filter: blur(28px) saturate(0.86);
+  border: 1px solid var(--glass-border);
+  border-radius: 28px;
+  padding: 44px 48px 40px;
+  box-shadow: 0 26px 70px oklch(5% 0.02 150 / 0.42), inset 0 1px 0 oklch(100% 0 0 / 0.09);
+  text-align: center;
+}
+
+.card-logo {
+  max-width: 72px;
+  margin-bottom: 18px;
+  filter: drop-shadow(0 4px 10px oklch(100% 0 0 / 0.25));
+}
+
+.card-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.72rem, 3vw, 2rem);
+  letter-spacing: -0.045em;
+  color: var(--text-main);
+  margin-bottom: 10px;
+}
+
+.card-subtitle {
+  font-size: 0.94rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+}
+
+/* Information Box (Frosted Alert Style) */
+.info-alert-box {
+  background: oklch(9% 0.015 150 / 0.32);
+  border: 1px solid oklch(92% 0.01 150 / 0.17);
+  border-radius: 14px;
+  padding: 15px;
+  text-align: left;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.info-alert-box i {
+  color: oklch(80% 0.15 205);
+  font-size: 1.05rem;
+  margin-top: 2px;
+}
+
+.info-alert-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Continue with Google button */
+.btn-google-continue {
+  background: oklch(96% 0.005 100);
+  color: oklch(18% 0.02 150);
+  font-size: 1rem;
+  font-weight: 600;
+  height: 56px;
+  border-radius: 17px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  cursor: pointer;
+  box-shadow: 0 12px 28px oklch(8% 0.015 150 / 0.25);
+  transition: transform 160ms var(--ease-out), box-shadow 160ms var(--ease-out), background-color 160ms var(--ease-out);
+}
+
+.btn-google-continue:hover {
+  transform: translateY(-2px);
+  background: oklch(99% 0.003 100);
+  box-shadow: 0 18px 34px oklch(6% 0.018 150 / 0.34);
+}
+
+.btn-google-continue:active {
+  transform: scale(0.97);
+}
+
+.secure-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 28px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.secure-divider i {
+  color: oklch(72% 0.14 155);
+}
+
+/* Footer Section */
+.glass-footer {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  border-top: 1px solid oklch(100% 0 0 / 0.08);
+  background: oklch(12% 0.02 150 / 0.24);
+}
+
+/* Shared dashboard surfaces */
+.glass-panel {
+  background: oklch(16% 0.022 150 / 0.72);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: 0 18px 46px oklch(6% 0.016 150 / 0.24), inset 0 1px 0 oklch(100% 0 0 / 0.06);
+  backdrop-filter: blur(18px) saturate(0.9);
+  -webkit-backdrop-filter: blur(18px) saturate(0.9);
+}
+
+.btn-glass-primary {
+  background: oklch(94% 0.008 105);
+  border: 1px solid oklch(100% 0 0 / 0.2);
+  border-radius: 14px;
+  color: oklch(18% 0.02 150);
+  font-weight: 700;
+  transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out);
+}
+
+.btn-glass-primary:hover {
+  background: oklch(99% 0.003 105);
+  color: oklch(18% 0.02 150);
+  transform: translateY(-1px);
+}
+
+.btn-glass-primary:active { transform: scale(0.97); }
+
+.table-dark-custom {
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--text-secondary);
+  --bs-table-border-color: oklch(100% 0 0 / 0.1);
+  --bs-table-striped-bg: oklch(100% 0 0 / 0.035);
+}
+
+.table-dark-custom thead th { color: var(--text-muted); font-size: 0.76rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.badge-status { border-radius: 999px; padding: 0.36rem 0.58rem; font-size: 0.72rem; font-weight: 700; }
+.badge-present { background: oklch(63% 0.13 155 / 0.2); border: 1px solid oklch(68% 0.14 155 / 0.42); color: oklch(86% 0.08 155); }
+#toast-container { position: fixed; right: 18px; bottom: 18px; z-index: 1200; width: min(360px, calc(100vw - 36px)); }
+.qr-camera-preview { width: 100%; max-height: 300px; border: 1px solid var(--glass-border); border-radius: 14px; background: oklch(10% 0.015 150); object-fit: cover; }
+
+@media (max-width: 640px) {
+  .navbar-wrapper { padding: 14px; }
+  .glass-nav-floating { border-radius: 14px; padding: 11px 14px; }
+  .glass-nav-floating > a > img { display: none; }
+  .navbar-wrapper .fw-bold { font-size: 0.8rem !important; }
+  .nav-status-badge { padding: 5px 9px; font-size: 0.73rem; }
+  .main-content { padding: 20px 16px; }
+  .glass-login-card { max-width: 420px; padding: 36px 28px 32px; border-radius: 24px; }
+  .card-logo { max-width: 58px; }
+  .glass-footer { padding: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+}

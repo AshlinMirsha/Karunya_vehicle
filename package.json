@@ -1,0 +1,23 @@
+{
+  "name": "karunya-bus-attendance-portal",
+  "version": "1.0.0",
+  "description": "Production-ready Bus Attendance Management System for Karunya Institute of Technology and Sciences",
+  "main": "supabase/client.js",
+  "scripts": {
+    "start": "npx serve .",
+    "deploy": "vercel --prod",
+    "deploy:hosting": "vercel --prod",
+    "lint": "eslint .",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "keywords": [
+    "karunya",
+    "bus-attendance",
+    "supabase",
+    "vercel",
+    "qr-code",
+    "geofencing"
+  ],
+  "author": "Karunya ITS Team",
+  "license": "MIT"
+}

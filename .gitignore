@@ -1,0 +1,10 @@
+node_modules/
+functions/node_modules/
+.firebase/
+.vercel/
+.supabase/
+supabase/.temp/
+.env
+*.log
+kaluthamirsha-firebase-adminsdk-fbsvc-17d20c3334.json
+/functions/
