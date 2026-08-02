@@ -288,3 +288,31 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
 }
+
+/* White and navy operational dashboard theme. */
+.dashboard-page {
+  --dashboard-navy: #102a43;
+  --dashboard-navy-soft: #243b53;
+  --dashboard-blue: #1d72d8;
+  --dashboard-line: #d9e2ec;
+  background: #f7f9fc;
+  background-image: radial-gradient(circle at top right, rgb(29 114 216 / 0.08), transparent 32rem);
+  color: var(--dashboard-navy);
+}
+.dashboard-page #bg-video-container { display: none; }
+.dashboard-page .navbar-wrapper { background: var(--dashboard-navy); max-width: none; padding: 0; }
+.dashboard-page .glass-nav-floating { max-width: 1320px; margin: 0 auto; border: 0; border-radius: 0; box-shadow: none; background: transparent; backdrop-filter: none; }
+.dashboard-page .navbar-wrapper .text-white, .dashboard-page .navbar-wrapper .fw-bold { color: #ffffff !important; }
+.dashboard-page .glass-panel { background: #ffffff; border: 1px solid var(--dashboard-line); box-shadow: 0 14px 30px rgb(16 42 67 / 0.06); backdrop-filter: none; }
+.dashboard-page .text-white, .dashboard-page .fw-bold { color: var(--dashboard-navy) !important; }
+.dashboard-page .text-muted { color: #627d98 !important; }
+.dashboard-page .text-info { color: var(--dashboard-blue) !important; }
+.dashboard-page .table-dark-custom { --bs-table-color: var(--dashboard-navy); --bs-table-border-color: var(--dashboard-line); --bs-table-striped-bg: #f0f5fa; }
+.dashboard-page .table-dark-custom thead th { color: #486581; }
+.dashboard-page .form-select, .dashboard-page .form-control { background: #ffffff; color: var(--dashboard-navy); border-color: #bcccdc; }
+.dashboard-page .btn-glass-primary { background: var(--dashboard-navy); border-color: var(--dashboard-navy); color: #ffffff; }
+.dashboard-page .btn-glass-primary:hover { background: #243b53; color: #ffffff; }
+.dashboard-page .nav-tabs { border-color: var(--dashboard-line) !important; }
+.dashboard-page .nav-tabs .nav-link { color: #486581 !important; border: 0; }
+.dashboard-page .nav-tabs .nav-link.active { color: var(--dashboard-navy) !important; background: #ffffff; border: 1px solid var(--dashboard-line); border-bottom-color: #ffffff; font-weight: 700; }
+.dashboard-page .qr-wrapper { background: #f7f9fc !important; border-color: var(--dashboard-line) !important; }
