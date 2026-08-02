@@ -26,7 +26,7 @@ export function renderNavbar(user = null, activeRole = null) {
     <header class="navbar-wrapper">
       <div class="glass-nav-floating d-flex align-items-center justify-content-between">
         <a class="d-flex align-items-center gap-3 text-decoration-none" href="/">
-          <img src="../assets/images/karunya-logo.png" alt="Karunya Logo" height="36" width="36" onerror="this.src='https://www.karunya.edu/sites/default/files/karunya_logo.png'">
+          <img src="../Logo.png" alt="Karunya Bus Attendance" height="36" width="32">
           <div class="d-flex flex-column">
             <span class="fw-bold text-white fs-6 mb-0" style="letter-spacing: -0.01em;">Karunya Institute of Technology and Sciences</span>
             <small class="text-white-50" style="font-size: 0.72rem;">Bus Attendance Management System</small>

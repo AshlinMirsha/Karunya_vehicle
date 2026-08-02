@@ -37,3 +37,14 @@ test('database policies scope buses and coordinator attendance to the assigned b
   assert.match(migration, /read authorized attendance/);
   assert.match(migration, /current_user_role\(\) = 'coordinator'/);
 });
+
+test('check-in scanner requests a camera stream and supports QR decoding fallback', async () => {
+  const scanner = await read('js/qr-scanner.js');
+  const page = await read('pages/checkin.html');
+  assert.match(scanner, /mediaDevices\?\.getUserMedia/);
+  assert.match(scanner, /BarcodeDetector/);
+  assert.match(scanner, /window\.jsQR/);
+  assert.match(scanner, /getTracks\(\).*stop/);
+  assert.match(page, /jsqr@1\.4\.0/);
+  assert.match(page, /\.\.\/Logo\.png/);
+});
