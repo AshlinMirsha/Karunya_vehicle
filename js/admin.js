@@ -28,6 +28,7 @@ export async function initAdminDashboard() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   if (profile?.role !== 'admin') return location.replace('/student');
   renderNavbar(user, 'Admin');
+  document.body.classList.add('role-authorized');
 
   const [{ data: students = [] }, { data: buses = [] }, { data: attendance = [] }, { data: coordinators = [] }] = await Promise.all([
     supabase.from('profiles').select('id,full_name,register_number,email,status,buses(bus_number)').eq('role', 'student'),
@@ -46,15 +47,16 @@ export async function initAdminDashboard() {
   renderRows('admin-buses-list', buses.map((bus) => makeRow([bus.bus_number, bus.route, `${bus.radius_meters} m`])), 3, 'No bus records found.');
   renderRows('admin-attendance-list', attendanceRows.map(makeRow), 6, 'No attendance has been recorded yet.');
 
-  const select = document.getElementById('select-bus');
-  buses.forEach((bus) => { const option = document.createElement('option'); option.value = bus.id; option.textContent = `Bus ${bus.bus_number} — ${bus.route}`; select.append(option); });
   document.getElementById('btn-export-csv').addEventListener('click', () => downloadAttendanceSheet(attendanceRows));
   document.getElementById('btn-generate-qr').addEventListener('click', async () => {
-    const { data, error } = await supabase.functions.invoke('attendance-api', { body: { action: 'create-session', busId: select.value, sessionType: document.getElementById('select-session').value } });
+    const busNumber = document.getElementById('input-bus-number').value.trim();
+    const bus = buses.find((item) => String(item.bus_number) === busNumber);
+    if (!bus) return showToast('Enter an active bus number from the Bus service list.', 'danger');
+    const { data, error } = await supabase.functions.invoke('attendance-api', { body: { action: 'create-session', busId: bus.id, busNumber: bus.bus_number, sessionType: document.getElementById('select-session').value, emailQr: document.getElementById('input-email-qr').checked } });
     if (error || !data?.token || !data?.expiresAt) return showToast('QR session could not be created.', 'danger');
     const display = document.getElementById('qr-code-display'); display.replaceChildren();
     new window.QRCode(display, { text: `${location.origin}/checkin?token=${encodeURIComponent(data.token)}`, width: 220, height: 220 });
-    document.getElementById('qr-url-text').textContent = `Expires ${new Date(data.expiresAt).toLocaleTimeString('en-IN')}`;
-    showToast('Secure QR session created.', 'success');
+    document.getElementById('qr-url-text').textContent = `Bus ${bus.bus_number} • Expires ${new Date(data.expiresAt).toLocaleTimeString('en-IN')}`;
+    showToast(data.emailSent === false ? 'QR created, but Gmail delivery could not be completed.' : 'Secure QR session created and emailed.', data.emailSent === false ? 'warning' : 'success');
   });
 }

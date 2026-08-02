@@ -71,14 +71,19 @@ const requestCamera = async () => {
   startDecoder(preview);
 };
 
-const submitAttendance = () => navigator.geolocation.getCurrentPosition(async (position) => {
+const submitAttendance = () => {
+  const token = document.getElementById('input-token').value.trim();
+  if (!extractToken(token)) return showToast('Scan a valid attendance QR code before confirming.', 'danger');
+  if (!window.confirm('Confirm check-in? Your current location will be verified before attendance is recorded.')) return;
+  navigator.geolocation.getCurrentPosition(async (position) => {
   const button = document.getElementById('btn-submit-checkin');
   button.disabled = true; button.textContent = 'Verifying attendance…';
   const { data, error } = await supabase.functions.invoke('attendance-api', { body: { action: 'mark-attendance', token: document.getElementById('input-token').value.trim(), latitude: position.coords.latitude, longitude: position.coords.longitude } });
   button.disabled = false; button.innerHTML = '<i class="fa-solid fa-check me-2"></i>Mark attendance';
   if (error) return showToast('Attendance could not be verified.', 'danger');
   showToast(data?.message ?? 'Attendance marked.', 'success');
-}, () => showToast('Location permission is required to mark attendance.', 'danger'), { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 });
+  }, () => showToast('Location permission is required to mark attendance.', 'danger'), { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 });
+};
 
 export async function initCheckinPage() {
   const { data: { user } } = await supabase.auth.getUser();
