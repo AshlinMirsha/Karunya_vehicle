@@ -1,12 +1,20 @@
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
+const safeAvatarUrl = (value) => {
+  try { const url = new URL(value); return url.protocol === 'https:' ? url.toString() : 'https://via.placeholder.com/32'; }
+  catch { return 'https://via.placeholder.com/32'; }
+};
+
 export function renderNavbar(user = null, activeRole = null) {
   const container = document.getElementById('navbar-container');
   if (!container) return;
 
+  const userName = escapeHtml(user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Karunya User');
+  const avatarUrl = escapeHtml(safeAvatarUrl(user?.user_metadata?.avatar_url));
   const authBadge = user
     ? `<div class="nav-status-badge">
-         <img src="${user.photoURL || 'https://via.placeholder.com/32'}" alt="Profile" width="24" height="24" class="rounded-circle me-1" onerror="this.src='https://via.placeholder.com/24'">
-         <span>${user.displayName || user.email.split('@')[0]}</span>
-         <span class="badge bg-info text-dark ms-1" style="font-size: 0.7rem;">${activeRole || 'Student'}</span>
+         <img src="${avatarUrl}" alt="Profile" width="24" height="24" class="rounded-circle me-1" referrerpolicy="no-referrer" onerror="this.src='https://via.placeholder.com/24'">
+         <span>${userName}</span>
+         <span class="badge bg-info text-dark ms-1" style="font-size: 0.7rem;">${escapeHtml(activeRole || 'Student')}</span>
          <button id="btn-logout-nav" class="btn btn-link text-white-50 p-0 ms-2" style="font-size: 0.8rem; text-decoration: none;"><i class="fa-solid fa-power-off"></i></button>
        </div>`
     : `<div class="nav-status-badge">

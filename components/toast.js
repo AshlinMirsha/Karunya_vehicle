@@ -1,4 +1,6 @@
-// Toast Notification Component
+const TOAST_LIFETIME_MS = 4500;
+const toastStyle = (type) => ({ success: 'bg-success', danger: 'bg-danger', warning: 'bg-warning text-dark' }[type] ?? 'bg-primary');
+
 export function showToast(message, type = 'info') {
   let container = document.getElementById('toast-container');
   if (!container) {
@@ -6,25 +8,14 @@ export function showToast(message, type = 'info') {
     container.id = 'toast-container';
     document.body.appendChild(container);
   }
-
-  const toastId = `toast-${Date.now()}`;
-  const bgClass = type === 'success' ? 'bg-success' : type === 'danger' ? 'bg-danger' : type === 'warning' ? 'bg-warning text-dark' : 'bg-primary';
-
-  const toastHtml = `
-    <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0 show shadow-lg mb-2" role="alert" aria-live="assertive" aria-atomic="true">
-      <div class="d-flex">
-        <div class="toast-body font-monospace fs-6">
-          ${message}
-        </div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-      </div>
-    </div>
-  `;
-
-  container.insertAdjacentHTML('beforeend', toastHtml);
-
-  setTimeout(() => {
-    const element = document.getElementById(toastId);
-    if (element) element.remove();
-  }, 4500);
+  const toast = document.createElement('div');
+  toast.className = `toast align-items-center text-white ${toastStyle(type)} border-0 show shadow-lg mb-2`;
+  toast.setAttribute('role', 'alert');
+  toast.setAttribute('aria-live', 'assertive');
+  const body = document.createElement('div');
+  body.className = 'toast-body font-monospace fs-6';
+  body.textContent = String(message);
+  toast.append(body);
+  container.append(toast);
+  setTimeout(() => toast.remove(), TOAST_LIFETIME_MS);
 }

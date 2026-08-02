@@ -1,2 +1,38 @@
-import { supabase } from '../supabase/client.js'; import { renderNavbar } from '../components/navbar.js';
-export async function initAdminDashboard(){const {data:{user}}=await supabase.auth.getUser();if(!user)return location.replace('/');const {data:profile}=await supabase.from('profiles').select('role').eq('id',user.id).single();if(profile?.role!=='admin')return location.replace('/student');renderNavbar(user,'Admin');const [{data:students},{data:buses},{data:attendance},{data:coordinators}]=await Promise.all([supabase.from('profiles').select('*').eq('role','student'),supabase.from('buses').select('*'),supabase.from('attendance').select('id'),supabase.from('profiles').select('id').in('role',['admin','coordinator'])]);document.getElementById('stat-total-students').textContent=students?.length||0;document.getElementById('stat-active-buses').textContent=buses?.length||0;document.getElementById('stat-coordinators').textContent=coordinators?.length||0;document.getElementById('stat-today-attendance').textContent=attendance?.length||0;document.getElementById('admin-students-list').innerHTML=(students||[]).map(s=>`<tr><td>${s.register_number||''}</td><td>${s.full_name||''}</td><td>${s.email}</td><td>${s.bus_id||'Pending'}</td><td>${s.status}</td><td>Supabase</td></tr>`).join('');document.getElementById('admin-buses-list').innerHTML=(buses||[]).map(b=>`<tr><td>${b.bus_number}</td><td>${b.route}</td><td>—</td><td>${b.latitude}, ${b.longitude}</td><td>${b.radius_meters}m</td><td>Supabase</td></tr>`).join('');}
+import { supabase } from '../supabase/client.js';
+import { renderNavbar } from '../components/navbar.js';
+
+const setText = (id, value) => { document.getElementById(id).textContent = String(value); };
+const cell = (value) => { const element = document.createElement('td'); element.textContent = value ?? ''; return element; };
+
+const renderStudents = (students) => {
+  const body = document.getElementById('admin-students-list');
+  body.replaceChildren(...students.map((student) => {
+    const row = document.createElement('tr');
+    [student.register_number, student.full_name, student.email, student.bus_id ?? 'Pending', student.status, 'Supabase'].forEach((value) => row.append(cell(value)));
+    return row;
+  }));
+};
+
+const renderBuses = (buses) => {
+  const body = document.getElementById('admin-buses-list');
+  body.replaceChildren(...buses.map((bus) => {
+    const row = document.createElement('tr');
+    [bus.bus_number, bus.route, '—', `${bus.latitude}, ${bus.longitude}`, `${bus.radius_meters}m`, 'Supabase'].forEach((value) => row.append(cell(value)));
+    return row;
+  }));
+};
+
+export async function initAdminDashboard() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return location.replace('/');
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  if (profile?.role !== 'admin') return location.replace('/student');
+  renderNavbar(user, 'Admin');
+  const [{ data: students }, { data: buses }, { data: attendance }, { data: coordinators }] = await Promise.all([
+    supabase.from('profiles').select('*').eq('role', 'student'), supabase.from('buses').select('*'),
+    supabase.from('attendance').select('id'), supabase.from('profiles').select('id').in('role', ['admin', 'coordinator']),
+  ]);
+  setText('stat-total-students', students?.length ?? 0); setText('stat-active-buses', buses?.length ?? 0);
+  setText('stat-coordinators', coordinators?.length ?? 0); setText('stat-today-attendance', attendance?.length ?? 0);
+  renderStudents(students ?? []); renderBuses(buses ?? []);
+}

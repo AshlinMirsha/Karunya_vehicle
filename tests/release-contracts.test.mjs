@@ -26,4 +26,14 @@ test('attendance API remains JWT-protected', async () => {
   assert.match(config, /\[functions\.attendance-api\][\s\S]*verify_jwt = true/);
   assert.match(api, /headers: \{ Authorization: authorization \}/);
   assert.match(api, /auth\.getUser\(\)/);
+  assert.match(api, /SESSION_TYPES\.has\(body\.sessionType\)/);
+  assert.match(api, /QR_TOKEN_PATTERN/);
+  assert.match(api, /withinCoordinateBounds/);
+});
+
+test('database policies scope buses and coordinator attendance to the assigned bus', async () => {
+  const migration = await read('supabase/migrations/20260802143000_harden_rls_policies.sql');
+  assert.match(migration, /read assigned bus/);
+  assert.match(migration, /read authorized attendance/);
+  assert.match(migration, /current_user_role\(\) = 'coordinator'/);
 });
