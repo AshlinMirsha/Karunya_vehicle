@@ -1,6 +1,8 @@
 import { supabase } from '../supabase/client.js';
 import { consumeProtectedRedirect, loginWithGoogle } from './auth.js';
 
+const ADMIN_EMAILS = new Set(['ashlinmirsha@karunya.edu.in']);
+
 const loginButton = document.getElementById('btn-google-login');
 if (loginButton) {
   const initialMarkup = loginButton.innerHTML;
@@ -21,10 +23,11 @@ async function redirectAuthenticatedUser() {
   if (!user) return;
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const isAdmin = profile?.role === 'admin' || ADMIN_EMAILS.has(user.email?.toLowerCase() ?? '');
   const protectedRedirect = consumeProtectedRedirect();
-  const roleHome = profile?.role === 'admin' ? '/dashboard' : profile?.role === 'coordinator' ? '/coordinator' : '/student';
+  const roleHome = isAdmin ? '/dashboard' : profile?.role === 'coordinator' ? '/coordinator' : '/student';
   const safeRedirect = protectedRedirect && (
-    profile?.role === 'admin'
+    isAdmin
     || (profile?.role === 'coordinator' && protectedRedirect !== '/dashboard')
     || (profile?.role === 'student' && protectedRedirect !== '/dashboard' && protectedRedirect !== '/coordinator')
   );

@@ -133,17 +133,24 @@ test('protected pages require authenticated render and preserve safe post-login 
     read('js/admin.js'),
     read('js/qr-scanner.js'),
   ]);
+  const vercel = await read('vercel.json');
   assert.match(auth, /SAFE_REDIRECT_PATTERN/);
   assert.match(auth, /postLoginRedirect/);
   assert.match(login, /consumeProtectedRedirect\(\)/);
+  assert.match(login, /ADMIN_EMAILS/);
+  assert.match(login, /ashlinmirsha@karunya\.edu\.in/);
   assert.match(login, /roleHome/);
   assert.match(login, /safeRedirect/);
-  assert.match(login, /profile\?\.role === 'admin' \? '\/dashboard'/);
+  assert.match(login, /isAdmin \? '\/dashboard'/);
   assert.match(await read('js/student.js'), /auth\.getSession\(\)/);
+  assert.match(await read('js/student.js'), /ADMIN_EMAILS/);
   assert.match(await read('js/student.js'), /roleProfile\?\.role === 'admin'/);
   assert.match(await read('js/student.js'), /location\.replace\('\/dashboard'\)/);
   assert.match(await read('js/admin.js'), /auth\.getSession\(\)/);
+  assert.match(await read('js/admin.js'), /ADMIN_EMAILS/);
   assert.match(await read('js/coordinator.js'), /auth\.getSession\(\)/);
+  assert.match(vercel, /Cache-Control/);
+  assert.match(vercel, /no-store, max-age=0/);
   assert.match(styles, /\.protected-page:not\(\.role-authorized\) main/);
   assert.match(student, /protected-page/);
   assert.match(student, /document\.readyState === 'loading'/);
