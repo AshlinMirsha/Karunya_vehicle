@@ -1,6 +1,7 @@
 import { supabase } from '../supabase/client.js';
 import { renderNavbar } from '../components/navbar.js';
 import { showToast } from '../components/toast.js';
+import { rememberProtectedRedirect } from './auth.js';
 
 const addBusOption = (select, bus) => {
   const option = document.createElement('option');
@@ -10,11 +11,14 @@ const addBusOption = (select, bus) => {
 };
 
 export async function initCoordinatorDashboard() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) { rememberProtectedRedirect(); return location.replace('/'); }
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return location.replace('/');
+  if (!user) { rememberProtectedRedirect(); return location.replace('/'); }
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   if (!['admin', 'coordinator'].includes(profile?.role)) return location.replace('/student');
   renderNavbar(user, 'Coordinator');
+  document.body.classList.add('role-authorized');
 
   const { data: buses, error } = await supabase.from('buses').select('id,bus_number,route');
   const select = document.getElementById('select-bus');

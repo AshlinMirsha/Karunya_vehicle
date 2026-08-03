@@ -1,14 +1,18 @@
 import { supabase } from '../supabase/client.js';
 import { renderNavbar } from '../components/navbar.js';
 import { showToast } from '../components/toast.js';
+import { rememberProtectedRedirect } from './auth.js';
 
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' }[character]));
 const initialFromName = (value) => String(value || 'K').trim().charAt(0).toUpperCase() || 'K';
 
 export async function initStudentDashboard() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) { rememberProtectedRedirect(); window.location.replace('/'); return; }
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) { window.location.replace('/'); return; }
+  if (!user) { rememberProtectedRedirect(); window.location.replace('/'); return; }
   renderNavbar(user, 'Student');
+  document.body.classList.add('role-authorized');
   const { data: profile, error: profileError } = await supabase.from('profiles').select('full_name, register_number, status, buses(bus_number)').eq('id', user.id).single();
   if (profileError) { showToast('Your student profile is still being created. Refresh in a moment.', 'warning'); return; }
   const studentName = profile.full_name || user.user_metadata?.full_name || 'Karunya Student';

@@ -78,10 +78,12 @@ Deno.serve(async (request) => {
   if (request.headers.get('x-cron-secret') !== Deno.env.get('CRON_SECRET')) return json({ message: 'Unauthorized' }, 401);
   try {
     const database = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-    const [{ data: faculty }, { data: buses }] = await Promise.all([
+    const [{ data: faculty, error: facultyError }, { data: buses, error: busesError }] = await Promise.all([
       database.from('profiles').select('id,email').eq('email', FACULTY_EMAIL).single(),
       database.from('buses').select('id,bus_number'),
     ]);
+    if (facultyError) throw new Error(`Faculty lookup failed: ${facultyError.message}`);
+    if (busesError) throw new Error(`Bus lookup failed: ${busesError.message}`);
     if (!faculty || !buses?.length) return json({ message: 'Faculty account or buses are missing' }, 409);
 
     const accessToken = await fetchGmailAccessToken();
@@ -101,11 +103,14 @@ Deno.serve(async (request) => {
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ raw: base64Url(raw) }),
       });
-      if (!gmailResponse.ok) throw new Error(`Gmail did not accept the Bus ${bus.bus_number} email`);
+      if (!gmailResponse.ok) {
+        throw new Error(`Gmail did not accept the Bus ${bus.bus_number} email: ${await gmailResponse.text()}`);
+      }
     }
     return json({ message: 'QR sessions created and faculty email sent' });
   } catch (error) {
-    console.error('daily-qr failed', error instanceof Error ? error.message : 'Unknown error');
-    return json({ message: 'Could not create and deliver the scheduled QR' }, 502);
+    const reason = error instanceof Error ? error.message : 'Unknown error';
+    console.error('daily-qr failed', reason);
+    return json({ message: 'Could not create and deliver the scheduled QR', reason }, 502);
   }
 });
