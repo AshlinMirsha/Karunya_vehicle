@@ -10,12 +10,22 @@ const addBusOption = (select, bus) => {
   select.append(option);
 };
 
+const studentRow = (student, busNumber) => {
+  const row = document.createElement('tr');
+  for (const value of [student.full_name || 'Unnamed student', student.register_number || '—', student.status === 'active' ? 'Ready to check in' : student.status, busNumber, 'Assigned bus']) {
+    const cell = document.createElement('td');
+    cell.textContent = value;
+    row.append(cell);
+  }
+  return row;
+};
+
 export async function initCoordinatorDashboard() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) { rememberProtectedRedirect(); return location.replace('/'); }
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) { rememberProtectedRedirect(); return location.replace('/'); }
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const { data: profile } = await supabase.from('profiles').select('role,bus_id,buses(bus_number)').eq('id', user.id).single();
   if (!['admin', 'coordinator'].includes(profile?.role)) return location.replace('/student');
   renderNavbar(user, 'Coordinator');
   document.body.classList.add('role-authorized');
@@ -28,6 +38,32 @@ export async function initCoordinatorDashboard() {
     return;
   }
   buses.forEach((bus) => addBusOption(select, bus));
+
+  const { data: students, error: studentsError } = await supabase
+    .from('profiles')
+    .select('full_name,register_number,status')
+    .eq('role', 'student')
+    .eq('bus_id', profile.bus_id)
+    .order('register_number');
+  const list = document.getElementById('coordinator-student-list');
+  list.replaceChildren();
+  if (studentsError) {
+    showToast('Assigned students could not be loaded.', 'danger');
+    return;
+  }
+  if (!students?.length) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 5;
+    cell.className = 'text-center text-muted py-4';
+    cell.textContent = 'No students are assigned to your bus.';
+    row.append(cell);
+    list.append(row);
+  } else {
+    const busNumber = profile.buses?.bus_number ? `Bus ${profile.buses.bus_number}` : 'Assigned bus';
+    list.append(...students.map((student) => studentRow(student, busNumber)));
+  }
+  document.getElementById('present-count').textContent = String(students?.length ?? 0);
 
   document.getElementById('btn-generate-qr').onclick = async () => {
     const sessionType = document.getElementById('select-session').value;
