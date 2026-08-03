@@ -39,14 +39,19 @@ test('database policies scope buses and coordinator attendance to the assigned b
 });
 
 test('attendance sheets can read their session and bus relationships', async () => {
-  const [policy, dashboard] = await Promise.all([
+  const [policy, dashboard, student, details] = await Promise.all([
     read('supabase/migrations/20260803051000_allow_attendance_session_reads.sql'),
     read('js/admin.js'),
+    read('js/student.js'),
+    read('js/attendance-details.js'),
   ]);
   assert.match(policy, /read authorized attendance sessions/);
   assert.match(policy, /current_user_role\(\) = 'admin'/);
   assert.match(policy, /attendance\.student_id = auth\.uid\(\)/);
-  assert.match(dashboard, /attendance_sessions!inner\(session_type,buses!inner\(bus_number\)\)/);
+  assert.match(dashboard, /select\('student_id,session_id,status,checked_in_at'\)/);
+  assert.match(student, /select\('session_id,status,checked_in_at'\)/);
+  assert.match(details, /from\('attendance_sessions'\)/);
+  assert.match(details, /from\('buses'\)/);
 });
 
 test('Benesha Mercy is seeded as an active student on Bus 1', async () => {

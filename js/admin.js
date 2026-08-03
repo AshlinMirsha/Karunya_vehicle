@@ -2,6 +2,7 @@ import { supabase } from '../supabase/client.js';
 import { renderNavbar } from '../components/navbar.js';
 import { showToast } from '../components/toast.js';
 import { rememberProtectedRedirect } from './auth.js';
+import { loadAttendanceDetails } from './attendance-details.js';
 
 const setText = (id, value) => { document.getElementById(id).textContent = String(value); };
 const cell = (value) => { const element = document.createElement('td'); element.textContent = String(value ?? '—'); return element; };
@@ -34,19 +35,27 @@ export async function initAdminDashboard() {
   renderNavbar(user, 'Admin');
   document.body.classList.add('role-authorized');
 
-  const [{ data: students = [] }, { data: buses = [] }, { data: attendance = [] }, { data: coordinators = [] }] = await Promise.all([
+  const [studentsResult, busesResult, attendanceResult, coordinatorsResult] = await Promise.all([
     supabase.from('profiles').select('id,full_name,register_number,email,status,buses(bus_number)').eq('role', 'student'),
     supabase.from('buses').select('id,bus_number,route,radius_meters').order('bus_number'),
-    supabase.from('attendance').select('student_id,status,checked_in_at,attendance_sessions!inner(session_type,buses!inner(bus_number))').order('checked_in_at', { ascending: false }).limit(200),
+    supabase.from('attendance').select('student_id,session_id,status,checked_in_at').order('checked_in_at', { ascending: false }).limit(200),
     supabase.from('profiles').select('id').in('role', ['admin', 'coordinator']),
   ]);
+  const students = studentsResult.data ?? [];
+  const buses = busesResult.data ?? [];
+  const attendance = attendanceResult.data ?? [];
+  const coordinators = coordinatorsResult.data ?? [];
+  const dashboardError = [studentsResult.error, busesResult.error, attendanceResult.error, coordinatorsResult.error].find(Boolean);
+  if (dashboardError) showToast('Some dashboard records could not be loaded. Refresh and try again.', 'danger');
+  const { records: attendanceWithDetails, error: detailsError } = await loadAttendanceDetails(attendance);
+  if (detailsError) showToast('Attendance session details could not be loaded. Refresh and try again.', 'danger');
   const studentById = new Map(students.map((student) => [student.id, student]));
-  const attendanceRows = attendance.map((record) => {
+  const attendanceRows = attendanceWithDetails.map((record) => {
     const student = studentById.get(record.student_id);
-    return [student?.full_name ?? 'Unknown student', student?.register_number ?? '—', record.attendance_sessions?.buses?.bus_number ?? '—', record.attendance_sessions?.session_type ?? '—', new Date(record.checked_in_at).toLocaleString('en-IN'), record.status];
+    return [student?.full_name ?? 'Unknown student', student?.register_number ?? '—', record.bus?.bus_number ?? '—', record.session?.session_type ?? '—', new Date(record.checked_in_at).toLocaleString('en-IN'), record.status];
   });
   setText('stat-total-students', students.length); setText('stat-active-buses', buses.length);
-  setText('stat-coordinators', coordinators.length); setText('stat-today-attendance', attendance.filter((record) => record.checked_in_at >= todayStart()).length);
+  setText('stat-coordinators', coordinators.length); setText('stat-today-attendance', attendanceWithDetails.filter((record) => record.checked_in_at >= todayStart()).length);
   renderRows('admin-students-list', students.map((student) => makeRow([student.register_number, student.full_name, student.email, student.buses?.bus_number ?? 'Unassigned', student.status])), 5, 'No student records found.');
   renderRows('admin-buses-list', buses.map((bus) => makeRow([bus.bus_number, bus.route, `${bus.radius_meters} m`])), 3, 'No bus records found.');
   renderRows('admin-attendance-list', attendanceRows.map(makeRow), 6, 'No attendance has been recorded yet.');
