@@ -33,12 +33,7 @@ const addBusFilterOption = (select, bus) => {
 };
 
 const loadAssignedStudentsForBus = async (busId) => {
-  const query = supabase
-    .from('profiles')
-    .select('id,full_name,register_number,email,status,bus_id,buses(bus_number)')
-    .eq('role', 'student')
-    .order('register_number');
-  const { data, error } = await (busId ? query.eq('bus_id', busId) : query);
+  const { data, error } = await supabase.rpc('admin_student_records', { p_bus_id: busId || null });
   if (error) {
     showToast('Assigned student records could not be loaded for this bus.', 'danger');
     return [];
@@ -67,13 +62,13 @@ export async function initAdminDashboard() {
   document.body.classList.add('role-authorized');
 
   const [busesResult, attendanceResult, coordinatorsResult] = await Promise.all([
-    supabase.from('buses').select('id,bus_number,route,radius_meters').order('bus_number'),
+    supabase.rpc('admin_bus_records'),
     supabase.rpc('admin_attendance_sheet'),
-    supabase.from('profiles').select('id').in('role', ['admin', 'coordinator']),
+    supabase.rpc('admin_coordinator_count'),
   ]);
   const buses = busesResult.data ?? [];
   const attendance = attendanceResult.data ?? [];
-  const coordinators = coordinatorsResult.data ?? [];
+  const coordinators = coordinatorsResult.data ?? 0;
   const dashboardError = [busesResult.error, attendanceResult.error, coordinatorsResult.error].find(Boolean);
   if (dashboardError) showToast('Some dashboard records could not be loaded. Refresh and try again.', 'danger');
   const busFilter = document.getElementById('select-admin-student-bus');
@@ -86,14 +81,14 @@ export async function initAdminDashboard() {
   const renderAssignedStudents = async () => {
     const students = await loadAssignedStudentsForBus(busFilter.value);
     setText('stat-total-students', students.length);
-    renderRows('admin-students-list', students.map((student) => makeRow([student.register_number, student.full_name, student.email, student.buses?.bus_number ?? 'Unassigned', student.status])), 5, 'No student records found for this bus.');
+    renderRows('admin-students-list', students.map((student) => makeRow([student.register_number, student.full_name, student.email, student.bus_number ?? 'Unassigned', student.status])), 5, 'No student records found for this bus.');
   };
   const attendanceRows = attendance.map((record) => {
     const mapUrl = mapUrlFor(record.latitude, record.longitude);
     return [record.full_name ?? 'Unknown student', record.register_number ?? '—', record.bus_number ?? '—', record.session_type ?? '—', formatCoordinate(record.latitude), formatCoordinate(record.longitude), mapUrl ?? '—', new Date(record.checked_in_at).toLocaleString('en-IN'), record.status];
   });
   setText('stat-active-buses', buses.length);
-  setText('stat-coordinators', coordinators.length); setText('stat-today-attendance', attendance.filter((record) => record.checked_in_at >= todayStart()).length);
+  setText('stat-coordinators', coordinators); setText('stat-today-attendance', attendance.filter((record) => record.checked_in_at >= todayStart()).length);
   busFilter.addEventListener('change', renderAssignedStudents);
   await renderAssignedStudents();
   renderRows('admin-buses-list', buses.map((bus) => makeRow([bus.bus_number, bus.route, `${bus.radius_meters} m`])), 3, 'No bus records found.');

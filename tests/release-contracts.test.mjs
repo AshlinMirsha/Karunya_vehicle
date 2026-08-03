@@ -71,11 +71,12 @@ test('database policies scope buses and coordinator attendance to the assigned b
 });
 
 test('attendance sheets can read their session and bus relationships', async () => {
-  const [policy, dashboard, student, functions] = await Promise.all([
+  const [policy, dashboard, student, functions, adminResolvers] = await Promise.all([
     read('supabase/migrations/20260803051000_allow_attendance_session_reads.sql'),
     read('js/admin.js'),
     read('js/student.js'),
     read('supabase/migrations/20260803052000_add_attendance_dashboard_functions.sql'),
+    read('supabase/migrations/20260803141500_add_admin_dashboard_data_resolvers.sql'),
   ]);
   assert.match(policy, /read authorized attendance sessions/);
   assert.match(policy, /current_user_role\(\) = 'admin'/);
@@ -85,6 +86,13 @@ test('attendance sheets can read their session and bus relationships', async () 
   assert.match(functions, /security definer/);
   assert.match(functions, /grant execute on function public\.student_attendance_history\(\) to authenticated/);
   assert.match(functions, /grant execute on function public\.admin_attendance_sheet\(\) to authenticated/);
+  assert.match(adminResolvers, /ensure_current_user_admin/);
+  assert.match(adminResolvers, /admin_bus_records/);
+  assert.match(adminResolvers, /admin_student_records/);
+  assert.match(adminResolvers, /admin_coordinator_count/);
+  assert.match(dashboard, /rpc\('admin_bus_records'\)/);
+  assert.match(dashboard, /rpc\('admin_student_records'/);
+  assert.match(dashboard, /rpc\('admin_coordinator_count'\)/);
   const coordinates = await read('supabase/migrations/20260803053000_add_admin_attendance_coordinates.sql');
   assert.match(coordinates, /latitude double precision/);
   assert.match(coordinates, /longitude double precision/);
@@ -158,7 +166,8 @@ test('protected pages require authenticated render and preserve safe post-login 
   assert.match(await read('js/admin.js'), /auth\.getSession\(\)/);
   assert.match(await read('js/admin.js'), /rpc\('current_app_profile'\)/);
   assert.match(admin, /loadAssignedStudentsForBus/);
-  assert.match(admin, /\.eq\('bus_id', busId\)/);
+  assert.match(admin, /admin_student_records/);
+  assert.match(admin, /p_bus_id: busId \|\| null/);
   assert.match(adminPage, /select-admin-student-bus/);
   assert.match(adminPage, /Assigned student records fetched by bus/);
   assert.doesNotMatch(await read('js/admin.js'), /ashlinmirsha@karunya\.edu\.in/);
