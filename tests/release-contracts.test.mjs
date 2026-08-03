@@ -16,6 +16,8 @@ test('daily QR function protects the scheduler and delivers a QR email', async (
   assert.match(source, /x-cron-secret/);
   assert.match(source, /GMAIL_REFRESH_TOKEN/);
   assert.match(source, /npm:qrcode@/);
+  assert.match(source, /QRCode\.toDataURL/);
+  assert.match(source, /Content-Type: image\/png/);
   assert.match(source, /Content-ID: <\$\{QR_IMAGE_CID\}>/);
   assert.match(source, /Gmail did not accept/);
 });
