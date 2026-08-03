@@ -8,6 +8,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const QR_TOKEN_PATTERN = /^[0-9a-f]{64}$/i;
 const SESSION_TYPES = new Set(['Morning', 'Evening']);
 const QR_IMAGE_CID = 'manual-attendance-qr';
+const MAX_REQUEST_BODY_BYTES = 2_048;
 const corsHeaders = {
   'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -17,6 +18,11 @@ const corsHeaders = {
 };
 
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: corsHeaders });
+const isAllowedOrigin = (request: Request) => request.headers.get('Origin') === ALLOWED_ORIGIN;
+const hasValidJsonBody = (request: Request) => {
+  const length = Number(request.headers.get('content-length') ?? '0');
+  return request.headers.get('content-type')?.includes('application/json') === true && (!Number.isFinite(length) || length <= MAX_REQUEST_BODY_BYTES);
+};
 const withinCoordinateBounds = (latitude: unknown, longitude: unknown) => Number.isFinite(latitude) && Number.isFinite(longitude)
   && Math.abs(latitude as number) <= 90 && Math.abs(longitude as number) <= 180;
 const distanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -46,8 +52,10 @@ const sendManualQrEmail = async (recipient: string, busNumber: string, sessionTy
 };
 
 Deno.serve(async (request) => {
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (request.method === 'OPTIONS') return isAllowedOrigin(request) ? new Response('ok', { headers: corsHeaders }) : response({ message: 'Forbidden origin.' }, 403);
   if (request.method !== 'POST') return response({ message: 'Method not allowed.' }, 405);
+  if (!isAllowedOrigin(request)) return response({ message: 'Forbidden origin.' }, 403);
+  if (!hasValidJsonBody(request)) return response({ message: 'Invalid request format.' }, 415);
   const authorization = request.headers.get('Authorization');
   const qrSecret = Deno.env.get('QR_SECRET');
   if (!authorization || !qrSecret) return response({ message: 'Unauthorized request.' }, 401);
@@ -60,7 +68,12 @@ Deno.serve(async (request) => {
     const { data: profile } = await adminClient.from('profiles').select('*').eq('id', user.id).single();
     if (!profile) return response({ message: 'Profile is not ready. Please sign in again.' }, 409);
     const body = await request.json().catch(() => null);
-    if (!body || typeof body !== 'object') return response({ message: 'Invalid request.' }, 400);
+    if (!body || typeof body !== 'object' || !['create-session', 'mark-attendance'].includes((body as { action?: string }).action ?? '')) return response({ message: 'Invalid request.' }, 400);
+    const { data: limit, error: limitError } = await adminClient.rpc('consume_attendance_rate_limit', { p_actor_id: user.id, p_action: body.action }).single();
+    if (limitError || !limit?.allowed) {
+      await adminClient.from('security_audit_events').insert({ actor_id: user.id, action: body.action, outcome: 'rate_limited' });
+      return response({ message: `Too many requests. Try again in ${Math.max(1, limit?.retry_after_seconds ?? 600)} seconds.` }, 429);
+    }
 
     if (body.action === 'create-session') {
       if (!['admin', 'coordinator'].includes(profile.role)) return response({ message: 'Not authorized.' }, 403);
@@ -76,6 +89,7 @@ Deno.serve(async (request) => {
       const emailSent = body.emailQr === true && profile.role === 'admin'
         ? await sendManualQrEmail(profile.email, String(bus.bus_number), body.sessionType, token).catch(() => false)
         : body.emailQr !== true;
+      await adminClient.from('security_audit_events').insert({ actor_id: user.id, action: body.action, outcome: 'allowed' });
       return response({ token, sessionId: session.id, expiresAt, emailSent });
     }
 
@@ -89,6 +103,7 @@ Deno.serve(async (request) => {
       const { error } = await adminClient.from('attendance').insert({ session_id: session.id, student_id: user.id, latitude, longitude });
       if (error?.code === '23505') return response({ message: 'Attendance is already registered for this session.' }, 409);
       if (error) return response({ message: 'Attendance could not be recorded.' }, 500);
+      await adminClient.from('security_audit_events').insert({ actor_id: user.id, action: body.action, outcome: 'allowed' });
       return response({ message: 'Attendance marked successfully!' });
     }
     return response({ message: 'Unknown action.' }, 400);
