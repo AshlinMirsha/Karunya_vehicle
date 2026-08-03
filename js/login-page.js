@@ -23,10 +23,11 @@ async function redirectAuthenticatedUser() {
   const { data: profile, error } = await supabase.rpc('current_app_profile').single();
   if (error || !profile?.role) return;
   const protectedRedirect = consumeProtectedRedirect();
-  const roleHome = profile?.role === 'coordinator' ? '/coordinator' : '/student';
+  const roleHome = profile?.role === 'admin' ? '/admin' : profile?.role === 'coordinator' ? '/coordinator' : '/student';
   const safeRedirect = protectedRedirect && (
-    profile?.role === 'coordinator'
-    || (profile?.role === 'student' && protectedRedirect !== '/coordinator')
+    profile?.role === 'admin'
+    || (profile?.role === 'coordinator' && !['/admin', '/dashboard'].includes(protectedRedirect))
+    || (profile?.role === 'student' && !['/admin', '/dashboard', '/coordinator'].includes(protectedRedirect))
   );
   window.location.href = safeRedirect ? protectedRedirect : roleHome;
 }

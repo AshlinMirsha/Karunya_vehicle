@@ -21,8 +21,12 @@
       "destination": "/pages/coordinator.html"
     },
     {
+      "source": "/admin",
+      "destination": "/pages/admin.html"
+    },
+    {
       "source": "/dashboard",
-      "destination": "/pages/coordinator.html"
+      "destination": "/pages/admin.html"
     },
     {
       "source": "/:path*",
