@@ -19,6 +19,7 @@ test('daily QR function protects the scheduler and delivers a QR email', async (
   assert.match(source, /QRCode\.toDataURL/);
   assert.match(source, /Content-Type: image\/png/);
   assert.match(source, /Content-ID: <\$\{QR_IMAGE_CID\}>/);
+  assert.match(source, /QR_SESSION_DURATION_MS = 5 \* 60 \* 60 \* 1000/);
   assert.match(source, /Gmail did not accept/);
 });
 
@@ -36,6 +37,7 @@ test('attendance API remains JWT-protected', async () => {
   assert.match(api, /Forbidden origin/);
   assert.match(api, /consume_attendance_rate_limit/);
   assert.match(api, /security_audit_events/);
+  assert.match(api, /SESSION_DURATION_MS = 5 \* 60 \* 60 \* 1000/);
   assert.match(client, /storage: window\.sessionStorage/);
   assert.match(client, /flowType: 'pkce'/);
 });
