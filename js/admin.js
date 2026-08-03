@@ -3,6 +3,7 @@ import { renderNavbar } from '../components/navbar.js';
 import { showToast } from '../components/toast.js';
 import { rememberProtectedRedirect } from './auth.js';
 
+const ADMIN_EMAILS = new Set(['ashlinmirsha@karunya.edu.in']);
 const setText = (id, value) => { document.getElementById(id).textContent = String(value); };
 const cell = (value) => { const element = document.createElement('td'); if (value instanceof Node) element.append(value); else element.textContent = String(value ?? '—'); return element; };
 const makeRow = (values) => { const row = document.createElement('tr'); values.forEach((value) => row.append(cell(value))); return row; };
@@ -40,7 +41,7 @@ export async function initAdminDashboard() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) { rememberProtectedRedirect(); return location.replace('/'); }
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (profile?.role !== 'admin') return location.replace('/student');
+  if (profile?.role !== 'admin' && !ADMIN_EMAILS.has(user.email?.toLowerCase() ?? '')) return location.replace('/student');
   renderNavbar(user, 'Admin');
   document.body.classList.add('role-authorized');
 
