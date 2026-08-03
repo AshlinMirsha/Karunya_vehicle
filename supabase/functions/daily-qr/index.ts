@@ -31,10 +31,13 @@ const getSessionType = () => Number(new Date().toLocaleString('en-US', {
 
 const buildEmail = async (recipient: string, busNumber: string, checkinUrl: string, sessionType: string) => {
   const boundary = `bus-attendance-${crypto.randomUUID()}`;
-  const svg = await QRCode.toString(checkinUrl, { type: 'svg', errorCorrectionLevel: 'M', margin: 2, width: 320 });
-  const encodedSvg = btoa(unescape(encodeURIComponent(svg))).replace(/(.{76})/g, '$1\r\n');
+  // Gmail mobile clients render CID PNG reliably; inline SVG QR images are often suppressed.
+  const qrDataUrl = await QRCode.toDataURL(checkinUrl, { errorCorrectionLevel: 'M', margin: 2, width: 640 });
+  const encodedPng = qrDataUrl.split(',', 2)[1];
+  if (!encodedPng) throw new Error('Could not encode attendance QR image');
+  const wrappedPng = encodedPng.replace(/(.{76})/g, '$1\r\n');
   const subject = `Bus ${busNumber} ${sessionType} Attendance QR`;
-  const html = `<p>Hello Faculty,</p><p>The <strong>Bus ${busNumber}</strong> ${sessionType.toLowerCase()} attendance QR is ready.</p><p><img src="cid:${QR_IMAGE_CID}" alt="Bus ${busNumber} attendance QR code" width="320" height="320"></p><p>If the image is not shown, open the attached QR image or use this secure link: <a href="${checkinUrl}">Open attendance check-in</a>.</p><p>This code expires in one hour.</p><p>Karunya Attend Team</p>`;
+  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f7fa;color:#102a43;font-family:Arial,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #d9e2ec;border-radius:16px"><tr><td style="padding:32px"><p style="margin:0 0 12px;color:#486581;font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase">Karunya bus attendance</p><h1 style="margin:0 0 16px;font-size:24px">Bus ${busNumber} ${sessionType} QR</h1><p style="margin:0 0 24px;line-height:1.5">Scan this QR code to open the secure attendance check-in.</p><p style="margin:0 0 24px;text-align:center"><img src="cid:${QR_IMAGE_CID}" alt="Bus ${busNumber} attendance QR code" width="320" height="320" style="display:inline-block;max-width:100%;height:auto;border:0"></p><p style="margin:0 0 12px;line-height:1.5">If the image does not appear, use this secure link:</p><p style="margin:0 0 24px"><a href="${checkinUrl}" style="display:inline-block;padding:12px 18px;background:#1769aa;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold">Open attendance check-in</a></p><p style="margin:0;color:#627d98;font-size:13px">This code expires in one hour.</p></td></tr></table></td></tr></table></body></html>`;
   return [
     `To: ${recipient}`,
     `From: ${recipient}`,
@@ -47,12 +50,12 @@ const buildEmail = async (recipient: string, busNumber: string, checkinUrl: stri
     '',
     html,
     `--${boundary}`,
-    'Content-Type: image/svg+xml; name="bus-attendance-qr.svg"',
+    'Content-Type: image/png; name="bus-attendance-qr.png"',
     'Content-Transfer-Encoding: base64',
     `Content-ID: <${QR_IMAGE_CID}>`,
-    'Content-Disposition: inline; filename="bus-attendance-qr.svg"',
+    'Content-Disposition: inline; filename="bus-attendance-qr.png"',
     '',
-    encodedSvg,
+    wrappedPng,
     `--${boundary}--`,
   ].join('\r\n');
 };
