@@ -60,7 +60,8 @@ export function renderNavbar(user = null, activeRole = null) {
     tapReset = window.setTimeout(() => {
       const message = easterEggMessages.get(logoTaps);
       if (message) {
-        easterEggDialog?.querySelector('#brand-easter-egg-title').textContent = message;
+        const title = easterEggDialog?.querySelector('#brand-easter-egg-title');
+        if (title) title.textContent = message;
         easterEggDialog?.showModal();
       }
       logoTaps = 0;

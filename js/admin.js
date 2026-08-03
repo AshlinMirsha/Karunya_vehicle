@@ -1,6 +1,7 @@
 import { supabase } from '../supabase/client.js';
 import { renderNavbar } from '../components/navbar.js';
 import { showToast } from '../components/toast.js';
+import { rememberProtectedRedirect } from './auth.js';
 
 const setText = (id, value) => { document.getElementById(id).textContent = String(value); };
 const cell = (value) => { const element = document.createElement('td'); element.textContent = String(value ?? '—'); return element; };
@@ -9,7 +10,8 @@ const todayStart = () => { const date = new Date(); date.setHours(0, 0, 0, 0); r
 
 const renderRows = (id, rows, columns, emptyMessage) => {
   const body = document.getElementById(id);
-  body.replaceChildren(...(rows.length ? rows : [makeRow([emptyMessage])])));
+  const visibleRows = rows.length ? rows : [makeRow([emptyMessage])];
+  body.replaceChildren(...visibleRows);
   if (!rows.length) body.firstElementChild.firstElementChild.colSpan = columns;
 };
 
@@ -23,8 +25,10 @@ const downloadAttendanceSheet = (records) => {
 };
 
 export async function initAdminDashboard() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) { rememberProtectedRedirect(); return location.replace('/'); }
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return location.replace('/');
+  if (!user) { rememberProtectedRedirect(); return location.replace('/'); }
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   if (profile?.role !== 'admin') return location.replace('/student');
   renderNavbar(user, 'Admin');
@@ -33,7 +37,7 @@ export async function initAdminDashboard() {
   const [{ data: students = [] }, { data: buses = [] }, { data: attendance = [] }, { data: coordinators = [] }] = await Promise.all([
     supabase.from('profiles').select('id,full_name,register_number,email,status,buses(bus_number)').eq('role', 'student'),
     supabase.from('buses').select('id,bus_number,route,radius_meters').order('bus_number'),
-    supabase.from('attendance').select('student_id,status,checked_in_at,attendance_sessions(session_type,buses(bus_number))').order('checked_in_at', { ascending: false }).limit(200),
+    supabase.from('attendance').select('student_id,status,checked_in_at,attendance_sessions!inner(session_type,buses!inner(bus_number))').order('checked_in_at', { ascending: false }).limit(200),
     supabase.from('profiles').select('id').in('role', ['admin', 'coordinator']),
   ]);
   const studentById = new Map(students.map((student) => [student.id, student]));

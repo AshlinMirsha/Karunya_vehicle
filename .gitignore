@@ -8,3 +8,4 @@ supabase/.temp/
 *.log
 kaluthamirsha-firebase-adminsdk-fbsvc-17d20c3334.json
 /functions/
+.opencode
