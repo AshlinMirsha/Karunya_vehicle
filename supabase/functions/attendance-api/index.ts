@@ -1,7 +1,12 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import QRCode from 'npm:qrcode@1.5.4';
 
-const ALLOWED_ORIGIN = 'https://karunya-bus-attendance.vercel.app';
+const ALLOWED_ORIGINS = new Set([
+  'https://karunya-bus-attendance.vercel.app',
+  'https://karunya-bus-attendance-ashlinmirshas-projects.vercel.app',
+  'https://karunya-bus-attendance-ashlinmirsha-ashlinmirshas-projects.vercel.app',
+]);
+const PRIMARY_APP_ORIGIN = 'https://karunya-bus-attendance.vercel.app';
 const EARTH_RADIUS_METERS = 6_371_000;
 const SESSION_DURATION_MS = 30 * 60 * 1000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -9,16 +14,16 @@ const QR_TOKEN_PATTERN = /^[0-9a-f]{64}$/i;
 const SESSION_TYPES = new Set(['Morning', 'Evening']);
 const QR_IMAGE_CID = 'manual-attendance-qr';
 const MAX_REQUEST_BODY_BYTES = 2_048;
-const corsHeaders = {
-  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
+const corsHeadersFor = (origin: string | null) => ({
+  'Access-Control-Allow-Origin': origin && ALLOWED_ORIGINS.has(origin) ? origin : ALLOWED_ORIGINS.values().next().value,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json',
   Vary: 'Origin',
-};
+});
 
-const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: corsHeaders });
-const isAllowedOrigin = (request: Request) => request.headers.get('Origin') === ALLOWED_ORIGIN;
+const response = (request: Request, body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: corsHeadersFor(request.headers.get('Origin')) });
+const isAllowedOrigin = (request: Request) => ALLOWED_ORIGINS.has(request.headers.get('Origin') ?? '');
 const hasValidJsonBody = (request: Request) => {
   const length = Number(request.headers.get('content-length') ?? '0');
   return request.headers.get('content-type')?.includes('application/json') === true && (!Number.isFinite(length) || length <= MAX_REQUEST_BODY_BYTES);
@@ -42,7 +47,7 @@ const sendManualQrEmail = async (recipient: string, busNumber: string, sessionTy
   const refresh = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, refresh_token: refreshToken, grant_type: 'refresh_token' }) });
   const credentials = await refresh.json().catch(() => null);
   if (!refresh.ok || !credentials?.access_token) return false;
-  const checkinUrl = `${ALLOWED_ORIGIN}/checkin?token=${token}`;
+  const checkinUrl = `${PRIMARY_APP_ORIGIN}/checkin?token=${token}`;
   const svg = await QRCode.toString(checkinUrl, { type: 'svg', errorCorrectionLevel: 'M', margin: 2, width: 320 });
   const boundary = `manual-qr-${crypto.randomUUID()}`;
   const encodedSvg = btoa(unescape(encodeURIComponent(svg))).replace(/(.{76})/g, '$1\r\n');
@@ -52,63 +57,63 @@ const sendManualQrEmail = async (recipient: string, busNumber: string, sessionTy
 };
 
 Deno.serve(async (request) => {
-  if (request.method === 'OPTIONS') return isAllowedOrigin(request) ? new Response('ok', { headers: corsHeaders }) : response({ message: 'Forbidden origin.' }, 403);
-  if (request.method !== 'POST') return response({ message: 'Method not allowed.' }, 405);
-  if (!isAllowedOrigin(request)) return response({ message: 'Forbidden origin.' }, 403);
-  if (!hasValidJsonBody(request)) return response({ message: 'Invalid request format.' }, 415);
+  if (request.method === 'OPTIONS') return isAllowedOrigin(request) ? new Response('ok', { headers: corsHeadersFor(request.headers.get('Origin')) }) : response(request, { message: 'Forbidden origin.' }, 403);
+  if (request.method !== 'POST') return response(request, { message: 'Method not allowed.' }, 405);
+  if (!isAllowedOrigin(request)) return response(request, { message: 'Forbidden origin.' }, 403);
+  if (!hasValidJsonBody(request)) return response(request, { message: 'Invalid request format.' }, 415);
   const authorization = request.headers.get('Authorization');
   const qrSecret = Deno.env.get('QR_SECRET');
-  if (!authorization || !qrSecret) return response({ message: 'Unauthorized request.' }, 401);
+  if (!authorization || !qrSecret) return response(request, { message: 'Unauthorized request.' }, 401);
 
   try {
     const userClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: authorization } } });
     const { data: { user } } = await userClient.auth.getUser();
-    if (!user?.email?.endsWith('@karunya.edu.in')) return response({ message: 'Only official Karunya accounts are authorized.' }, 403);
+    if (!user?.email?.endsWith('@karunya.edu.in')) return response(request, { message: 'Only official Karunya accounts are authorized.' }, 403);
     const adminClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const { data: profile } = await adminClient.from('profiles').select('*').eq('id', user.id).single();
-    if (!profile) return response({ message: 'Profile is not ready. Please sign in again.' }, 409);
+    if (!profile) return response(request, { message: 'Profile is not ready. Please sign in again.' }, 409);
     const body = await request.json().catch(() => null);
-    if (!body || typeof body !== 'object' || !['create-session', 'mark-attendance'].includes((body as { action?: string }).action ?? '')) return response({ message: 'Invalid request.' }, 400);
+    if (!body || typeof body !== 'object' || !['create-session', 'mark-attendance'].includes((body as { action?: string }).action ?? '')) return response(request, { message: 'Invalid request.' }, 400);
     const { data: limit, error: limitError } = await adminClient.rpc('consume_attendance_rate_limit', { p_actor_id: user.id, p_action: body.action }).single();
     if (limitError || !limit?.allowed) {
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action: body.action, outcome: 'rate_limited' });
-      return response({ message: `Too many requests. Try again in ${Math.max(1, limit?.retry_after_seconds ?? 600)} seconds.` }, 429);
+      return response(request, { message: `Too many requests. Try again in ${Math.max(1, limit?.retry_after_seconds ?? 600)} seconds.` }, 429);
     }
 
     if (body.action === 'create-session') {
-      if (!['admin', 'coordinator'].includes(profile.role)) return response({ message: 'Not authorized.' }, 403);
-      if (!UUID_PATTERN.test(body.busId ?? '') || !SESSION_TYPES.has(body.sessionType)) return response({ message: 'Invalid session request.' }, 400);
+      if (!['admin', 'coordinator'].includes(profile.role)) return response(request, { message: 'Not authorized.' }, 403);
+      if (!UUID_PATTERN.test(body.busId ?? '') || !SESSION_TYPES.has(body.sessionType)) return response(request, { message: 'Invalid session request.' }, 400);
       const { data: bus } = await adminClient.from('buses').select('id,bus_number').eq('id', body.busId).single();
-      if (!bus || (profile.role === 'coordinator' && profile.bus_id !== bus.id)) return response({ message: 'Bus is not assigned to you.' }, 403);
+      if (!bus || (profile.role === 'coordinator' && profile.bus_id !== bus.id)) return response(request, { message: 'Bus is not assigned to you.' }, 403);
       const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
       const expiresAt = new Date(Date.now() + SESSION_DURATION_MS).toISOString();
       const { data: session, error } = await adminClient.from('attendance_sessions').insert({
         bus_id: bus.id, session_type: body.sessionType, token_hash: await hashToken(token, qrSecret), expires_at: expiresAt, created_by: user.id,
       }).select('id').single();
-      if (error || !session) return response({ message: 'Could not create QR session.' }, 500);
+      if (error || !session) return response(request, { message: 'Could not create QR session.' }, 500);
       const emailSent = body.emailQr === true && profile.role === 'admin'
         ? await sendManualQrEmail(profile.email, String(bus.bus_number), body.sessionType, token).catch(() => false)
         : body.emailQr !== true;
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action: body.action, outcome: 'allowed' });
-      return response({ token, sessionId: session.id, expiresAt, emailSent });
+      return response(request, { token, sessionId: session.id, expiresAt, emailSent });
     }
 
     if (body.action === 'mark-attendance') {
       const { token, latitude, longitude } = body;
-      if (typeof token !== 'string' || !QR_TOKEN_PATTERN.test(token) || !withinCoordinateBounds(latitude, longitude)) return response({ message: 'A valid QR token and GPS location are required.' }, 400);
-      if (profile.status !== 'active' || !profile.bus_id) return response({ message: 'Your bus assignment is not active.' }, 403);
+      if (typeof token !== 'string' || !QR_TOKEN_PATTERN.test(token) || !withinCoordinateBounds(latitude, longitude)) return response(request, { message: 'A valid QR token and GPS location are required.' }, 400);
+      if (profile.status !== 'active' || !profile.bus_id) return response(request, { message: 'Your bus assignment is not active.' }, 403);
       const { data: session } = await adminClient.from('attendance_sessions').select('*, buses(*)').eq('token_hash', await hashToken(token, qrSecret)).gt('expires_at', new Date().toISOString()).maybeSingle();
-      if (!session || session.bus_id !== profile.bus_id) return response({ message: 'Invalid, expired, or incorrect-bus QR session.' }, 400);
-      if (distanceMeters(latitude, longitude, session.buses.latitude, session.buses.longitude) > session.buses.radius_meters) return response({ message: 'You are outside the permitted bus geofence.' }, 400);
+      if (!session || session.bus_id !== profile.bus_id) return response(request, { message: 'Invalid, expired, or incorrect-bus QR session.' }, 400);
+      if (distanceMeters(latitude, longitude, session.buses.latitude, session.buses.longitude) > session.buses.radius_meters) return response(request, { message: 'You are outside the permitted bus geofence.' }, 400);
       const { error } = await adminClient.from('attendance').insert({ session_id: session.id, student_id: user.id, latitude, longitude });
-      if (error?.code === '23505') return response({ message: 'Attendance is already registered for this session.' }, 409);
-      if (error) return response({ message: 'Attendance could not be recorded.' }, 500);
+      if (error?.code === '23505') return response(request, { message: 'Attendance is already registered for this session.' }, 409);
+      if (error) return response(request, { message: 'Attendance could not be recorded.' }, 500);
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action: body.action, outcome: 'allowed' });
-      return response({ message: 'Attendance marked successfully!' });
+      return response(request, { message: 'Attendance marked successfully!' });
     }
-    return response({ message: 'Unknown action.' }, 400);
+    return response(request, { message: 'Unknown action.' }, 400);
   } catch (error) {
     console.error('attendance-api failed', error instanceof Error ? error.message : 'Unknown error');
-    return response({ message: 'Attendance request could not be processed.' }, 502);
+    return response(request, { message: 'Attendance request could not be processed.' }, 502);
   }
 });
