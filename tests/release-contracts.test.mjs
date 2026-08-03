@@ -89,6 +89,8 @@ test('check-in scanner requests a camera stream and supports QR decoding fallbac
   assert.match(scanner, /let isSubmitting = false/);
   assert.match(scanner, /generation !== scanGeneration/);
   assert.match(scanner, /showCheckinSuccess/);
+  assert.match(scanner, /showCheckinConfirmation/);
+  assert.match(scanner, /attendanceErrorMessage/);
   assert.match(scanner, /rememberProtectedRedirect\(\)/);
   assert.match(scanner, /auth\.getSession\(\)/);
   assert.match(scanner, /auth\.getUser\(\)/);
@@ -99,6 +101,7 @@ test('check-in scanner requests a camera stream and supports QR decoding fallbac
   assert.match(page, /protected-page/);
   assert.match(page, /qr-scan-line/);
   assert.match(page, /checkin-success-dialog/);
+  assert.match(page, /checkin-confirm-dialog/);
 });
 
 test('protected pages require authenticated render and preserve safe post-login redirects', async () => {

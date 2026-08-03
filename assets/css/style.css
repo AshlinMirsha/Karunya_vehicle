@@ -416,6 +416,7 @@ body {
 .checkin-success-details div:last-child { border-bottom: 1px solid #e7edf3; }
 .checkin-success-details dt { color: #829ab1; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .checkin-success-details dd { margin: 4px 0 0; color: #102a43; font-weight: 700; }
+.checkin-dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 @media (max-width: 540px) {
   .checkin-main { min-height: auto; padding: 22px 14px 28px; place-items: start stretch; }
