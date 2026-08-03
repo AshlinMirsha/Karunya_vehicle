@@ -60,8 +60,9 @@ export async function initAdminDashboard() {
   if (!session) { rememberProtectedRedirect(); return location.replace('/'); }
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) { rememberProtectedRedirect(); return location.replace('/'); }
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (profile?.role !== 'admin') return location.replace('/student');
+  const { data: profile, error: profileError } = await supabase.rpc('current_app_profile').single();
+  if (profileError || !profile?.role) { showToast('Your profile role could not be verified. Sign out and sign in again.', 'danger'); return; }
+  if (profile.role !== 'admin') return location.replace('/student');
   renderNavbar(user, 'Admin');
   document.body.classList.add('role-authorized');
 

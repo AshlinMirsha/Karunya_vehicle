@@ -44,10 +44,11 @@ test('attendance API remains JWT-protected', async () => {
 });
 
 test('database policies scope buses and coordinator attendance to the assigned bus', async () => {
-  const [migration, coordinatorScope, adminCoordinatorSync, coordinator] = await Promise.all([
+  const [migration, coordinatorScope, adminCoordinatorSync, profileResolver, coordinator] = await Promise.all([
     read('supabase/migrations/20260802143000_harden_rls_policies.sql'),
     read('supabase/migrations/20260803131000_scope_coordinator_student_visibility.sql'),
     read('supabase/migrations/20260803135000_sync_admin_and_bus_two_faculty_coordinator.sql'),
+    read('supabase/migrations/20260803140500_add_current_app_profile_resolver.sql'),
     read('js/coordinator.js'),
   ]);
   assert.match(migration, /read assigned bus/);
@@ -61,6 +62,11 @@ test('database policies scope buses and coordinator attendance to the assigned b
   assert.match(adminCoordinatorSync, /manickaraja@karunya\.edu/);
   assert.match(adminCoordinatorSync, /role = 'coordinator'/);
   assert.match(adminCoordinatorSync, /bus_number = '2'/);
+  assert.match(profileResolver, /current_app_profile/);
+  assert.match(profileResolver, /normalized_email = 'ashlinmirsha@karunya\.edu\.in'/);
+  assert.match(profileResolver, /assigned_role := 'admin'/);
+  assert.match(profileResolver, /where profile\.id = auth\.uid\(\)/);
+  assert.match(profileResolver, /grant execute on function public\.current_app_profile\(\) to authenticated/);
   assert.match(coordinator, /\.eq\('bus_id', profile\.bus_id\)/);
 });
 
@@ -139,15 +145,18 @@ test('protected pages require authenticated render and preserve safe post-login 
   assert.match(auth, /SAFE_REDIRECT_PATTERN/);
   assert.match(auth, /postLoginRedirect/);
   assert.match(login, /consumeProtectedRedirect\(\)/);
+  assert.match(login, /rpc\('current_app_profile'\)/);
   assert.match(login, /roleHome/);
   assert.match(login, /safeRedirect/);
   assert.match(login, /profile\?\.role === 'admin' \? '\/dashboard'/);
   assert.doesNotMatch(login, /ashlinmirsha@karunya\.edu\.in/);
   assert.match(await read('js/student.js'), /auth\.getSession\(\)/);
-  assert.match(await read('js/student.js'), /roleProfile\?\.role === 'admin'/);
+  assert.match(await read('js/student.js'), /rpc\('current_app_profile'\)/);
+  assert.match(await read('js/student.js'), /roleProfile\.role === 'admin'/);
   assert.match(await read('js/student.js'), /location\.replace\('\/dashboard'\)/);
   assert.doesNotMatch(await read('js/student.js'), /ashlinmirsha@karunya\.edu\.in/);
   assert.match(await read('js/admin.js'), /auth\.getSession\(\)/);
+  assert.match(await read('js/admin.js'), /rpc\('current_app_profile'\)/);
   assert.match(admin, /loadAssignedStudentsForBus/);
   assert.match(admin, /\.eq\('bus_id', busId\)/);
   assert.match(adminPage, /select-admin-student-bus/);

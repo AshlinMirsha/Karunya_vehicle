@@ -25,8 +25,9 @@ export async function initCoordinatorDashboard() {
   if (!session) { rememberProtectedRedirect(); return location.replace('/'); }
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) { rememberProtectedRedirect(); return location.replace('/'); }
-  const { data: profile } = await supabase.from('profiles').select('role,bus_id,buses(bus_number)').eq('id', user.id).single();
-  if (!['admin', 'coordinator'].includes(profile?.role)) return location.replace('/student');
+  const { data: profile, error: profileError } = await supabase.rpc('current_app_profile').single();
+  if (profileError || !profile?.role) { showToast('Your profile role could not be verified. Sign out and sign in again.', 'danger'); return; }
+  if (!['admin', 'coordinator'].includes(profile.role)) return location.replace('/student');
   renderNavbar(user, 'Coordinator');
   document.body.classList.add('role-authorized');
 
@@ -60,7 +61,7 @@ export async function initCoordinatorDashboard() {
     row.append(cell);
     list.append(row);
   } else {
-    const busNumber = profile.buses?.bus_number ? `Bus ${profile.buses.bus_number}` : 'Assigned bus';
+    const busNumber = profile.bus_number ? `Bus ${profile.bus_number}` : 'Assigned bus';
     list.append(...students.map((student) => studentRow(student, busNumber)));
   }
   document.getElementById('present-count').textContent = String(students?.length ?? 0);
