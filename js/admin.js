@@ -7,6 +7,7 @@ const setText = (id, value) => { document.getElementById(id).textContent = Strin
 const cell = (value) => { const element = document.createElement('td'); element.textContent = String(value ?? '—'); return element; };
 const makeRow = (values) => { const row = document.createElement('tr'); values.forEach((value) => row.append(cell(value))); return row; };
 const todayStart = () => { const date = new Date(); date.setHours(0, 0, 0, 0); return date.toISOString(); };
+const formatCoordinate = (value) => Number.isFinite(Number(value)) ? Number(value).toFixed(6) : '—';
 
 const renderRows = (id, rows, columns, emptyMessage) => {
   const body = document.getElementById(id);
@@ -16,7 +17,7 @@ const renderRows = (id, rows, columns, emptyMessage) => {
 };
 
 const downloadAttendanceSheet = (records) => {
-  const header = ['Student', 'Register number', 'Bus number', 'Session', 'Checked in', 'Status'];
+  const header = ['Student', 'Register number', 'Bus number', 'Session', 'Latitude', 'Longitude', 'Checked in', 'Status'];
   const csv = [header, ...records].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
   const link = document.createElement('a');
   link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -46,12 +47,12 @@ export async function initAdminDashboard() {
   const coordinators = coordinatorsResult.data ?? [];
   const dashboardError = [studentsResult.error, busesResult.error, attendanceResult.error, coordinatorsResult.error].find(Boolean);
   if (dashboardError) showToast('Some dashboard records could not be loaded. Refresh and try again.', 'danger');
-  const attendanceRows = attendance.map((record) => [record.full_name ?? 'Unknown student', record.register_number ?? '—', record.bus_number ?? '—', record.session_type ?? '—', new Date(record.checked_in_at).toLocaleString('en-IN'), record.status]);
+  const attendanceRows = attendance.map((record) => [record.full_name ?? 'Unknown student', record.register_number ?? '—', record.bus_number ?? '—', record.session_type ?? '—', formatCoordinate(record.latitude), formatCoordinate(record.longitude), new Date(record.checked_in_at).toLocaleString('en-IN'), record.status]);
   setText('stat-total-students', students.length); setText('stat-active-buses', buses.length);
   setText('stat-coordinators', coordinators.length); setText('stat-today-attendance', attendance.filter((record) => record.checked_in_at >= todayStart()).length);
   renderRows('admin-students-list', students.map((student) => makeRow([student.register_number, student.full_name, student.email, student.buses?.bus_number ?? 'Unassigned', student.status])), 5, 'No student records found.');
   renderRows('admin-buses-list', buses.map((bus) => makeRow([bus.bus_number, bus.route, `${bus.radius_meters} m`])), 3, 'No bus records found.');
-  renderRows('admin-attendance-list', attendanceRows.map(makeRow), 6, 'No attendance has been recorded yet.');
+  renderRows('admin-attendance-list', attendanceRows.map(makeRow), 8, 'No attendance has been recorded yet.');
 
   document.getElementById('btn-export-csv').addEventListener('click', () => downloadAttendanceSheet(attendanceRows));
   document.getElementById('btn-generate-qr').addEventListener('click', async () => {

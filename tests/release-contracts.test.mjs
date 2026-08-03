@@ -53,6 +53,10 @@ test('attendance sheets can read their session and bus relationships', async () 
   assert.match(functions, /security definer/);
   assert.match(functions, /grant execute on function public\.student_attendance_history\(\) to authenticated/);
   assert.match(functions, /grant execute on function public\.admin_attendance_sheet\(\) to authenticated/);
+  const coordinates = await read('supabase/migrations/20260803053000_add_admin_attendance_coordinates.sql');
+  assert.match(coordinates, /latitude double precision/);
+  assert.match(coordinates, /longitude double precision/);
+  assert.match(dashboard, /formatCoordinate/);
 });
 
 test('Benesha Mercy is seeded as an active student on Bus 1', async () => {
