@@ -29,6 +29,20 @@ const getSessionType = () => Number(new Date().toLocaleString('en-US', {
   timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false,
 })) < 12 ? 'Morning' : 'Evening';
 
+const requestedSessionTypes = async (request: Request) => {
+  const body = await request.json().catch(() => ({}));
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    throw new Error('Invalid request body');
+  }
+  const requested = (body as { sessionTypes?: unknown }).sessionTypes;
+  if (requested === undefined) return [getSessionType()];
+  if (!Array.isArray(requested) || requested.length === 0
+    || requested.some((value) => value !== 'Morning' && value !== 'Evening')) {
+    throw new Error('sessionTypes must contain Morning and/or Evening');
+  }
+  return [...new Set(requested)];
+};
+
 const buildEmail = async (recipient: string, busNumber: string, checkinUrl: string, sessionType: string) => {
   const boundary = `bus-attendance-${crypto.randomUUID()}`;
   // Gmail mobile clients render CID PNG reliably; inline SVG QR images are often suppressed.
@@ -90,27 +104,29 @@ Deno.serve(async (request) => {
     if (!faculty || !buses?.length) return json({ message: 'Faculty account or buses are missing' }, 409);
 
     const accessToken = await fetchGmailAccessToken();
-    const sessionType = getSessionType();
-    for (const bus of buses) {
-      const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
-      const expiresAt = new Date(Date.now() + QR_SESSION_DURATION_MS).toISOString();
-      const { data: session, error: sessionError } = await database.from('attendance_sessions').insert({
-        bus_id: bus.id, session_type: sessionType, token_hash: await sessionHash(token), expires_at: expiresAt, created_by: faculty.id,
-      }).select('id').single();
-      if (sessionError || !session) throw new Error(`Could not create Bus ${bus.bus_number} attendance session`);
+    const sessionTypes = await requestedSessionTypes(request);
+    for (const sessionType of sessionTypes) {
+      for (const bus of buses) {
+        const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
+        const expiresAt = new Date(Date.now() + QR_SESSION_DURATION_MS).toISOString();
+        const { data: session, error: sessionError } = await database.from('attendance_sessions').insert({
+          bus_id: bus.id, session_type: sessionType, token_hash: await sessionHash(token), expires_at: expiresAt, created_by: faculty.id,
+        }).select('id').single();
+        if (sessionError || !session) throw new Error(`Could not create Bus ${bus.bus_number} attendance session`);
 
-      const checkinUrl = `${APP_URL}/checkin?token=${token}`;
-      const raw = await buildEmail(faculty.email, bus.bus_number, checkinUrl, sessionType);
-      const gmailResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw: base64Url(raw) }),
-      });
-      if (!gmailResponse.ok) {
-        throw new Error(`Gmail did not accept the Bus ${bus.bus_number} email: ${await gmailResponse.text()}`);
+        const checkinUrl = `${APP_URL}/checkin?token=${token}`;
+        const raw = await buildEmail(faculty.email, bus.bus_number, checkinUrl, sessionType);
+        const gmailResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw: base64Url(raw) }),
+        });
+        if (!gmailResponse.ok) {
+          throw new Error(`Gmail did not accept the Bus ${bus.bus_number} email: ${await gmailResponse.text()}`);
+        }
       }
     }
-    return json({ message: 'QR sessions created and faculty email sent' });
+    return json({ message: 'QR sessions created and faculty email sent', sessionTypes, busCount: buses.length });
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'Unknown error';
     console.error('daily-qr failed', reason);

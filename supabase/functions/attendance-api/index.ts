@@ -71,10 +71,16 @@ Deno.serve(async (request) => {
   try {
     const userClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: authorization } } });
     const { data: { user } } = await userClient.auth.getUser();
-    if (!user?.email?.endsWith('@karunya.edu.in')) return response(request, { message: 'Only official Karunya accounts are authorized.' }, 403);
+    const normalizedEmail = user?.email?.toLowerCase() ?? '';
+    if (!normalizedEmail.endsWith('@karunya.edu.in') && normalizedEmail !== 'manickraja@karunya.edu') {
+      return response(request, { message: 'Only official Karunya accounts are authorized.' }, 403);
+    }
     const adminClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const { data: profile } = await adminClient.from('profiles').select('*').eq('id', user.id).single();
     if (!profile) return response(request, { message: 'Profile is not ready. Please sign in again.' }, 409);
+    if (normalizedEmail.endsWith('@karunya.edu') && profile.role !== 'coordinator') {
+      return response(request, { message: 'Only assigned coordinators may use @karunya.edu accounts.' }, 403);
+    }
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== 'object' || !['create-session', 'mark-attendance'].includes((body as { action?: string }).action ?? '')) return response(request, { message: 'Invalid request.' }, 400);
     const { data: limit, error: limitError } = await adminClient.rpc('consume_attendance_rate_limit', { p_actor_id: user.id, p_action: body.action }).single();

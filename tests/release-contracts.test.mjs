@@ -43,10 +43,18 @@ test('attendance API remains JWT-protected', async () => {
 });
 
 test('database policies scope buses and coordinator attendance to the assigned bus', async () => {
-  const migration = await read('supabase/migrations/20260802143000_harden_rls_policies.sql');
+  const [migration, coordinatorScope, coordinator] = await Promise.all([
+    read('supabase/migrations/20260802143000_harden_rls_policies.sql'),
+    read('supabase/migrations/20260803131000_scope_coordinator_student_visibility.sql'),
+    read('js/coordinator.js'),
+  ]);
   assert.match(migration, /read assigned bus/);
   assert.match(migration, /read authorized attendance/);
   assert.match(migration, /current_user_role\(\) = 'coordinator'/);
+  assert.match(coordinatorScope, /coordinators read assigned students/);
+  assert.match(coordinatorScope, /role = 'student'/);
+  assert.match(coordinatorScope, /bus_id = \(/);
+  assert.match(coordinator, /\.eq\('bus_id', profile\.bus_id\)/);
 });
 
 test('attendance sheets can read their session and bus relationships', async () => {
