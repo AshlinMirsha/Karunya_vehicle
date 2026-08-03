@@ -123,7 +123,7 @@ test('check-in scanner requests a camera stream and supports QR decoding fallbac
 });
 
 test('protected pages require authenticated render and preserve safe post-login redirects', async () => {
-  const [auth, login, styles, student, coordinator, navbar, admin, scanner] = await Promise.all([
+  const [auth, login, styles, student, coordinator, navbar, admin, scanner, index, adminPage] = await Promise.all([
     read('js/auth.js'),
     read('js/login-page.js'),
     read('assets/css/style.css'),
@@ -132,25 +132,32 @@ test('protected pages require authenticated render and preserve safe post-login 
     read('components/navbar.js'),
     read('js/admin.js'),
     read('js/qr-scanner.js'),
+    read('pages/index.html'),
+    read('pages/admin.html'),
   ]);
   const vercel = await read('vercel.json');
   assert.match(auth, /SAFE_REDIRECT_PATTERN/);
   assert.match(auth, /postLoginRedirect/);
   assert.match(login, /consumeProtectedRedirect\(\)/);
-  assert.match(login, /ADMIN_EMAILS/);
-  assert.match(login, /ashlinmirsha@karunya\.edu\.in/);
   assert.match(login, /roleHome/);
   assert.match(login, /safeRedirect/);
-  assert.match(login, /isAdmin \? '\/dashboard'/);
+  assert.match(login, /profile\?\.role === 'admin' \? '\/dashboard'/);
+  assert.doesNotMatch(login, /ashlinmirsha@karunya\.edu\.in/);
   assert.match(await read('js/student.js'), /auth\.getSession\(\)/);
-  assert.match(await read('js/student.js'), /ADMIN_EMAILS/);
   assert.match(await read('js/student.js'), /roleProfile\?\.role === 'admin'/);
   assert.match(await read('js/student.js'), /location\.replace\('\/dashboard'\)/);
+  assert.doesNotMatch(await read('js/student.js'), /ashlinmirsha@karunya\.edu\.in/);
   assert.match(await read('js/admin.js'), /auth\.getSession\(\)/);
-  assert.match(await read('js/admin.js'), /ADMIN_EMAILS/);
+  assert.match(admin, /loadAssignedStudentsForBus/);
+  assert.match(admin, /\.eq\('bus_id', busId\)/);
+  assert.match(adminPage, /select-admin-student-bus/);
+  assert.match(adminPage, /Assigned student records fetched by bus/);
+  assert.doesNotMatch(await read('js/admin.js'), /ashlinmirsha@karunya\.edu\.in/);
   assert.match(await read('js/coordinator.js'), /auth\.getSession\(\)/);
   assert.match(vercel, /Cache-Control/);
   assert.match(vercel, /no-store, max-age=0/);
+  assert.doesNotMatch(index, /Students use/);
+  assert.doesNotMatch(index, /assigned Bus 2 coordinator/i);
   assert.match(styles, /\.protected-page:not\(\.role-authorized\) main/);
   assert.match(student, /protected-page/);
   assert.match(student, /document\.readyState === 'loading'/);
