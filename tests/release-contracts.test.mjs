@@ -46,11 +46,12 @@ test('attendance API remains JWT-protected', async () => {
   assert.match(client, /flowType: 'pkce'/);
 });
 
-test('database policies scope buses and coordinator attendance to the assigned bus', async () => {
-  const [migration, coordinatorScope, currentRoles, coordinator] = await Promise.all([
+test('database policies scope coordinators while restoring all-bus admin access', async () => {
+  const [migration, coordinatorScope, currentRoles, dashboard, coordinator] = await Promise.all([
     read('supabase/migrations/20260802143000_harden_rls_policies.sql'),
     read('supabase/migrations/20260803131000_scope_coordinator_student_visibility.sql'),
     read('supabase/migrations/20260803143000_remove_admin_role_use_coordinators_only.sql'),
+    read('supabase/migrations/20260803150000_restore_admin_and_dashboard_history.sql'),
     read('js/coordinator.js'),
   ]);
   assert.match(migration, /read assigned bus/);
@@ -66,9 +67,11 @@ test('database policies scope buses and coordinator attendance to the assigned b
   assert.match(currentRoles, /manickaraja@karunya\.edu/);
   assert.match(currentRoles, /bus_number = '2'/);
   assert.doesNotMatch(currentRoles, /assigned_role := 'admin'/);
-  assert.match(coordinator, /\.eq\('bus_id', profile\.bus_id\)/);
-  assert.match(coordinator, /profile\.role !== 'coordinator'/);
-  assert.match(coordinator, /bus\.id === profile\.bus_id/);
+  assert.match(dashboard, /lohita@karunya\.edu\.in/);
+  assert.match(dashboard, /profiles_role_with_admin_check/);
+  assert.match(dashboard, /authorized_attendance_history/);
+  assert.match(dashboard, /Coordinator access is limited to the assigned bus/);
+  assert.match(coordinator, /initOperationsDashboard\('coordinator'\)/);
 });
 
 test('attendance sheets can read their session and bus relationships', async () => {
@@ -118,12 +121,13 @@ test('check-in scanner requests a camera stream and supports QR decoding fallbac
 });
 
 test('protected pages require authenticated render and preserve safe post-login redirects', async () => {
-  const [auth, login, styles, student, coordinator, navbar, scanner, index, vercel] = await Promise.all([
+  const [auth, login, styles, student, coordinator, operationsDashboard, navbar, scanner, index, vercel] = await Promise.all([
     read('js/auth.js'),
     read('js/login-page.js'),
     read('assets/css/style.css'),
     read('pages/student.html'),
     read('pages/coordinator.html'),
+    read('js/operations-dashboard.js'),
     read('components/navbar.js'),
     read('js/qr-scanner.js'),
     read('pages/index.html'),
@@ -131,32 +135,30 @@ test('protected pages require authenticated render and preserve safe post-login 
   ]);
   assert.match(auth, /SAFE_REDIRECT_PATTERN/);
   assert.match(auth, /postLoginRedirect/);
-  assert.doesNotMatch(auth, /dashboard/);
+  assert.match(auth, /admin\|dashboard/);
   assert.match(login, /consumeProtectedRedirect\(\)/);
   assert.match(login, /rpc\('current_app_profile'\)/);
   assert.match(login, /roleHome/);
   assert.match(login, /safeRedirect/);
-  assert.match(login, /profile\?\.role === 'coordinator' \? '\/coordinator'/);
-  assert.doesNotMatch(login, /admin/);
-  assert.doesNotMatch(login, /ashlinmirsha@karunya\.edu\.in/);
+  assert.match(login, /profile\?\.role === 'admin' \? '\/admin'/);
   assert.match(await read('js/student.js'), /auth\.getSession\(\)/);
   assert.match(await read('js/student.js'), /rpc\('current_app_profile'\)/);
   assert.match(await read('js/student.js'), /roleProfile\.role === 'coordinator'/);
   assert.match(await read('js/student.js'), /location\.replace\('\/coordinator'\)/);
-  assert.doesNotMatch(await read('js/student.js'), /admin/);
-  assert.doesNotMatch(await read('js/student.js'), /ashlinmirsha@karunya\.edu\.in/);
-  assert.match(await read('js/coordinator.js'), /auth\.getSession\(\)/);
-  assert.match(await read('js/coordinator.js'), /profile\.role !== 'coordinator'/);
+  assert.match(await read('js/admin.js'), /initOperationsDashboard\('admin'\)/);
+  assert.match(operationsDashboard, /auth\.getSession\(\)/);
+  assert.match(await read('js/coordinator.js'), /initOperationsDashboard\('coordinator'\)/);
   assert.match(vercel, /Cache-Control/);
   assert.match(vercel, /no-store, max-age=0/);
-  assert.match(vercel, /"source": "\/dashboard"[\s\S]*"destination": "\/pages\/coordinator\.html"/);
+  assert.match(vercel, /"source": "\/admin"[\s\S]*"destination": "\/pages\/admin\.html"/);
+  assert.match(vercel, /"source": "\/dashboard"[\s\S]*"destination": "\/pages\/admin\.html"/);
   assert.doesNotMatch(index, /Students use/);
   assert.doesNotMatch(index, /assigned Bus 2 coordinator/i);
   assert.match(styles, /\.protected-page:not\(\.role-authorized\) main/);
   assert.match(student, /protected-page/);
   assert.match(student, /document\.readyState === 'loading'/);
   assert.match(coordinator, /protected-page/);
-  assert.match(coordinator, /document\.readyState === 'loading'/);
+  assert.match(coordinator, /document\.readyState\s*={2,3}\s*'loading'/);
   assert.match(scanner, /document\.body\.classList\.add\('role-authorized'\)/);
   assert.doesNotMatch(navbar, /\?\.[^;\n]*\)\.[^;\n]*=/);
 });

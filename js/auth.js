@@ -1,7 +1,7 @@
 import { supabase } from '../supabase/client.js';
 import { showToast } from '../components/toast.js';
 
-const SAFE_REDIRECT_PATTERN = /^\/(?:checkin|student|coordinator)(?:[/?#]|$)/;
+const SAFE_REDIRECT_PATTERN = /^\/(?:checkin|student|coordinator|admin|dashboard)(?:[/?#]|$)/;
 
 export function rememberProtectedRedirect(path = `${window.location.pathname}${window.location.search}${window.location.hash}`) {
   if (SAFE_REDIRECT_PATTERN.test(path)) window.localStorage.setItem('postLoginRedirect', path);
