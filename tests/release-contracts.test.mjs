@@ -38,15 +38,16 @@ test('attendance API remains JWT-protected', async () => {
   assert.match(api, /consume_attendance_rate_limit/);
   assert.match(api, /security_audit_events/);
   assert.match(api, /SESSION_DURATION_MS = 5 \* 60 \* 60 \* 1000/);
+  assert.match(api, /manickaraja@karunya\.edu/);
   assert.match(client, /storage: window\.sessionStorage/);
   assert.match(client, /flowType: 'pkce'/);
 });
 
 test('database policies scope buses and coordinator attendance to the assigned bus', async () => {
-  const [migration, coordinatorScope, testCoordinator, coordinator] = await Promise.all([
+  const [migration, coordinatorScope, adminCoordinatorSync, coordinator] = await Promise.all([
     read('supabase/migrations/20260802143000_harden_rls_policies.sql'),
     read('supabase/migrations/20260803131000_scope_coordinator_student_visibility.sql'),
-    read('supabase/migrations/20260803133000_make_ashlin_bus_one_test_coordinator.sql'),
+    read('supabase/migrations/20260803135000_sync_admin_and_bus_two_faculty_coordinator.sql'),
     read('js/coordinator.js'),
   ]);
   assert.match(migration, /read assigned bus/);
@@ -55,9 +56,11 @@ test('database policies scope buses and coordinator attendance to the assigned b
   assert.match(coordinatorScope, /coordinators read assigned students/);
   assert.match(coordinatorScope, /role = 'student'/);
   assert.match(coordinatorScope, /bus_id = \(/);
-  assert.match(testCoordinator, /ashlinmirsha@karunya\.edu\.in/);
-  assert.match(testCoordinator, /role = 'coordinator'/);
-  assert.match(testCoordinator, /bus_number = '1'/);
+  assert.match(adminCoordinatorSync, /ashlinmirsha@karunya\.edu\.in/);
+  assert.match(adminCoordinatorSync, /role = 'admin'/);
+  assert.match(adminCoordinatorSync, /manickaraja@karunya\.edu/);
+  assert.match(adminCoordinatorSync, /role = 'coordinator'/);
+  assert.match(adminCoordinatorSync, /bus_number = '2'/);
   assert.match(coordinator, /\.eq\('bus_id', profile\.bus_id\)/);
 });
 

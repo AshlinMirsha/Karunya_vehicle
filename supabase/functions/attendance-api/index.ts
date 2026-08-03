@@ -72,7 +72,8 @@ Deno.serve(async (request) => {
     const userClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: authorization } } });
     const { data: { user } } = await userClient.auth.getUser();
     const normalizedEmail = user?.email?.toLowerCase() ?? '';
-    if (!normalizedEmail.endsWith('@karunya.edu.in') && normalizedEmail !== 'manickraja@karunya.edu') {
+    const allowedFacultyCoordinators = new Set(['manickraja@karunya.edu', 'manickaraja@karunya.edu']);
+    if (!normalizedEmail.endsWith('@karunya.edu.in') && !allowedFacultyCoordinators.has(normalizedEmail)) {
       return response(request, { message: 'Only official Karunya accounts are authorized.' }, 403);
     }
     const adminClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
