@@ -84,12 +84,11 @@ test('attendance sheets can read their session and bus relationships', async () 
   assert.match(dashboard, /noopener noreferrer/);
 });
 
-test('Benesha Mercy is seeded as an active student on Bus 1', async () => {
-  const migration = await read('supabase/migrations/20260803050000_assign_benesha_bus_one.sql');
+test('Benesha Mercy is assigned as an active student on Bus 2', async () => {
+  const migration = await read('supabase/migrations/20260803134000_move_benesha_student_to_bus_two.sql');
   assert.match(migration, /beneshamercy@karunya\.edu\.in/);
-  assert.match(migration, /R A BENESHA MERCY RAMESH/);
-  assert.match(migration, /URK25CS1176/);
-  assert.match(migration, /bus_number = '1'/);
+  assert.match(migration, /role = 'student'/);
+  assert.match(migration, /bus_number = '2'/);
   assert.match(migration, /status = 'active'/);
 });
 
