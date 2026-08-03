@@ -27,7 +27,7 @@ export async function initCoordinatorDashboard() {
   if (!user) { rememberProtectedRedirect(); return location.replace('/'); }
   const { data: profile, error: profileError } = await supabase.rpc('current_app_profile').single();
   if (profileError || !profile?.role) { showToast('Your profile role could not be verified. Sign out and sign in again.', 'danger'); return; }
-  if (!['admin', 'coordinator'].includes(profile.role)) return location.replace('/student');
+  if (profile.role !== 'coordinator') return location.replace('/student');
   renderNavbar(user, 'Coordinator');
   document.body.classList.add('role-authorized');
 
@@ -38,7 +38,11 @@ export async function initCoordinatorDashboard() {
     showToast('No buses are available for QR generation.', 'danger');
     return;
   }
-  buses.forEach((bus) => addBusOption(select, bus));
+  buses.filter((bus) => bus.id === profile.bus_id).forEach((bus) => addBusOption(select, bus));
+  if (!select.options.length) {
+    showToast('Your assigned bus could not be loaded.', 'danger');
+    return;
+  }
 
   const { data: students, error: studentsError } = await supabase
     .from('profiles')

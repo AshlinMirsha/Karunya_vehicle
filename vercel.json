@@ -22,7 +22,7 @@
     },
     {
       "source": "/dashboard",
-      "destination": "/pages/admin.html"
+      "destination": "/pages/coordinator.html"
     },
     {
       "source": "/:path*",
