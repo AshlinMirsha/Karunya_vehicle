@@ -22,7 +22,13 @@ async function redirectAuthenticatedUser() {
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   const protectedRedirect = consumeProtectedRedirect();
-  window.location.href = protectedRedirect ?? (profile?.role === 'admin' ? '/dashboard' : profile?.role === 'coordinator' ? '/coordinator' : '/student');
+  const roleHome = profile?.role === 'admin' ? '/dashboard' : profile?.role === 'coordinator' ? '/coordinator' : '/student';
+  const safeRedirect = protectedRedirect && (
+    profile?.role === 'admin'
+    || (profile?.role === 'coordinator' && protectedRedirect !== '/dashboard')
+    || (profile?.role === 'student' && protectedRedirect !== '/dashboard' && protectedRedirect !== '/coordinator')
+  );
+  window.location.href = safeRedirect ? protectedRedirect : roleHome;
 }
 
 redirectAuthenticatedUser().catch(() => {});
