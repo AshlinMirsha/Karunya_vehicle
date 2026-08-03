@@ -91,19 +91,19 @@ Deno.serve(async (request) => {
     }
 
     if (body.action === 'create-session') {
-      if (!['admin', 'coordinator'].includes(profile.role)) return response(request, { message: 'Not authorized.' }, 403);
+      if (profile.role !== 'coordinator') return response(request, { message: 'Not authorized.' }, 403);
       if (!UUID_PATTERN.test(body.busId ?? '') || !SESSION_TYPES.has(body.sessionType)) return response(request, { message: 'Invalid session request.' }, 400);
       const { data: bus } = await adminClient.from('buses').select('id,bus_number').eq('id', body.busId).single();
-      if (!bus || (profile.role === 'coordinator' && profile.bus_id !== bus.id)) return response(request, { message: 'Bus is not assigned to you.' }, 403);
+      if (!bus || profile.bus_id !== bus.id) return response(request, { message: 'Bus is not assigned to you.' }, 403);
       const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
       const expiresAt = new Date(Date.now() + SESSION_DURATION_MS).toISOString();
       const { data: session, error } = await adminClient.from('attendance_sessions').insert({
         bus_id: bus.id, session_type: body.sessionType, token_hash: await hashToken(token, qrSecret), expires_at: expiresAt, created_by: user.id,
       }).select('id').single();
       if (error || !session) return response(request, { message: 'Could not create QR session.' }, 500);
-      const emailSent = body.emailQr === true && profile.role === 'admin'
+      const emailSent = body.emailQr === true
         ? await sendManualQrEmail(profile.email, String(bus.bus_number), body.sessionType, token).catch(() => false)
-        : body.emailQr !== true;
+        : true;
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action: body.action, outcome: 'allowed' });
       return response(request, { token, sessionId: session.id, expiresAt, emailSent });
     }

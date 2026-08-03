@@ -39,16 +39,18 @@ test('attendance API remains JWT-protected', async () => {
   assert.match(api, /security_audit_events/);
   assert.match(api, /SESSION_DURATION_MS = 5 \* 60 \* 60 \* 1000/);
   assert.match(api, /manickaraja@karunya\.edu/);
+  assert.match(api, /profile\.role !== 'coordinator'/);
+  assert.match(api, /profile\.bus_id !== bus\.id/);
+  assert.doesNotMatch(api, /\['admin', 'coordinator'\]/);
   assert.match(client, /storage: window\.sessionStorage/);
   assert.match(client, /flowType: 'pkce'/);
 });
 
 test('database policies scope buses and coordinator attendance to the assigned bus', async () => {
-  const [migration, coordinatorScope, adminCoordinatorSync, profileResolver, coordinator] = await Promise.all([
+  const [migration, coordinatorScope, currentRoles, coordinator] = await Promise.all([
     read('supabase/migrations/20260802143000_harden_rls_policies.sql'),
     read('supabase/migrations/20260803131000_scope_coordinator_student_visibility.sql'),
-    read('supabase/migrations/20260803135000_sync_admin_and_bus_two_faculty_coordinator.sql'),
-    read('supabase/migrations/20260803140500_add_current_app_profile_resolver.sql'),
+    read('supabase/migrations/20260803143000_remove_admin_role_use_coordinators_only.sql'),
     read('js/coordinator.js'),
   ]);
   assert.match(migration, /read assigned bus/);
@@ -57,48 +59,27 @@ test('database policies scope buses and coordinator attendance to the assigned b
   assert.match(coordinatorScope, /coordinators read assigned students/);
   assert.match(coordinatorScope, /role = 'student'/);
   assert.match(coordinatorScope, /bus_id = \(/);
-  assert.match(adminCoordinatorSync, /ashlinmirsha@karunya\.edu\.in/);
-  assert.match(adminCoordinatorSync, /role = 'admin'/);
-  assert.match(adminCoordinatorSync, /manickaraja@karunya\.edu/);
-  assert.match(adminCoordinatorSync, /role = 'coordinator'/);
-  assert.match(adminCoordinatorSync, /bus_number = '2'/);
-  assert.match(profileResolver, /current_app_profile/);
-  assert.match(profileResolver, /normalized_email = 'ashlinmirsha@karunya\.edu\.in'/);
-  assert.match(profileResolver, /assigned_role := 'admin'/);
-  assert.match(profileResolver, /where profile\.id = auth\.uid\(\)/);
-  assert.match(profileResolver, /grant execute on function public\.current_app_profile\(\) to authenticated/);
+  assert.match(currentRoles, /profiles_role_no_admin_check/);
+  assert.match(currentRoles, /role = 'coordinator'/);
+  assert.match(currentRoles, /ashlinmirsha@karunya\.edu\.in/);
+  assert.match(currentRoles, /bus_number = '1'/);
+  assert.match(currentRoles, /manickaraja@karunya\.edu/);
+  assert.match(currentRoles, /bus_number = '2'/);
+  assert.doesNotMatch(currentRoles, /assigned_role := 'admin'/);
   assert.match(coordinator, /\.eq\('bus_id', profile\.bus_id\)/);
+  assert.match(coordinator, /profile\.role !== 'coordinator'/);
+  assert.match(coordinator, /bus\.id === profile\.bus_id/);
 });
 
 test('attendance sheets can read their session and bus relationships', async () => {
-  const [policy, dashboard, student, functions, adminResolvers] = await Promise.all([
+  const [policy, student] = await Promise.all([
     read('supabase/migrations/20260803051000_allow_attendance_session_reads.sql'),
-    read('js/admin.js'),
     read('js/student.js'),
-    read('supabase/migrations/20260803052000_add_attendance_dashboard_functions.sql'),
-    read('supabase/migrations/20260803141500_add_admin_dashboard_data_resolvers.sql'),
   ]);
   assert.match(policy, /read authorized attendance sessions/);
-  assert.match(policy, /current_user_role\(\) = 'admin'/);
+  assert.match(policy, /current_user_role\(\) = 'coordinator'/);
   assert.match(policy, /attendance\.student_id = auth\.uid\(\)/);
-  assert.match(dashboard, /rpc\('admin_attendance_sheet'\)/);
   assert.match(student, /rpc\('student_attendance_history'\)/);
-  assert.match(functions, /security definer/);
-  assert.match(functions, /grant execute on function public\.student_attendance_history\(\) to authenticated/);
-  assert.match(functions, /grant execute on function public\.admin_attendance_sheet\(\) to authenticated/);
-  assert.match(adminResolvers, /ensure_current_user_admin/);
-  assert.match(adminResolvers, /admin_bus_records/);
-  assert.match(adminResolvers, /admin_student_records/);
-  assert.match(adminResolvers, /admin_coordinator_count/);
-  assert.match(dashboard, /rpc\('admin_bus_records'\)/);
-  assert.match(dashboard, /rpc\('admin_student_records'/);
-  assert.match(dashboard, /rpc\('admin_coordinator_count'\)/);
-  const coordinates = await read('supabase/migrations/20260803053000_add_admin_attendance_coordinates.sql');
-  assert.match(coordinates, /latitude double precision/);
-  assert.match(coordinates, /longitude double precision/);
-  assert.match(dashboard, /formatCoordinate/);
-  assert.match(dashboard, /mapUrlFor/);
-  assert.match(dashboard, /noopener noreferrer/);
 });
 
 test('Benesha Mercy is assigned as an active student on Bus 2', async () => {
@@ -137,43 +118,38 @@ test('check-in scanner requests a camera stream and supports QR decoding fallbac
 });
 
 test('protected pages require authenticated render and preserve safe post-login redirects', async () => {
-  const [auth, login, styles, student, coordinator, navbar, admin, scanner, index, adminPage] = await Promise.all([
+  const [auth, login, styles, student, coordinator, navbar, scanner, index, vercel] = await Promise.all([
     read('js/auth.js'),
     read('js/login-page.js'),
     read('assets/css/style.css'),
     read('pages/student.html'),
     read('pages/coordinator.html'),
     read('components/navbar.js'),
-    read('js/admin.js'),
     read('js/qr-scanner.js'),
     read('pages/index.html'),
-    read('pages/admin.html'),
+    read('vercel.json'),
   ]);
-  const vercel = await read('vercel.json');
   assert.match(auth, /SAFE_REDIRECT_PATTERN/);
   assert.match(auth, /postLoginRedirect/);
+  assert.doesNotMatch(auth, /dashboard/);
   assert.match(login, /consumeProtectedRedirect\(\)/);
   assert.match(login, /rpc\('current_app_profile'\)/);
   assert.match(login, /roleHome/);
   assert.match(login, /safeRedirect/);
-  assert.match(login, /profile\?\.role === 'admin' \? '\/dashboard'/);
+  assert.match(login, /profile\?\.role === 'coordinator' \? '\/coordinator'/);
+  assert.doesNotMatch(login, /admin/);
   assert.doesNotMatch(login, /ashlinmirsha@karunya\.edu\.in/);
   assert.match(await read('js/student.js'), /auth\.getSession\(\)/);
   assert.match(await read('js/student.js'), /rpc\('current_app_profile'\)/);
-  assert.match(await read('js/student.js'), /roleProfile\.role === 'admin'/);
-  assert.match(await read('js/student.js'), /location\.replace\('\/dashboard'\)/);
+  assert.match(await read('js/student.js'), /roleProfile\.role === 'coordinator'/);
+  assert.match(await read('js/student.js'), /location\.replace\('\/coordinator'\)/);
+  assert.doesNotMatch(await read('js/student.js'), /admin/);
   assert.doesNotMatch(await read('js/student.js'), /ashlinmirsha@karunya\.edu\.in/);
-  assert.match(await read('js/admin.js'), /auth\.getSession\(\)/);
-  assert.match(await read('js/admin.js'), /rpc\('current_app_profile'\)/);
-  assert.match(admin, /loadAssignedStudentsForBus/);
-  assert.match(admin, /admin_student_records/);
-  assert.match(admin, /p_bus_id: busId \|\| null/);
-  assert.match(adminPage, /select-admin-student-bus/);
-  assert.match(adminPage, /Assigned student records fetched by bus/);
-  assert.doesNotMatch(await read('js/admin.js'), /ashlinmirsha@karunya\.edu\.in/);
   assert.match(await read('js/coordinator.js'), /auth\.getSession\(\)/);
+  assert.match(await read('js/coordinator.js'), /profile\.role !== 'coordinator'/);
   assert.match(vercel, /Cache-Control/);
   assert.match(vercel, /no-store, max-age=0/);
+  assert.match(vercel, /"source": "\/dashboard"[\s\S]*"destination": "\/pages\/coordinator\.html"/);
   assert.doesNotMatch(index, /Students use/);
   assert.doesNotMatch(index, /assigned Bus 2 coordinator/i);
   assert.match(styles, /\.protected-page:not\(\.role-authorized\) main/);
@@ -181,8 +157,6 @@ test('protected pages require authenticated render and preserve safe post-login 
   assert.match(student, /document\.readyState === 'loading'/);
   assert.match(coordinator, /protected-page/);
   assert.match(coordinator, /document\.readyState === 'loading'/);
-  assert.match(admin, /const visibleRows = rows\.length \? rows : \[makeRow\(\[emptyMessage\]\)\];/);
-  assert.match(admin, /document\.body\.classList\.add\('role-authorized'\)/);
   assert.match(scanner, /document\.body\.classList\.add\('role-authorized'\)/);
   assert.doesNotMatch(navbar, /\?\.[^;\n]*\)\.[^;\n]*=/);
 });
