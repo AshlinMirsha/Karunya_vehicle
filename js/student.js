@@ -11,9 +11,10 @@ export async function initStudentDashboard() {
   if (!session) { rememberProtectedRedirect(); window.location.replace('/'); return; }
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) { rememberProtectedRedirect(); window.location.replace('/'); return; }
-  const { data: roleProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (roleProfile?.role === 'admin') return location.replace('/dashboard');
-  if (roleProfile?.role === 'coordinator') return location.replace('/coordinator');
+  const { data: roleProfile, error: roleError } = await supabase.rpc('current_app_profile').single();
+  if (roleError || !roleProfile?.role) { showToast('Your profile role could not be verified. Sign out and sign in again.', 'danger'); return; }
+  if (roleProfile.role === 'admin') return location.replace('/dashboard');
+  if (roleProfile.role === 'coordinator') return location.replace('/coordinator');
   renderNavbar(user, 'Student');
   document.body.classList.add('role-authorized');
   const { data: profile, error: profileError } = await supabase.from('profiles').select('full_name, register_number, status, buses(bus_number)').eq('id', user.id).single();

@@ -20,7 +20,8 @@ async function redirectAuthenticatedUser() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const { data: profile, error } = await supabase.rpc('current_app_profile').single();
+  if (error || !profile?.role) return;
   const protectedRedirect = consumeProtectedRedirect();
   const roleHome = profile?.role === 'admin' ? '/dashboard' : profile?.role === 'coordinator' ? '/coordinator' : '/student';
   const safeRedirect = protectedRedirect && (
