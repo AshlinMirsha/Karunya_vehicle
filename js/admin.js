@@ -3,7 +3,6 @@ import { renderNavbar } from '../components/navbar.js';
 import { showToast } from '../components/toast.js';
 import { rememberProtectedRedirect } from './auth.js';
 
-const ADMIN_EMAILS = new Set(['ashlinmirsha@karunya.edu.in']);
 const setText = (id, value) => { document.getElementById(id).textContent = String(value); };
 const cell = (value) => { const element = document.createElement('td'); if (value instanceof Node) element.append(value); else element.textContent = String(value ?? '—'); return element; };
 const makeRow = (values) => { const row = document.createElement('tr'); values.forEach((value) => row.append(cell(value))); return row; };
@@ -26,6 +25,27 @@ const renderRows = (id, rows, columns, emptyMessage) => {
   if (!rows.length) body.firstElementChild.firstElementChild.colSpan = columns;
 };
 
+const addBusFilterOption = (select, bus) => {
+  const option = document.createElement('option');
+  option.value = bus.id;
+  option.textContent = `Bus ${bus.bus_number}`;
+  select.append(option);
+};
+
+const loadAssignedStudentsForBus = async (busId) => {
+  const query = supabase
+    .from('profiles')
+    .select('id,full_name,register_number,email,status,bus_id,buses(bus_number)')
+    .eq('role', 'student')
+    .order('register_number');
+  const { data, error } = await (busId ? query.eq('bus_id', busId) : query);
+  if (error) {
+    showToast('Assigned student records could not be loaded for this bus.', 'danger');
+    return [];
+  }
+  return data ?? [];
+};
+
 const downloadAttendanceSheet = (records) => {
   const header = ['Student', 'Register number', 'Bus number', 'Session', 'Latitude', 'Longitude', 'Google Maps link', 'Checked in', 'Status'];
   const csv = [header, ...records].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
@@ -41,29 +61,40 @@ export async function initAdminDashboard() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) { rememberProtectedRedirect(); return location.replace('/'); }
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (profile?.role !== 'admin' && !ADMIN_EMAILS.has(user.email?.toLowerCase() ?? '')) return location.replace('/student');
+  if (profile?.role !== 'admin') return location.replace('/student');
   renderNavbar(user, 'Admin');
   document.body.classList.add('role-authorized');
 
-  const [studentsResult, busesResult, attendanceResult, coordinatorsResult] = await Promise.all([
-    supabase.from('profiles').select('id,full_name,register_number,email,status,buses(bus_number)').eq('role', 'student'),
+  const [busesResult, attendanceResult, coordinatorsResult] = await Promise.all([
     supabase.from('buses').select('id,bus_number,route,radius_meters').order('bus_number'),
     supabase.rpc('admin_attendance_sheet'),
     supabase.from('profiles').select('id').in('role', ['admin', 'coordinator']),
   ]);
-  const students = studentsResult.data ?? [];
   const buses = busesResult.data ?? [];
   const attendance = attendanceResult.data ?? [];
   const coordinators = coordinatorsResult.data ?? [];
-  const dashboardError = [studentsResult.error, busesResult.error, attendanceResult.error, coordinatorsResult.error].find(Boolean);
+  const dashboardError = [busesResult.error, attendanceResult.error, coordinatorsResult.error].find(Boolean);
   if (dashboardError) showToast('Some dashboard records could not be loaded. Refresh and try again.', 'danger');
+  const busFilter = document.getElementById('select-admin-student-bus');
+  busFilter.replaceChildren();
+  const allOption = document.createElement('option');
+  allOption.value = '';
+  allOption.textContent = 'All buses';
+  busFilter.append(allOption);
+  buses.forEach((bus) => addBusFilterOption(busFilter, bus));
+  const renderAssignedStudents = async () => {
+    const students = await loadAssignedStudentsForBus(busFilter.value);
+    setText('stat-total-students', students.length);
+    renderRows('admin-students-list', students.map((student) => makeRow([student.register_number, student.full_name, student.email, student.buses?.bus_number ?? 'Unassigned', student.status])), 5, 'No student records found for this bus.');
+  };
   const attendanceRows = attendance.map((record) => {
     const mapUrl = mapUrlFor(record.latitude, record.longitude);
     return [record.full_name ?? 'Unknown student', record.register_number ?? '—', record.bus_number ?? '—', record.session_type ?? '—', formatCoordinate(record.latitude), formatCoordinate(record.longitude), mapUrl ?? '—', new Date(record.checked_in_at).toLocaleString('en-IN'), record.status];
   });
-  setText('stat-total-students', students.length); setText('stat-active-buses', buses.length);
+  setText('stat-active-buses', buses.length);
   setText('stat-coordinators', coordinators.length); setText('stat-today-attendance', attendance.filter((record) => record.checked_in_at >= todayStart()).length);
-  renderRows('admin-students-list', students.map((student) => makeRow([student.register_number, student.full_name, student.email, student.buses?.bus_number ?? 'Unassigned', student.status])), 5, 'No student records found.');
+  busFilter.addEventListener('change', renderAssignedStudents);
+  await renderAssignedStudents();
   renderRows('admin-buses-list', buses.map((bus) => makeRow([bus.bus_number, bus.route, `${bus.radius_meters} m`])), 3, 'No bus records found.');
   renderRows('admin-attendance-list', attendanceRows.map((row) => makeRow([...row.slice(0, 6), mapLink(row[6]), ...row.slice(7)])), 9, 'No attendance has been recorded yet.');
 

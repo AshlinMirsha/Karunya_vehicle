@@ -3,7 +3,6 @@ import { renderNavbar } from '../components/navbar.js';
 import { showToast } from '../components/toast.js';
 import { rememberProtectedRedirect } from './auth.js';
 
-const ADMIN_EMAILS = new Set(['ashlinmirsha@karunya.edu.in']);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' }[character]));
 const initialFromName = (value) => String(value || 'K').trim().charAt(0).toUpperCase() || 'K';
 
@@ -13,7 +12,7 @@ export async function initStudentDashboard() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) { rememberProtectedRedirect(); window.location.replace('/'); return; }
   const { data: roleProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (roleProfile?.role === 'admin' || ADMIN_EMAILS.has(user.email?.toLowerCase() ?? '')) return location.replace('/dashboard');
+  if (roleProfile?.role === 'admin') return location.replace('/dashboard');
   if (roleProfile?.role === 'coordinator') return location.replace('/coordinator');
   renderNavbar(user, 'Student');
   document.body.classList.add('role-authorized');
