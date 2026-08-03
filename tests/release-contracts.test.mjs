@@ -22,6 +22,7 @@ test('daily QR function protects the scheduler and delivers a QR email', async (
 
 test('attendance API remains JWT-protected', async () => {
   const config = await read('supabase/config.toml');
+  const client = await read('supabase/client.js');
   const api = await read('supabase/functions/attendance-api/index.ts');
   assert.match(config, /\[functions\.attendance-api\][\s\S]*verify_jwt = true/);
   assert.match(api, /headers: \{ Authorization: authorization \}/);
@@ -29,6 +30,12 @@ test('attendance API remains JWT-protected', async () => {
   assert.match(api, /SESSION_TYPES\.has\(body\.sessionType\)/);
   assert.match(api, /QR_TOKEN_PATTERN/);
   assert.match(api, /withinCoordinateBounds/);
+  assert.match(api, /isAllowedOrigin/);
+  assert.match(api, /Forbidden origin/);
+  assert.match(api, /consume_attendance_rate_limit/);
+  assert.match(api, /security_audit_events/);
+  assert.match(client, /storage: window\.sessionStorage/);
+  assert.match(client, /flowType: 'pkce'/);
 });
 
 test('database policies scope buses and coordinator attendance to the assigned bus', async () => {
@@ -57,6 +64,8 @@ test('attendance sheets can read their session and bus relationships', async () 
   assert.match(coordinates, /latitude double precision/);
   assert.match(coordinates, /longitude double precision/);
   assert.match(dashboard, /formatCoordinate/);
+  assert.match(dashboard, /mapUrlFor/);
+  assert.match(dashboard, /noopener noreferrer/);
 });
 
 test('Benesha Mercy is seeded as an active student on Bus 1', async () => {
