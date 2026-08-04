@@ -1,0 +1,1 @@
+alter table public.attendance_sessions drop constraint attendance_sessions_session_type_check; alter table public.attendance_sessions add constraint attendance_sessions_session_type_check check (session_type in ('Morning', 'Evening', 'Special'));
