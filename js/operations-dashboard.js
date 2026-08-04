@@ -170,8 +170,13 @@ export async function initOperationsDashboard(expectedRole) {
 
   if (!canGenerateQr) return;
   const qrBus = document.getElementById('select-qr-bus');
-  buses.forEach((bus) => addOption(qrBus, bus.id, `Bus ${bus.bus_number} — ${bus.route}`));
-  qrBus.value = profile.bus_id || buses[0]?.id || '';
+  qrBus.replaceChildren();
+  const myBus = buses.find(b => b.id === profile.bus_id);
+  if (myBus) {
+    addOption(qrBus, myBus.id, `Bus ${myBus.bus_number} — ${myBus.route}`);
+  }
+  qrBus.value = profile.bus_id || '';
+  qrBus.disabled = true;
   document.getElementById('btn-generate-qr').onclick = async () => {
     const { data, error } = await supabase.functions.invoke('attendance-api', { body: { action: 'create-session', busId: qrBus.value, sessionType: document.getElementById('select-session').value } });
     if (error || !data?.token || !data?.expiresAt) return showToast('QR session could not be created.', 'danger');
