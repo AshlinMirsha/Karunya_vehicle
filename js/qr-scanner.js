@@ -120,7 +120,6 @@ const setSubmitButton = (isLoading) => {
 
 const showCheckinSuccess = () => {
   document.getElementById('checkin-success-name').textContent = studentProfile?.full_name || 'Karunya Student';
-  document.getElementById('checkin-success-register-number').textContent = studentProfile?.register_number || 'Register number unavailable';
   const dialog = document.getElementById('checkin-success-dialog');
   if (typeof dialog.showModal === 'function') dialog.showModal();
   else dialog.setAttribute('open', '');
@@ -142,7 +141,6 @@ const showCheckinConfirmation = () => {
   const token = extractToken(document.getElementById('input-token').value);
   if (!token) return showToast('Scan a valid attendance QR code before confirming.', 'danger');
   document.getElementById('checkin-confirm-name').textContent = studentProfile?.full_name || 'Karunya Student';
-  document.getElementById('checkin-confirm-register-number').textContent = studentProfile?.register_number || 'Register number unavailable';
   showDialog('checkin-confirm-dialog');
 };
 
