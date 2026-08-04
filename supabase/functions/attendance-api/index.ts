@@ -114,10 +114,10 @@ Deno.serve(async (request) => {
       if (profile.status !== 'active' || !profile.bus_id) return response(request, { message: 'Your bus assignment is not active.' }, 403);
       const { data: session } = await adminClient.from('attendance_sessions').select('*, buses(*)').eq('token_hash', await hashToken(token, qrSecret)).gt('expires_at', new Date().toISOString()).maybeSingle();
       if (!session) return response(request, { message: 'Invalid or expired QR session.' }, 400);
-      if (session.bus_id !== profile.bus_id) return response(request, { message: 'Sorry, try with your bus. Invalid all measures!!!' }, 400);
+      if (session.bus_id !== profile.bus_id) return response(request, { message: 'STUDENT BELONG TO THIS BUS INVALID SCAN YOUR BUS CODE' }, 400);
       if (distanceMeters(latitude, longitude, session.buses.latitude, session.buses.longitude) > session.buses.radius_meters) return response(request, { message: 'You are outside the permitted bus geofence.' }, 400);
       const { error } = await adminClient.from('attendance').insert({ session_id: session.id, student_id: user.id, latitude, longitude });
-      if (error?.code === '23505') return response(request, { message: 'Attendance is already registered for this session.' }, 409);
+      if (error?.code === '23505') return response(request, { message: 'ALREADY MARKED PRESENT !!!' }, 409);
       if (error) return response(request, { message: 'Attendance could not be recorded.' }, 500);
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action: body.action, outcome: 'allowed' });
       return response(request, { message: 'Attendance marked successfully!' });
