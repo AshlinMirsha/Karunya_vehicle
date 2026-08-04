@@ -11,7 +11,7 @@ const EARTH_RADIUS_METERS = 6_371_000;
 const SESSION_DURATION_MS = 5 * 60 * 60 * 1000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const QR_TOKEN_PATTERN = /^[0-9a-f]{64}$/i;
-const SESSION_TYPES = new Set(['Morning', 'Evening']);
+const SESSION_TYPES = new Set(['Morning', 'Evening', 'Special']);
 const QR_IMAGE_CID = 'manual-attendance-qr';
 const MAX_REQUEST_BODY_BYTES = 2_048;
 const corsHeadersFor = (origin: string | null) => ({
@@ -116,6 +116,21 @@ Deno.serve(async (request) => {
       if (!session) return response(request, { message: 'Invalid or expired QR session.' }, 400);
       if (session.bus_id !== profile.bus_id) return response(request, { message: 'STUDENT BELONG TO THIS BUS INVALID SCAN YOUR BUS CODE' }, 400);
       if (distanceMeters(latitude, longitude, session.buses.latitude, session.buses.longitude) > session.buses.radius_meters) return response(request, { message: 'You are outside the permitted bus geofence.' }, 400);
+
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const { data: existingCheckin } = await adminClient
+        .from('attendance')
+        .select('id, attendance_sessions!inner(session_type)')
+        .eq('student_id', user.id)
+        .eq('attendance_sessions.session_type', session.session_type)
+        .gte('checked_in_at', startOfDay.toISOString())
+        .limit(1);
+
+      if (existingCheckin && existingCheckin.length > 0) {
+        return response(request, { message: 'ALREADY MARKED PRESENT !!!' }, 409);
+      }
+
       const { error } = await adminClient.from('attendance').insert({ session_id: session.id, student_id: user.id, latitude, longitude });
       if (error?.code === '23505') return response(request, { message: 'ALREADY MARKED PRESENT !!!' }, 409);
       if (error) return response(request, { message: 'Attendance could not be recorded.' }, 500);
