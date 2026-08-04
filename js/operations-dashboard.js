@@ -108,10 +108,12 @@ export async function initOperationsDashboard(expectedRole) {
     return;
   }
   const buses = busesResult.data ?? [];
-  const summary = summaryResult.data?.[0] ?? { student_count: 0, bus_count: 0, checkins_today: 0 };
+  const summary = summaryResult.data?.[0] ?? { student_count: 0, bus_count: 0, present_today: 0, morning_checkins: 0, evening_checkins: 0 };
   text('stat-total-students', summary.student_count ?? 0);
-  text('stat-active-buses', summary.bus_count ?? buses.length);
-  text('stat-today-attendance', summary.checkins_today ?? 0);
+  if (document.getElementById('stat-active-buses')) text('stat-active-buses', summary.bus_count ?? buses.length);
+  text('stat-today-attendance', summary.present_today ?? 0);
+  if (document.getElementById('stat-morning-checkins')) text('stat-morning-checkins', summary.morning_checkins ?? 0);
+  if (document.getElementById('stat-evening-checkins')) text('stat-evening-checkins', summary.evening_checkins ?? 0);
 
   const busFilter = document.getElementById('filter-bus');
   busFilter.replaceChildren();
