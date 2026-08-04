@@ -181,7 +181,10 @@ export async function initOperationsDashboard(expectedRole) {
   qrBus.disabled = true;
   document.getElementById('btn-generate-qr').onclick = async () => {
     const { data, error } = await supabase.functions.invoke('attendance-api', { body: { action: 'create-session', busId: qrBus.value, sessionType: document.getElementById('select-session').value } });
-    if (error || !data?.token || !data?.expiresAt) return showToast('QR session could not be created.', 'danger');
+    if (error || !data?.token || !data?.expiresAt) {
+      const errorMessage = error?.context?.message || data?.message || error?.message || 'QR session could not be created.';
+      return showToast(errorMessage, 'danger');
+    }
     const display = document.getElementById('qr-code-display'); display.replaceChildren();
     new window.QRCode(display, { text: `${location.origin}/checkin?token=${encodeURIComponent(data.token)}`, width: 220, height: 220 });
     text('qr-url-text', `Expires ${new Date(data.expiresAt).toLocaleTimeString('en-IN')}`);
