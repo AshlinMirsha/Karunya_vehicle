@@ -12,7 +12,7 @@ const statusCell = (status, time, lat, lon) => {
   const td = document.createElement('td');
   if (status === 'PRESENT') {
     const timeText = time ? new Date(time).toLocaleTimeString('en-IN', { timeStyle: 'short' }) : '';
-    td.innerHTML = `PRESENT <span class="text-muted small">(${timeText})</span> <a href="https://maps.google.com/?q=${lat},${lon}" target="_blank" class="ms-1 text-info text-decoration-none" title="View location">📍</a>`;
+    td.innerHTML = `PRESENT <span class="text-muted small">(${timeText})</span> <a href="https://maps.google.com/?q=${lat},${lon}" target="_blank" class="btn btn-sm btn-outline-info ms-2 py-0 px-2" style="font-size: 0.75rem; border-color: rgba(var(--bs-info-rgb), 0.3);">View map</a>`;
   } else if (status === 'ABSENT') {
     td.innerHTML = `<span class="text-danger">ABSENT</span>`;
   } else {
@@ -120,25 +120,49 @@ export async function initOperationsDashboard(expectedRole) {
   if (expectedRole === 'coordinator' && profile.bus_id) busFilter.value = profile.bus_id;
 
   const loadHistory = async () => {
+    const searchVal = document.getElementById('filter-search')?.value.trim() || null;
     const { data, error } = await supabase.rpc('authorized_attendance_history', {
       p_bus_id: busFilter.value || null,
       p_date_from: document.getElementById('filter-date-from').value || null,
       p_date_to: document.getElementById('filter-date-to').value || null,
       p_status: document.getElementById('filter-status').value || null,
+      p_search: searchVal,
     });
     if (error) { showToast('Attendance history could not be loaded.', 'danger'); return; }
     const records = data ?? [];
     text('stat-history-count', records.length);
     renderRows(records);
   };
+  const setTodayDefaults = () => {
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const localISODate = new Date(now - tzOffset).toISOString().slice(0, 10);
+    document.getElementById('filter-date-from').value = `${localISODate}T00:00`;
+    document.getElementById('filter-date-to').value = `${localISODate}T23:59`;
+  };
+
+  let searchTimeout;
+  const searchInput = document.getElementById('filter-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      if (searchInput.value.trim().length > 0) {
+        document.getElementById('filter-date-from').value = '';
+        document.getElementById('filter-date-to').value = '';
+      }
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(loadHistory, 300);
+    });
+  }
+
   ['filter-bus', 'filter-date-from', 'filter-date-to', 'filter-status'].forEach((id) => document.getElementById(id).addEventListener('change', loadHistory));
   document.getElementById('btn-clear-filters').addEventListener('click', () => {
-    document.getElementById('filter-date-from').value = '';
-    document.getElementById('filter-date-to').value = '';
+    setTodayDefaults();
     document.getElementById('filter-status').value = '';
+    if (searchInput) searchInput.value = '';
     busFilter.value = expectedRole === 'coordinator' ? profile.bus_id : '';
     loadHistory();
   });
+  setTodayDefaults();
   await loadHistory();
 
   await renderStudentRoster();
