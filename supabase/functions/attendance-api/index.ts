@@ -113,7 +113,8 @@ Deno.serve(async (request) => {
       if (typeof token !== 'string' || !QR_TOKEN_PATTERN.test(token) || !withinCoordinateBounds(latitude, longitude)) return response(request, { message: 'A valid QR token and GPS location are required.' }, 400);
       if (profile.status !== 'active' || !profile.bus_id) return response(request, { message: 'Your bus assignment is not active.' }, 403);
       const { data: session } = await adminClient.from('attendance_sessions').select('*, buses(*)').eq('token_hash', await hashToken(token, qrSecret)).gt('expires_at', new Date().toISOString()).maybeSingle();
-      if (!session || session.bus_id !== profile.bus_id) return response(request, { message: 'Invalid, expired, or incorrect-bus QR session.' }, 400);
+      if (!session) return response(request, { message: 'Invalid or expired QR session.' }, 400);
+      if (session.bus_id !== profile.bus_id) return response(request, { message: 'Sorry, try with your bus. Invalid all measures!!!' }, 400);
       if (distanceMeters(latitude, longitude, session.buses.latitude, session.buses.longitude) > session.buses.radius_meters) return response(request, { message: 'You are outside the permitted bus geofence.' }, 400);
       const { error } = await adminClient.from('attendance').insert({ session_id: session.id, student_id: user.id, latitude, longitude });
       if (error?.code === '23505') return response(request, { message: 'Attendance is already registered for this session.' }, 409);

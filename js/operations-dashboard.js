@@ -8,18 +8,39 @@ const cell = (value) => { const element = document.createElement('td'); element.
 const row = (values) => { const element = document.createElement('tr'); values.forEach((value) => element.append(cell(value))); return element; };
 const dateValue = (value) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
+const statusCell = (status, time, lat, lon) => {
+  const td = document.createElement('td');
+  if (status === 'PRESENT') {
+    const timeText = time ? new Date(time).toLocaleTimeString('en-IN', { timeStyle: 'short' }) : '';
+    td.innerHTML = `PRESENT <span class="text-muted small">(${timeText})</span> <a href="https://maps.google.com/?q=${lat},${lon}" target="_blank" class="ms-1 text-info text-decoration-none" title="View location">📍</a>`;
+  } else if (status === 'ABSENT') {
+    td.innerHTML = `<span class="text-danger">ABSENT</span>`;
+  } else {
+    td.textContent = '—';
+  }
+  return td;
+};
+
 const renderRows = (records) => {
   const body = document.getElementById('attendance-list');
   if (!records.length) {
     const empty = row(['No attendance records match these filters.']);
-    empty.firstElementChild.colSpan = 7;
+    empty.firstElementChild.colSpan = 6;
     body.replaceChildren(empty);
     return;
   }
-  body.replaceChildren(...records.map((record) => row([
-    record.full_name || 'Unnamed student', record.register_number || '—', `Bus ${record.bus_number}`, record.session_type,
-    dateValue(record.checked_in_at), record.status, record.checked_in_at ? 'Recorded' : 'Not checked in',
-  ])));
+  body.replaceChildren(...records.map((record) => {
+    const tr = document.createElement('tr');
+    tr.append(
+      cell(record.full_name || 'Unnamed student'),
+      cell(record.register_number || '—'),
+      cell(`Bus ${record.bus_number}`),
+      cell(record.session_date ? new Date(record.session_date).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : '—'),
+      statusCell(record.morning_status, record.morning_checked_in_at, record.morning_latitude, record.morning_longitude),
+      statusCell(record.evening_status, record.evening_checked_in_at, record.evening_latitude, record.evening_longitude)
+    );
+    return tr;
+  }));
 };
 
 const addOption = (select, value, label) => {
