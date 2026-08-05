@@ -47,6 +47,79 @@ const addOption = (select, value, label) => {
   const option = document.createElement('option'); option.value = value; option.textContent = label; select.append(option);
 };
 
+const renderSessionStatus = async (buses) => {
+  const now = new Date();
+  const tzOffset = now.getTimezoneOffset() * 60000;
+  const localISODate = new Date(now - tzOffset).toISOString().slice(0, 10);
+  
+  const { data: sessions, error } = await supabase
+    .from('attendance_sessions')
+    .select('id, bus_id, session_type, created_at, email_status, email_error')
+    .gte('created_at', `${localISODate}T00:00:00Z`)
+    .order('created_at', { ascending: false });
+    
+  if (error) return;
+
+  const section = document.createElement('section');
+  section.className = 'glass-panel p-4 mt-4';
+  section.innerHTML = `
+    <h2 class="h5 fw-bold mb-1">Today's QR Email Delivery Status</h2>
+    <p class="text-muted small mb-3">Status of QR emails sent to coordinators today.</p>
+    <div class="table-responsive">
+      <table class="table table-dark-custom align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Bus</th>
+            <th>Session</th>
+            <th>Email Status</th>
+            <th>Error Info</th>
+          </tr>
+        </thead>
+        <tbody id="session-status-list"></tbody>
+      </table>
+    </div>
+  `;
+  
+  const main = document.querySelector('main');
+  // insert before the first glass-panel section that is not the main stats row
+  main.insertBefore(section, main.querySelector('section.glass-panel'));
+  
+  const body = section.querySelector('#session-status-list');
+  if (!sessions || sessions.length === 0) {
+    const empty = row(['No QR sessions generated today yet.']);
+    empty.firstElementChild.colSpan = 5;
+    body.replaceChildren(empty);
+    return;
+  }
+  
+  body.replaceChildren(...sessions.map(session => {
+    const bus = buses.find(b => b.id === session.bus_id);
+    const busLabel = bus ? \`Bus \${bus.bus_number}\` : 'Unknown Bus';
+    const timeLabel = new Date(session.created_at).toLocaleTimeString('en-IN', { timeStyle: 'short' });
+    
+    let statusHtml = '';
+    if (session.email_status === 'sent') {
+      statusHtml = '<span class="badge bg-success">Sent</span>';
+    } else if (session.email_status === 'failed') {
+      statusHtml = '<span class="badge bg-danger">Failed</span>';
+    } else {
+      statusHtml = '<span class="badge bg-warning text-dark">Pending</span>';
+    }
+    
+    const tr = document.createElement('tr');
+    tr.append(
+      cell(timeLabel),
+      cell(busLabel),
+      cell(session.session_type),
+      cell(''),
+      cell(session.email_error || '—')
+    );
+    tr.children[3].innerHTML = statusHtml;
+    return tr;
+  }));
+};
+
 const renderAdminDirectory = async (buses) => {
   const { data: people, error } = await supabase.rpc('admin_people_records');
   if (error) return showToast('Student and coordinator records could not be loaded.', 'danger');
@@ -168,7 +241,10 @@ export async function initOperationsDashboard(expectedRole) {
   await loadHistory();
 
   await renderStudentRoster();
-  if (expectedRole === 'admin') await renderAdminDirectory(buses);
+  if (expectedRole === 'admin') {
+    await renderSessionStatus(buses);
+    await renderAdminDirectory(buses);
+  }
 
   if (!canGenerateQr) return;
   const qrBus = document.getElementById('select-qr-bus');

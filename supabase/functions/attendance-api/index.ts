@@ -120,8 +120,12 @@ Deno.serve(async (request) => {
       if (session.bus_id !== profile.bus_id) return response(request, { message: 'STUDENT BELONG TO THIS BUS INVALID SCAN YOUR BUS CODE' }, 400);
       if (distanceMeters(latitude, longitude, session.buses.latitude, session.buses.longitude) > session.buses.radius_meters) return response(request, { message: 'You are outside the permitted bus geofence.' }, 400);
 
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
+      const now = new Date();
+      const istOffset = 5.5 * 60 * 60 * 1000;
+      const istTime = new Date(now.getTime() + istOffset);
+      istTime.setUTCHours(0, 0, 0, 0);
+      const startOfDay = new Date(istTime.getTime() - istOffset);
+      
       const { data: existingCheckin } = await adminClient
         .from('attendance')
         .select('id, attendance_sessions!inner(session_type)')

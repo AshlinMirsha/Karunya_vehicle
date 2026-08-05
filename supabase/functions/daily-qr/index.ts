@@ -81,27 +81,46 @@ const sendSmtpEmail = async (user: string, password: string, to: string, rawMime
   const reader = conn.readable.getReader();
   const writer = conn.writable.getWriter();
 
+  let buffer = '';
   async function readResponse(): Promise<string> {
-    const { value } = await reader.read();
-    return value ? decoder.decode(value) : '';
+    let response = '';
+    while (true) {
+      const newlineIdx = buffer.indexOf('\r\n');
+      if (newlineIdx !== -1) {
+        const line = buffer.slice(0, newlineIdx + 2);
+        buffer = buffer.slice(newlineIdx + 2);
+        response += line;
+        if (line.length >= 4 && line[3] === ' ') {
+          return response;
+        }
+      } else {
+        const { value, done } = await reader.read();
+        if (value) buffer += decoder.decode(value, { stream: true });
+        if (done) break;
+      }
+    }
+    return response;
   }
 
   async function sendCmd(cmd: string): Promise<string> {
     await writer.write(encoder.encode(cmd + "\r\n"));
-    return await readResponse();
+    const response = await readResponse();
+    const code = parseInt(response.slice(0, 3), 10);
+    if (code >= 400) {
+      throw new Error(`SMTP command failed: ${response.trim()}`);
+    }
+    return response;
   }
 
   try {
-    await readResponse(); // Welcome 220
+    const welcome = await readResponse();
+    if (parseInt(welcome.slice(0, 3), 10) >= 400) throw new Error(`SMTP connect failed: ${welcome.trim()}`);
+    
     await sendCmd("EHLO localhost");
     await sendCmd("AUTH LOGIN");
     await sendCmd(btoa(user));
-    const authPassRes = await sendCmd(btoa(password));
+    await sendCmd(btoa(password));
     
-    if (!authPassRes.includes("235")) {
-      throw new Error(`Authentication failed: ${authPassRes.trim()}`);
-    }
-
     await sendCmd(`MAIL FROM:<${user}>`);
     await sendCmd(`RCPT TO:<${to}>`);
     await sendCmd("DATA");
@@ -144,14 +163,24 @@ Deno.serve(async (request) => {
         const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
         const expiresAt = new Date(Date.now() + QR_SESSION_DURATION_MS).toISOString();
         const { data: session, error: sessionError } = await database.from('attendance_sessions').insert({
-          bus_id: bus.id, session_type: sessionType, token_hash: await sessionHash(token), expires_at: expiresAt, created_by: faculty.id,
+          bus_id: bus.id, session_type: sessionType, token_hash: await sessionHash(token), expires_at: expiresAt, created_by: faculty.id, email_status: 'pending',
         }).select('id').single();
-        if (sessionError || !session) throw new Error(`Could not create Bus ${bus.bus_number} attendance session`);
+        if (sessionError || !session) {
+          console.error(`Could not create Bus ${bus.bus_number} attendance session`, sessionError);
+          continue;
+        }
 
         const checkinUrl = `${APP_URL}/checkin?token=${token}`;
         const rawMime = await buildEmail(faculty.email, bus.bus_number, checkinUrl, sessionType);
         
-        await sendSmtpEmail(emailUser, emailPassword.replace(/\s+/g, ''), faculty.email, rawMime);
+        try {
+          await sendSmtpEmail(emailUser, emailPassword.replace(/\s+/g, ''), faculty.email, rawMime);
+          await database.from('attendance_sessions').update({ email_status: 'sent' }).eq('id', session.id);
+        } catch (emailError) {
+          const errMsg = emailError instanceof Error ? emailError.message : String(emailError);
+          console.error(`Failed to send email to coordinator ${faculty.email} for bus ${bus.bus_number}:`, errMsg);
+          await database.from('attendance_sessions').update({ email_status: 'failed', email_error: errMsg }).eq('id', session.id);
+        }
       }
     }
     return json({ message: 'QR sessions created and faculty email sent', sessionTypes, busCount: buses.length });
