@@ -106,7 +106,7 @@ const renderSessionStatus = async (buses) => {
   
   body.replaceChildren(...sessions.map(session => {
     const bus = buses.find(b => b.id === session.bus_id);
-    const busLabel = bus ? \`Bus \${bus.bus_number}\` : 'Unknown Bus';
+    const busLabel = bus ? `Bus ${bus.bus_number}` : 'Unknown Bus';
     const timeLabel = new Date(session.created_at).toLocaleTimeString('en-IN', { timeStyle: 'short' });
     
     let statusHtml = '';
