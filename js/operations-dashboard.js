@@ -8,7 +8,13 @@ const cell = (value) => { const element = document.createElement('td'); element.
 const row = (values) => { const element = document.createElement('tr'); values.forEach((value) => element.append(cell(value))); return element; };
 const dateValue = (value) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
-const statusCell = (status, time, lat, lon) => {
+const getTodayDateStr = () => {
+  const now = new Date();
+  const tzOffset = now.getTimezoneOffset() * 60000;
+  return new Date(now - tzOffset).toISOString().slice(0, 10);
+};
+
+const statusCell = (status, time, lat, lon, sessionDateStr) => {
   const td = document.createElement('td');
   if (status === 'PRESENT') {
     const timeText = time ? new Date(time).toLocaleTimeString('en-IN', { timeStyle: 'short' }) : '';
@@ -16,7 +22,11 @@ const statusCell = (status, time, lat, lon) => {
   } else if (status === 'ABSENT') {
     td.innerHTML = `<span class="text-danger">ABSENT</span>`;
   } else {
-    td.textContent = '—';
+    if (sessionDateStr === getTodayDateStr()) {
+      td.innerHTML = `<span class="text-muted small fst-italic">Coming soon</span>`;
+    } else {
+      td.textContent = '—';
+    }
   }
   return td;
 };
@@ -36,8 +46,8 @@ const renderRows = (records) => {
       cell(record.register_number || '—'),
       cell(`Bus ${record.bus_number}`),
       cell(record.session_date ? new Date(record.session_date).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : '—'),
-      statusCell(record.morning_status, record.morning_checked_in_at, record.morning_latitude, record.morning_longitude),
-      statusCell(record.evening_status, record.evening_checked_in_at, record.evening_latitude, record.evening_longitude)
+      statusCell(record.morning_status, record.morning_checked_in_at, record.morning_latitude, record.morning_longitude, record.session_date),
+      statusCell(record.evening_status, record.evening_checked_in_at, record.evening_latitude, record.evening_longitude, record.session_date)
     );
     return tr;
   }));
