@@ -256,7 +256,8 @@ export async function initOperationsDashboard(expectedRole) {
   qrBus.value = profile.bus_id || '';
   qrBus.disabled = true;
   document.getElementById('btn-generate-qr').onclick = async () => {
-    const { data, error } = await supabase.functions.invoke('attendance-api', { body: { action: 'create-session', busId: qrBus.value, sessionType: document.getElementById('select-session').value } });
+    const emailQr = document.getElementById('check-email-qr')?.checked || false;
+    const { data, error } = await supabase.functions.invoke('attendance-api', { body: { action: 'create-session', busId: qrBus.value, sessionType: document.getElementById('select-session').value, emailQr } });
     if (error || !data?.token || !data?.expiresAt) {
       const errorMessage = error?.context?.message || data?.message || error?.message || 'QR session could not be created.';
       return showToast(errorMessage, 'danger');
@@ -264,6 +265,15 @@ export async function initOperationsDashboard(expectedRole) {
     const display = document.getElementById('qr-code-display'); display.replaceChildren();
     new window.QRCode(display, { text: `${location.origin}/checkin?token=${encodeURIComponent(data.token)}`, width: 220, height: 220 });
     text('qr-url-text', `Expires ${new Date(data.expiresAt).toLocaleTimeString('en-IN')}`);
-    showToast('Secure QR session created.', 'success');
+    
+    if (emailQr) {
+      if (data.emailSent) {
+        showToast('Secure QR session created and emailed successfully.', 'success');
+      } else {
+        showToast('Secure QR session created, but the email could not be sent.', 'warning');
+      }
+    } else {
+      showToast('Secure QR session created.', 'success');
+    }
   };
 }
