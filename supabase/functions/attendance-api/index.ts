@@ -86,11 +86,14 @@ Deno.serve(async (request) => {
       return response(request, { message: 'Only assigned coordinators may use @karunya.edu accounts.' }, 403);
     }
     const body = await request.json().catch(() => null);
-    if (!body || typeof body !== 'object' || !['create-session', 'mark-attendance'].includes((body as { action?: string }).action ?? '')) return response(request, { message: 'Invalid request.' }, 400);
-    const { data: limit, error: limitError } = await adminClient.rpc('consume_attendance_rate_limit', { p_actor_id: user.id, p_action: body.action }).single();
-    if (limitError || !limit?.allowed) {
-      await adminClient.from('security_audit_events').insert({ actor_id: user.id, action: body.action, outcome: 'rate_limited' });
-      return response(request, { message: `Too many requests. Try again in ${Math.max(1, limit?.retry_after_seconds ?? 600)} seconds.` }, 429);
+    if (!body || typeof body !== 'object' || !['create-session', 'mark-attendance', 'update-coordinator-location'].includes((body as { action?: string }).action ?? '')) return response(request, { message: 'Invalid request.' }, 400);
+    
+    if (body.action === 'create-session' || body.action === 'mark-attendance') {
+      const { data: limit, error: limitError } = await adminClient.rpc('consume_attendance_rate_limit', { p_actor_id: user.id, p_action: body.action }).single();
+      if (limitError || !limit?.allowed) {
+        await adminClient.from('security_audit_events').insert({ actor_id: user.id, action: body.action, outcome: 'rate_limited' });
+        return response(request, { message: `Too many requests. Try again in ${Math.max(1, limit?.retry_after_seconds ?? 600)} seconds.` }, 429);
+      }
     }
 
     if (body.action === 'create-session') {
@@ -109,6 +112,26 @@ Deno.serve(async (request) => {
         : true;
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action: body.action, outcome: 'allowed' });
       return response(request, { token, sessionId: session.id, expiresAt, emailSent });
+    }
+
+    if (body.action === 'update-coordinator-location') {
+      if (profile.role !== 'coordinator') return response(request, { message: 'Not authorized.' }, 403);
+      const { busId, latitude, longitude } = body;
+      if (typeof busId !== 'string' || !UUID_PATTERN.test(busId) || !withinCoordinateBounds(latitude, longitude)) {
+        return response(request, { message: 'A valid bus ID and GPS location are required.' }, 400);
+      }
+      if (profile.bus_id !== busId) return response(request, { message: 'Bus is not assigned to you.' }, 403);
+
+      const { error: updateError } = await adminClient
+        .from('buses')
+        .update({ latitude, longitude })
+        .eq('id', busId);
+
+      if (updateError) {
+        console.error('Failed to update coordinator location:', updateError);
+        return response(request, { message: 'Could not update live position.' }, 500);
+      }
+      return response(request, { success: true });
     }
 
     if (body.action === 'mark-attendance') {

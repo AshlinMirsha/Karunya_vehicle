@@ -8,6 +8,104 @@ const cell = (value) => { const element = document.createElement('td'); element.
 const row = (values) => { const element = document.createElement('tr'); values.forEach((value) => element.append(cell(value))); return element; };
 const dateValue = (value) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
+let coordinatorLocationWatchId = null;
+let lastReportedCoordinates = null;
+let lastReportedTimestamp = 0;
+
+function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function stopLiveLocationTracking() {
+  if (coordinatorLocationWatchId !== null) {
+    navigator.geolocation.clearWatch(coordinatorLocationWatchId);
+    coordinatorLocationWatchId = null;
+    lastReportedCoordinates = null;
+    lastReportedTimestamp = 0;
+    console.log('Stopped live location tracking.');
+  }
+}
+
+function startLiveLocationTracking(busId) {
+  stopLiveLocationTracking();
+  if (!navigator.geolocation) {
+    showToast('Geolocation is not supported by your browser.', 'danger');
+    return;
+  }
+  
+  coordinatorLocationWatchId = navigator.geolocation.watchPosition(
+    async (position) => {
+      const { latitude, longitude } = position.coords;
+      const now = Date.now();
+      
+      if (lastReportedCoordinates) {
+        const distance = calculateDistanceMeters(
+          lastReportedCoordinates.latitude,
+          lastReportedCoordinates.longitude,
+          latitude,
+          longitude
+        );
+        const timePassed = now - lastReportedTimestamp;
+        
+        if (distance < 10 && timePassed < 15000) {
+          console.log(`Location update skipped: distance=${distance.toFixed(1)}m, time=${(timePassed/1000).toFixed(1)}s`);
+          return;
+        }
+      }
+      
+      let attempt = 0;
+      const maxRetries = 3;
+      const sendUpdate = async () => {
+        attempt++;
+        try {
+          const { error } = await supabase.functions.invoke('attendance-api', {
+            body: {
+              action: 'update-coordinator-location',
+              busId,
+              latitude,
+              longitude
+            }
+          });
+          if (error) throw error;
+          
+          lastReportedCoordinates = { latitude, longitude };
+          lastReportedTimestamp = now;
+          console.log(`Live location updated: ${latitude}, ${longitude}`);
+        } catch (err) {
+          console.error(`Attempt ${attempt} failed to send location:`, err);
+          if (attempt < maxRetries) {
+            setTimeout(sendUpdate, 3000);
+          } else {
+            showToast('Unable to share live location with server. Please check connection.', 'warning');
+          }
+        }
+      };
+      
+      await sendUpdate();
+    },
+    (error) => {
+      let msg = 'Error tracking location.';
+      if (error.code === error.PERMISSION_DENIED) {
+        msg = 'Location permission is required to broadcast live bus location.';
+      } else if (error.code === error.POSITION_UNAVAILABLE) {
+        msg = 'GPS signal is currently unavailable.';
+      } else if (error.code === error.TIMEOUT) {
+        msg = 'GPS tracking request timed out.';
+      }
+      showToast(msg, 'danger');
+    },
+    { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+  );
+}
+
+window.addEventListener('beforeunload', stopLiveLocationTracking);
+
 const getTodayDateStr = () => {
   const now = new Date();
   const tzOffset = now.getTimezoneOffset() * 60000;
@@ -311,6 +409,15 @@ export async function initOperationsDashboard(expectedRole) {
       const errorMessage = error?.context?.message || data?.message || error?.message || 'QR session could not be created.';
       return showToast(errorMessage, 'danger');
     }
+    
+    // Start streaming the coordinator's live location
+    startLiveLocationTracking(qrBus.value);
+    const expiresAtTime = new Date(data.expiresAt).getTime();
+    const duration = expiresAtTime - Date.now();
+    if (duration > 0) {
+      setTimeout(stopLiveLocationTracking, duration);
+    }
+
     const display = document.getElementById('qr-code-display'); display.replaceChildren();
     new window.QRCode(display, { text: `${location.origin}/checkin?token=${encodeURIComponent(data.token)}`, width: 220, height: 220 });
     text('qr-url-text', `Expires ${new Date(data.expiresAt).toLocaleTimeString('en-IN')}`);
