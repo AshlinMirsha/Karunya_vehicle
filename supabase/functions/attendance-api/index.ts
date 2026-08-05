@@ -141,7 +141,8 @@ Deno.serve(async (request) => {
       const { data: session } = await adminClient.from('attendance_sessions').select('*, buses(*)').eq('token_hash', await hashToken(token, qrSecret)).gt('expires_at', new Date().toISOString()).maybeSingle();
       if (!session) return response(request, { message: 'Invalid or expired QR session.' }, 400);
       if (session.bus_id !== profile.bus_id) return response(request, { message: 'STUDENT BELONG TO THIS BUS INVALID SCAN YOUR BUS CODE' }, 400);
-      if (distanceMeters(latitude, longitude, session.buses.latitude, session.buses.longitude) > session.buses.radius_meters) return response(request, { message: 'You are outside the permitted bus geofence.' }, 400);
+      // Geofencing check disabled: student coordinates are recorded without radius restriction
+      // if (distanceMeters(latitude, longitude, session.buses.latitude, session.buses.longitude) > session.buses.radius_meters) return response(request, { message: 'You are outside the permitted bus geofence.' }, 400);
 
       const now = new Date();
       const istOffset = 5.5 * 60 * 60 * 1000;
