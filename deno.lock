@@ -1,0 +1,22 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.112.0",
+    "https://esm.sh/iceberg-js@^0.8.1?target=denonext": "https://esm.sh/iceberg-js@0.8.1?target=denonext"
+  },
+  "remote": {
+    "https://deno.land/std@0.208.0/dotenv/mod.ts": "039468f5c87d39b69d7ca6c3d68ebca82f206ec0ff5e011d48205eea292ea5a6",
+    "https://esm.sh/@supabase/auth-js@2.112.0/denonext/auth-js.mjs": "f6da730cffd5a80dc988870c19e575c42b4e5c288401ccb081815231e681e795",
+    "https://esm.sh/@supabase/functions-js@2.112.0/denonext/functions-js.mjs": "b5089849752c4626599515146b8f492592a0a5d0935a056e443a82fd78850a48",
+    "https://esm.sh/@supabase/phoenix@0.4.5/denonext/phoenix.mjs": "40bd2a70829cd847848baac58e635bacd83fd62188f6624b44e2c295341004eb",
+    "https://esm.sh/@supabase/postgrest-js@2.112.0/denonext/postgrest-js.mjs": "30a3c4d17757cd16e8f3132b53e4653150d4082136136fd0015b3cab4fadf286",
+    "https://esm.sh/@supabase/realtime-js@2.112.0/denonext/realtime-js.mjs": "235abaeff11509f873bdb3ad9c933affd88c1361e226127e88861ebef9cbd9ed",
+    "https://esm.sh/@supabase/storage-js@2.112.0/denonext/storage-js.mjs": "760781a8e1135d58562540a6e8b4ca906a77f7c74557984dc0b75c49b1aad208",
+    "https://esm.sh/@supabase/supabase-js@2.112.0": "f420344a1c52d354b8af85dfdcfa10d2178c0840526dbc39768a24de3b956a95",
+    "https://esm.sh/@supabase/supabase-js@2.112.0/denonext/dist/tracingRegistry.mjs": "33dc23b135b9841c1ccd7bc16473470e52ecdba6a30726b6e7cb99ef3ae71893",
+    "https://esm.sh/@supabase/supabase-js@2.112.0/denonext/supabase-js.mjs": "9420e48e8c497d6db012975227f7ea2082c54fd97a452fdfa9de8a41b6539124",
+    "https://esm.sh/iceberg-js@0.8.1/denonext/iceberg-js.mjs": "d839d81a2e3966500ca2cdd0c1cb458e9608bacfc91f7bb67a69b2e878dcdb4f",
+    "https://esm.sh/iceberg-js@0.8.1?target=denonext": "58c849d7fe2bf4eca4a84eb501e83c161a7d8c34ca1bec15a962b3bec3062633",
+    "https://esm.sh/tslib@2.8.1/denonext/tslib.mjs": "c38da5dd6da6281964435002ce204cd586634fe3bdfb24a0ee116f48cf3292e9"
+  }
+}
