@@ -17,7 +17,11 @@ begin
   if public.current_user_role() not in ('admin', 'coordinator') then
     raise exception 'Staff access required';
   end if;
-  select bus_id into allowed_bus_id from public.profiles where id = auth.uid();
+
+  -- Qualify prof.bus_id explicitly to prevent PL/pgSQL ambiguous variable error (42702)
+  select prof.bus_id into allowed_bus_id
+  from public.profiles prof
+  where prof.id = auth.uid();
 
   return query
   select
