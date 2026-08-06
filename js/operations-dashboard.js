@@ -124,25 +124,18 @@ const renderRows = (records) => {
 };
 
 // ─── Email delivery log (for both admin and coordinator) ──────────────────
-const renderSessionStatus = async (buses) => {
+const renderSessionStatus = async () => {
   const body = document.getElementById('session-status-list');
   if (!body) return;
 
-  const todayIST = getTodayISTDateStr();
-  const { data: sessions, error } = await supabase
-    .from('attendance_sessions')
-    .select('id, bus_id, session_type, created_at, email_status, email_error, profiles(email)')
-    .gte('created_at', `${todayIST}T00:00:00+05:30`)
-    .order('created_at', { ascending: false })
-    .limit(50);
+  const { data: sessions, error } = await supabase.rpc('authorized_session_email_logs');
 
   if (error) { body.innerHTML = `<tr><td colspan="5" class="text-muted text-center py-2">Could not load email log.</td></tr>`; return; }
-  if (!sessions?.length) { body.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">No QR sessions generated today yet.</td></tr>`; return; }
+  if (!sessions?.length) { body.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">No QR sessions generated yet.</td></tr>`; return; }
 
   body.replaceChildren(...sessions.map((session) => {
-    const bus = buses.find((b) => b.id === session.bus_id);
-    const busLabel = bus ? `Bus ${bus.bus_number}` : 'Unknown';
-    const coordEmail = session.profiles?.email ?? '—';
+    const busLabel = session.bus_number ? `Bus ${session.bus_number}` : 'Unknown';
+    const coordEmail = session.coordinator_email || '—';
     const timeLabel = new Date(session.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', timeStyle: 'short', dateStyle: 'short' });
     const statusBadge =
       session.email_status === 'sent'    ? `<span class="badge bg-success">Sent</span>` :
@@ -153,6 +146,7 @@ const renderSessionStatus = async (buses) => {
     return tr;
   }));
 };
+
 
 // ─── Admin: people directory ──────────────────────────────────────────────
 const renderAdminDirectory = async (buses) => {
@@ -506,7 +500,7 @@ export async function initOperationsDashboard(expectedRole) {
   await loadHistory();
 
   // Email delivery log (both roles)
-  await renderSessionStatus(buses);
+  await renderSessionStatus();
 
   // Role-specific extras
   if (expectedRole === 'admin') {
@@ -558,6 +552,6 @@ export async function initOperationsDashboard(expectedRole) {
     );
 
     // Refresh email log after QR creation
-    await renderSessionStatus(buses);
+    await renderSessionStatus();
   });
 }
