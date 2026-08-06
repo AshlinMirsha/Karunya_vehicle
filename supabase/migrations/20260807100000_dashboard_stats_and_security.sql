@@ -66,12 +66,16 @@ grant execute on function public.attendance_dashboard_summary() to authenticated
 
 -- ─── 2. OWASP A03: DB-level length CHECK constraints ────────────────────────
 alter table public.profiles
-  add constraint if not exists profiles_full_name_length    check (length(full_name)      <= 100),
-  add constraint if not exists profiles_register_number_len check (length(register_number) <= 30);
+  drop constraint if exists profiles_full_name_length,
+  add constraint profiles_full_name_length check (length(full_name) <= 100),
+  drop constraint if exists profiles_register_number_len,
+  add constraint profiles_register_number_len check (length(register_number) <= 30);
 
 alter table public.pending_student_assignments
-  add constraint if not exists pending_full_name_length     check (length(full_name)       <= 100),
-  add constraint if not exists pending_register_number_len  check (length(register_number) <= 30);
+  drop constraint if exists pending_full_name_length,
+  add constraint pending_full_name_length check (length(full_name) <= 100),
+  drop constraint if exists pending_register_number_len,
+  add constraint pending_register_number_len check (length(register_number) <= 30);
 
 -- ─── 3. Admin write RLS policies ─────────────────────────────────────────────
 -- Allow admin to update profiles (move students between buses, change status)
