@@ -426,3 +426,101 @@ body {
   .checkin-intro { margin-bottom: 20px; }
   .checkin-card .qr-camera-preview { max-height: 52svh; }
 }
+
+/* ── Clean PDF / Print Report Styles ── */
+#print-header { display: none; }
+
+@media print {
+  #bg-video-container,
+  .video-overlay,
+  #navbar-container,
+  .no-print,
+  #qr-panel,
+  #admin-student-mgmt,
+  .row.g-3,
+  #quick-filters,
+  section.glass-panel:not(.printable-section),
+  .navbar-wrapper,
+  button,
+  .badge {
+    display: none !important;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-size: 10pt !important;
+    margin: 0 !important;
+    padding: 8mm !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .printable-section {
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+
+  #print-header {
+    display: block !important;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #000000;
+    color: #000000 !important;
+  }
+
+  #print-header h3 {
+    margin: 0 0 4px 0;
+    font-weight: bold;
+    font-size: 16pt;
+    color: #000000;
+  }
+
+  #print-header p {
+    margin: 0;
+    font-size: 10pt;
+    color: #333333;
+  }
+
+  .table-responsive {
+    overflow: visible !important;
+  }
+
+  table, .table-dark-custom {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  table th, table td,
+  .table-dark-custom th, .table-dark-custom td {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #cccccc !important;
+    padding: 6px 8px !important;
+    font-size: 9.5pt !important;
+    text-align: left !important;
+  }
+
+  table th, .table-dark-custom th {
+    background-color: #f2f2f2 !important;
+    font-weight: bold !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+  }
+}
+
