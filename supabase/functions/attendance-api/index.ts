@@ -13,7 +13,12 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const QR_TOKEN_PATTERN = /^[0-9a-f]{64}$/i;
 const SESSION_TYPES = new Set(['Morning', 'Evening', 'Special']);
 const QR_IMAGE_CID = 'manual-attendance-qr';
-const MAX_REQUEST_BODY_BYTES = 2_048;
+const MAX_REQUEST_BODY_BYTES = 4_096;
+const EMAIL_PATTERN = /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i;
+const ADMIN_ACTIONS = new Set(['add-student', 'move-student', 'remove-student', 'add-coordinator']);
+const isValidEmail = (v: unknown): v is string => typeof v === 'string' && EMAIL_PATTERN.test(v) && v.length <= 254;
+const isValidName  = (v: unknown): v is string => typeof v === 'string' && v.trim().length >= 1 && v.length <= 100;
+const isValidRegNo = (v: unknown): v is string => typeof v === 'string' && /^[A-Z0-9]+$/i.test(v.trim()) && v.trim().length <= 30;
 const corsHeadersFor = (origin: string | null) => ({
   'Access-Control-Allow-Origin': origin && (ALLOWED_ORIGINS.has(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:') || origin.endsWith('.vercel.app')) ? origin : ALLOWED_ORIGINS.values().next().value,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -86,47 +91,112 @@ Deno.serve(async (request) => {
       return response(request, { message: 'Only assigned coordinators may use @karunya.edu accounts.' }, 403);
     }
     const body = await request.json().catch(() => null);
-    if (!body || typeof body !== 'object' || !['create-session', 'mark-attendance', 'update-coordinator-location'].includes((body as { action?: string }).action ?? '')) return response(request, { message: 'Invalid request.' }, 400);
+    const action = (body as { action?: string })?.action ?? '';
+    if (!body || typeof body !== 'object' || !['create-session', 'mark-attendance', 'update-coordinator-location', ...ADMIN_ACTIONS].includes(action)) return response(request, { message: 'Invalid request.' }, 400);
+
+    // ── Admin-only actions ────────────────────────────────────────────────────
+    if (ADMIN_ACTIONS.has(action)) {
+      if (profile.role !== 'admin') {
+        await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'denied' });
+        return response(request, { message: 'Admin access required.' }, 403);
+      }
+
+      if (action === 'add-student') {
+        const { email, fullName, registerNumber, busId } = body as Record<string, unknown>;
+        if (!isValidEmail(email) || !email.toLowerCase().endsWith('@karunya.edu.in')) return response(request, { message: 'A valid @karunya.edu.in email is required.' }, 400);
+        if (!isValidName(fullName)) return response(request, { message: 'Full name must be 1–100 characters.' }, 400);
+        if (!isValidRegNo(registerNumber)) return response(request, { message: 'Register number must be alphanumeric, max 30 chars.' }, 400);
+        if (!UUID_PATTERN.test(String(busId ?? ''))) return response(request, { message: 'A valid bus ID is required.' }, 400);
+        const { data: busCheck } = await adminClient.from('buses').select('id').eq('id', busId).maybeSingle();
+        if (!busCheck) return response(request, { message: 'Bus not found.' }, 404);
+        const { error: upsertErr } = await adminClient.from('pending_student_assignments').upsert(
+          { email: email.toLowerCase(), full_name: (fullName as string).trim(), register_number: (registerNumber as string).trim().toUpperCase(), bus_id: busId, status: 'active' },
+          { onConflict: 'email' }
+        );
+        if (upsertErr) return response(request, { message: 'Could not add student.' }, 500);
+        // Also update existing profile if already signed in
+        await adminClient.from('profiles').update({ bus_id: busId, full_name: (fullName as string).trim(), register_number: (registerNumber as string).trim().toUpperCase(), status: 'active' }).eq('email', email.toLowerCase());
+        await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+        return response(request, { message: 'Student added successfully.' });
+      }
+
+      if (action === 'move-student') {
+        const { studentEmail, newBusId } = body as Record<string, unknown>;
+        if (!isValidEmail(studentEmail)) return response(request, { message: 'A valid student email is required.' }, 400);
+        if (!UUID_PATTERN.test(String(newBusId ?? ''))) return response(request, { message: 'A valid target bus ID is required.' }, 400);
+        const { data: busCheck } = await adminClient.from('buses').select('id').eq('id', newBusId).maybeSingle();
+        if (!busCheck) return response(request, { message: 'Target bus not found.' }, 404);
+        const emailLower = (studentEmail as string).toLowerCase();
+        const { count } = await adminClient.from('profiles').select('id', { count: 'exact', head: true }).eq('email', emailLower).eq('role', 'student');
+        const { count: pendingCount } = await adminClient.from('pending_student_assignments').select('email', { count: 'exact', head: true }).eq('email', emailLower);
+        if (!count && !pendingCount) return response(request, { message: 'Student not found.' }, 404);
+        await adminClient.from('profiles').update({ bus_id: newBusId, status: 'active' }).eq('email', emailLower).eq('role', 'student');
+        await adminClient.from('pending_student_assignments').update({ bus_id: newBusId }).eq('email', emailLower);
+        await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+        return response(request, { message: 'Student moved to new bus successfully.' });
+      }
+
+      if (action === 'remove-student') {
+        const { studentEmail } = body as Record<string, unknown>;
+        if (!isValidEmail(studentEmail)) return response(request, { message: 'A valid student email is required.' }, 400);
+        const emailLower = (studentEmail as string).toLowerCase();
+        await adminClient.from('profiles').update({ status: 'inactive', bus_id: null }).eq('email', emailLower).eq('role', 'student');
+        await adminClient.from('pending_student_assignments').delete().eq('email', emailLower);
+        await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+        return response(request, { message: 'Student removed from bus.' });
+      }
+
+      if (action === 'add-coordinator') {
+        const { email, fullName, busId } = body as Record<string, unknown>;
+        if (!isValidEmail(email)) return response(request, { message: 'A valid email is required.' }, 400);
+        if (!isValidName(fullName)) return response(request, { message: 'Full name must be 1–100 characters.' }, 400);
+        if (!UUID_PATTERN.test(String(busId ?? ''))) return response(request, { message: 'A valid bus ID is required.' }, 400);
+        const { data: busCheck } = await adminClient.from('buses').select('id').eq('id', busId).maybeSingle();
+        if (!busCheck) return response(request, { message: 'Bus not found.' }, 404);
+        // Update existing profile to coordinator, or will be applied on first sign-in via trigger
+        const { error: updateErr } = await adminClient.from('profiles')
+          .update({ role: 'coordinator', bus_id: busId, full_name: (fullName as string).trim(), status: 'active' })
+          .eq('email', (email as string).toLowerCase());
+        await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+        return response(request, { message: 'Coordinator updated. If not yet signed in, they will be assigned automatically on first login.' });
+      }
+    }
     
-    if (body.action === 'create-session' || body.action === 'mark-attendance') {
-      const { data: limit, error: limitError } = await adminClient.rpc('consume_attendance_rate_limit', { p_actor_id: user.id, p_action: body.action }).single();
+    if (action === 'create-session' || action === 'mark-attendance') {
+      const { data: limit, error: limitError } = await adminClient.rpc('consume_attendance_rate_limit', { p_actor_id: user.id, p_action: action }).single();
       if (limitError || !limit?.allowed) {
-        await adminClient.from('security_audit_events').insert({ actor_id: user.id, action: body.action, outcome: 'rate_limited' });
+        await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'rate_limited' });
         return response(request, { message: `Too many requests. Try again in ${Math.max(1, limit?.retry_after_seconds ?? 600)} seconds.` }, 429);
       }
     }
 
-    if (body.action === 'create-session') {
+    if (action === 'create-session') {
       if (profile.role !== 'coordinator') return response(request, { message: 'Not authorized.' }, 403);
-      if (!UUID_PATTERN.test(body.busId ?? '') || !SESSION_TYPES.has(body.sessionType)) return response(request, { message: 'Invalid session request.' }, 400);
-      const { data: bus } = await adminClient.from('buses').select('id,bus_number').eq('id', body.busId).single();
+      const b = body as Record<string, unknown>;
+      if (!UUID_PATTERN.test(String(b.busId ?? '')) || !SESSION_TYPES.has(String(b.sessionType ?? ''))) return response(request, { message: 'Invalid session request.' }, 400);
+      const { data: bus } = await adminClient.from('buses').select('id,bus_number').eq('id', b.busId).single();
       if (!bus || profile.bus_id !== bus.id) return response(request, { message: 'Bus is not assigned to you.' }, 403);
       const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
       const expiresAt = new Date(Date.now() + SESSION_DURATION_MS).toISOString();
       const { data: session, error } = await adminClient.from('attendance_sessions').insert({
-        bus_id: bus.id, session_type: body.sessionType, token_hash: await hashToken(token, qrSecret), expires_at: expiresAt, created_by: user.id,
+        bus_id: bus.id, session_type: b.sessionType, token_hash: await hashToken(token, qrSecret), expires_at: expiresAt, created_by: user.id,
       }).select('id').single();
       if (error || !session) return response(request, { message: 'Could not create QR session.' }, 500);
-      const emailSent = body.emailQr === true
-        ? await sendManualQrEmail(profile.email, String(bus.bus_number), body.sessionType, token).catch(() => false)
+      const emailSent = b.emailQr === true
+        ? await sendManualQrEmail(profile.email, String(bus.bus_number), String(b.sessionType), token).catch(() => false)
         : true;
-      await adminClient.from('security_audit_events').insert({ actor_id: user.id, action: body.action, outcome: 'allowed' });
+      await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
       return response(request, { token, sessionId: session.id, expiresAt, emailSent });
     }
 
-    if (body.action === 'update-coordinator-location') {
+    if (action === 'update-coordinator-location') {
       if (profile.role !== 'coordinator') return response(request, { message: 'Not authorized.' }, 403);
-      const { busId, latitude, longitude } = body;
+      const { busId, latitude, longitude } = body as Record<string, unknown>;
       if (typeof busId !== 'string' || !UUID_PATTERN.test(busId) || !withinCoordinateBounds(latitude, longitude)) {
         return response(request, { message: 'A valid bus ID and GPS location are required.' }, 400);
       }
       if (profile.bus_id !== busId) return response(request, { message: 'Bus is not assigned to you.' }, 403);
-
-      const { error: updateError } = await adminClient
-        .from('buses')
-        .update({ latitude, longitude })
-        .eq('id', busId);
-
+      const { error: updateError } = await adminClient.from('buses').update({ latitude, longitude }).eq('id', busId);
       if (updateError) {
         console.error('Failed to update coordinator location:', updateError);
         return response(request, { message: 'Could not update live position.' }, 500);
@@ -134,22 +204,20 @@ Deno.serve(async (request) => {
       return response(request, { success: true });
     }
 
-    if (body.action === 'mark-attendance') {
-      const { token, latitude, longitude } = body;
+    if (action === 'mark-attendance') {
+      const b = body as Record<string, unknown>;
+      const { token, latitude, longitude } = b;
       if (typeof token !== 'string' || !QR_TOKEN_PATTERN.test(token) || !withinCoordinateBounds(latitude, longitude)) return response(request, { message: 'A valid QR token and GPS location are required.' }, 400);
       if (profile.status !== 'active' || !profile.bus_id) return response(request, { message: 'Your bus assignment is not active.' }, 403);
-      const { data: session } = await adminClient.from('attendance_sessions').select('*, buses(*)').eq('token_hash', await hashToken(token, qrSecret)).gt('expires_at', new Date().toISOString()).maybeSingle();
+      const { data: session } = await adminClient.from('attendance_sessions').select('*, buses(*)').eq('token_hash', await hashToken(token as string, qrSecret)).gt('expires_at', new Date().toISOString()).maybeSingle();
       if (!session) return response(request, { message: 'Invalid or expired QR session.' }, 400);
       if (session.bus_id !== profile.bus_id) return response(request, { message: 'STUDENT BELONG TO THIS BUS INVALID SCAN YOUR BUS CODE' }, 400);
-      // Geofencing check disabled: student coordinates are recorded without radius restriction
-      // if (distanceMeters(latitude, longitude, session.buses.latitude, session.buses.longitude) > session.buses.radius_meters) return response(request, { message: 'You are outside the permitted bus geofence.' }, 400);
 
       const now = new Date();
       const istOffset = 5.5 * 60 * 60 * 1000;
       const istTime = new Date(now.getTime() + istOffset);
       istTime.setUTCHours(0, 0, 0, 0);
       const startOfDay = new Date(istTime.getTime() - istOffset);
-      
       const { data: existingCheckin } = await adminClient
         .from('attendance')
         .select('id, attendance_sessions!inner(session_type)')
@@ -157,15 +225,11 @@ Deno.serve(async (request) => {
         .eq('attendance_sessions.session_type', session.session_type)
         .gte('checked_in_at', startOfDay.toISOString())
         .limit(1);
-
-      if (existingCheckin && existingCheckin.length > 0) {
-        return response(request, { message: 'ALREADY MARKED PRESENT !!!' }, 409);
-      }
-
+      if (existingCheckin && existingCheckin.length > 0) return response(request, { message: 'ALREADY MARKED PRESENT !!!' }, 409);
       const { error } = await adminClient.from('attendance').insert({ session_id: session.id, student_id: user.id, latitude, longitude });
       if (error?.code === '23505') return response(request, { message: 'ALREADY MARKED PRESENT !!!' }, 409);
       if (error) return response(request, { message: 'Attendance could not be recorded.' }, 500);
-      await adminClient.from('security_audit_events').insert({ actor_id: user.id, action: body.action, outcome: 'allowed' });
+      await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
       return response(request, { message: 'Attendance marked successfully!' });
     }
     return response(request, { message: 'Unknown action.' }, 400);
