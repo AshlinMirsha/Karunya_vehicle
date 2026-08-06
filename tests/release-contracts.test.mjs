@@ -14,13 +14,13 @@ test('daily QR schedule uses the required 5 AM and 3 PM IST UTC schedules', asyn
 test('daily QR function protects the scheduler and delivers a QR email', async () => {
   const source = await read('supabase/functions/daily-qr/index.ts');
   assert.match(source, /x-cron-secret/);
-  assert.match(source, /GMAIL_REFRESH_TOKEN/);
+  assert.match(source, /EMAIL_APP_PASSWORD/);
   assert.match(source, /npm:qrcode@/);
   assert.match(source, /QRCode\.toDataURL/);
   assert.match(source, /Content-Type: image\/png/);
   assert.match(source, /Content-ID: <\$\{QR_IMAGE_CID\}>/);
   assert.match(source, /QR_SESSION_DURATION_MS = 5 \* 60 \* 60 \* 1000/);
-  assert.match(source, /Gmail did not accept/);
+  assert.match(source, /Failed to send email/);
 });
 
 test('attendance API remains JWT-protected', async () => {
