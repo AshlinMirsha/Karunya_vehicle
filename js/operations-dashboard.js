@@ -126,12 +126,33 @@ const renderRows = (records) => {
 // ─── Email delivery log (for both admin and coordinator) ──────────────────
 const renderSessionStatus = async () => {
   const body = document.getElementById('session-status-list');
-  if (!body) return;
-
   const { data: sessions, error } = await supabase.rpc('authorized_session_email_logs');
 
-  if (error) { body.innerHTML = `<tr><td colspan="5" class="text-muted text-center py-2">Could not load email log.</td></tr>`; return; }
-  if (!sessions?.length) { body.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">No QR sessions generated yet.</td></tr>`; return; }
+  if (error) {
+    if (body) body.innerHTML = `<tr><td colspan="5" class="text-muted text-center py-2">Could not load email log.</td></tr>`;
+    return;
+  }
+
+  // Calculate today's sent email breakdown for Morning and Evening
+  const todayIST = getTodayISTDateStr();
+  const todaySessions = (sessions ?? []).filter((s) => {
+    const sDateStr = new Date(s.created_at).toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' });
+    return sDateStr === todayIST;
+  });
+
+  const morningSent = todaySessions.filter((s) => s.session_type === 'Morning' && s.email_status === 'sent').length;
+  const eveningSent = todaySessions.filter((s) => s.session_type === 'Evening' && s.email_status === 'sent').length;
+  const totalSent   = todaySessions.filter((s) => s.email_status === 'sent').length;
+
+  text('stat-email-sent-total', `${totalSent}`);
+  text('stat-email-morning',    `${morningSent} sent`);
+  text('stat-email-evening',    `${eveningSent} sent`);
+
+  if (!body) return;
+  if (!sessions?.length) {
+    body.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">No QR sessions generated yet.</td></tr>`;
+    return;
+  }
 
   body.replaceChildren(...sessions.map((session) => {
     const busLabel = session.bus_number ? `Bus ${session.bus_number}` : 'Unknown';
@@ -145,6 +166,26 @@ const renderSessionStatus = async () => {
     tr.innerHTML = `<td>${busLabel}</td><td>${session.session_type}</td><td>${timeLabel}</td><td class="small">${coordEmail}</td><td>${statusBadge}${session.email_error ? `<br><small class="text-danger">${session.email_error.slice(0, 80)}</small>` : ''}</td>`;
     return tr;
   }));
+};
+
+const initEmailLogToggle = () => {
+  const card = document.getElementById('card-email-log-summary');
+  const section = document.getElementById('email-log-section');
+  const closeBtn = document.getElementById('btn-close-email-log');
+
+  if (card && section) {
+    card.addEventListener('click', () => {
+      section.classList.toggle('d-none');
+      if (!section.classList.contains('d-none')) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+  if (closeBtn && section) {
+    closeBtn.addEventListener('click', () => {
+      section.classList.add('d-none');
+    });
+  }
 };
 
 
@@ -492,8 +533,9 @@ export async function initOperationsDashboard(expectedRole) {
     loadHistory();
   });
 
-  // PDF export
+  // PDF export & Email log toggle
   initPdfExport();
+  initEmailLogToggle();
 
   // Load data
   setTodayDefaults();
