@@ -291,12 +291,92 @@ const initAdminStudentManagement = (buses) => {
   });
 };
 
-// ─── PDF export ───────────────────────────────────────────────────────────
+// ─── PDF export via Isolated Printable Frame (Fixes 8-page duplication) ───
 const initPdfExport = () => {
   document.getElementById('btn-export-pdf')?.addEventListener('click', () => {
-    window.print();
+    const tableElement = document.getElementById('attendance-print-table') || document.querySelector('#attendance-section table');
+    if (!tableElement) return showToast('No table data to export.', 'warning');
+
+    const busFilter = document.getElementById('filter-bus');
+    const selectedBus = busFilter?.options[busFilter.selectedIndex]?.text || 'All Buses';
+    const dateFrom = document.getElementById('filter-date-from')?.value || 'Not set';
+    const dateTo = document.getElementById('filter-date-to')?.value || 'Not set';
+    const status = document.getElementById('filter-status')?.value || 'Present & Absent';
+    const totalCount = document.getElementById('stat-history-count')?.textContent || '0';
+
+    // Clone table and clean up links/buttons for PDF
+    const clonedTable = tableElement.cloneNode(true);
+    clonedTable.querySelectorAll('a, button').forEach((el) => {
+      if (el.tagName === 'A') el.replaceWith(document.createTextNode(el.textContent));
+      else el.remove();
+    });
+
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'fixed';
+    printFrame.style.right = '0';
+    printFrame.style.bottom = '0';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    printFrame.style.border = '0';
+
+    document.body.appendChild(printFrame);
+
+    const frameDoc = printFrame.contentWindow.document;
+    frameDoc.open();
+    frameDoc.write(`
+      <!doctype html>
+      <html>
+      <head>
+        <title>Karunya Bus Attendance Report</title>
+        <style>
+          @page { size: A4 landscape; margin: 10mm; }
+          body { font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #111111; margin: 0; padding: 0; }
+          .header { border-bottom: 2px solid #0d6efd; padding-bottom: 8px; margin-bottom: 12px; }
+          .header h1 { font-size: 16px; margin: 0 0 2px 0; color: #0d6efd; text-transform: uppercase; font-weight: bold; }
+          .header p { font-size: 11px; margin: 0; color: #444444; }
+          .meta-grid { display: flex; gap: 24px; background: #f8f9fa; padding: 8px 12px; border-radius: 4px; border: 1px solid #e9ecef; margin-bottom: 12px; font-size: 10px; }
+          .meta-item { display: flex; flex-direction: column; }
+          .meta-item span.label { font-weight: bold; color: #6c757d; font-size: 8.5px; text-transform: uppercase; margin-bottom: 2px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+          th, td { border: 1px solid #dee2e6; padding: 5px 8px; text-align: left; font-size: 9.5px; }
+          th { background-color: #f1f3f5; color: #212529; font-weight: bold; text-transform: uppercase; font-size: 9px; }
+          tr:nth-child(even) td { background-color: #f8f9fa; }
+          .footer { margin-top: 14px; font-size: 8.5px; color: #6c757d; border-top: 1px solid #dee2e6; padding-top: 6px; display: flex; justify-content: space-between; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Karunya Institute of Technology and Sciences</h1>
+          <p>Official Vehicle Attendance Report</p>
+        </div>
+        <div class="meta-grid">
+          <div class="meta-item"><span class="label">Bus / Scope</span><strong>${selectedBus}</strong></div>
+          <div class="meta-item"><span class="label">Date Range</span><strong>${dateFrom} — ${dateTo}</strong></div>
+          <div class="meta-item"><span class="label">Status Filter</span><strong>${status}</strong></div>
+          <div class="meta-item"><span class="label">Total Records</span><strong>${totalCount}</strong></div>
+        </div>
+        ${clonedTable.outerHTML}
+        <div class="footer">
+          <span>Generated on ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</span>
+          <span>Karunya Vehicle Attendance Portal</span>
+        </div>
+      </body>
+      </html>
+    `);
+    frameDoc.close();
+
+    setTimeout(() => {
+      printFrame.contentWindow.focus();
+      printFrame.contentWindow.print();
+      setTimeout(() => {
+        if (document.body.contains(printFrame)) {
+          document.body.removeChild(printFrame);
+        }
+      }, 1000);
+    }, 250);
   });
 };
+
 
 // ─── Main init ────────────────────────────────────────────────────────────
 export async function initOperationsDashboard(expectedRole) {
