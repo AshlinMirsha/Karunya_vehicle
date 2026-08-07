@@ -282,7 +282,7 @@ export async function initOperationsDashboard(expectedRole) {
 
   const btnExportExcel = document.getElementById('btn-export-excel');
   if (btnExportExcel) {
-    btnExportExcel.onclick = () => {
+    btnExportExcel.onclick = async () => {
       const table = document.getElementById('attendance-print-table');
       if (!table) return;
 
@@ -301,6 +301,16 @@ export async function initOperationsDashboard(expectedRole) {
       if (rows.length <= 1) {
         showToast('No records available to export.', 'warning');
         return;
+      }
+
+      if (!window.XLSX) {
+        await new Promise((resolve) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+          s.onload = resolve;
+          s.onerror = resolve;
+          document.head.appendChild(s);
+        });
       }
 
       if (window.XLSX) {
