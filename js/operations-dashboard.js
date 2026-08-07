@@ -41,11 +41,23 @@ const statusCell = (status, time, lat, lon, sessionDateStr, sessionType = null) 
   return td;
 };
 
-const renderRows = (records) => {
+const renderRows = (records, isMobileBc = false) => {
+  const table = document.getElementById('attendance-print-table');
+  if (table) {
+    const thead = table.querySelector('thead');
+    if (thead) {
+      if (isMobileBc) {
+        thead.innerHTML = `<tr><th>Student</th><th>Register No</th><th>Morning</th><th>Evening</th><th>Special</th><th class="text-center">Date</th><th>Bus</th></tr>`;
+      } else {
+        thead.innerHTML = `<tr><th>Student</th><th>Register number</th><th>Bus</th><th class="text-center">Date</th><th>Morning</th><th>Evening</th><th>Special</th></tr>`;
+      }
+    }
+  }
+
   const body = document.getElementById('attendance-list');
   if (!records.length) {
     const empty = row(['No attendance records match these filters.']);
-    empty.firstElementChild.colSpan = 6;
+    empty.firstElementChild.colSpan = 7;
     body.replaceChildren(empty);
     return;
   }
@@ -53,15 +65,19 @@ const renderRows = (records) => {
     const tr = document.createElement('tr');
     const dateTd = cell(record.session_date ? new Date(record.session_date).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : '—');
     dateTd.classList.add('text-center');
-    tr.append(
-      cell(record.full_name || 'Unnamed student'),
-      cell(record.register_number || '—'),
-      cell(`Bus ${record.bus_number}`),
-      dateTd,
-      statusCell(record.morning_status, record.morning_checked_in_at, record.morning_latitude, record.morning_longitude, record.session_date, 'morning'),
-      statusCell(record.evening_status, record.evening_checked_in_at, record.evening_latitude, record.evening_longitude, record.session_date, 'evening'),
-      statusCell(record.special_status, record.special_checked_in_at, record.special_latitude, record.special_longitude, record.session_date, 'special')
-    );
+
+    const mCell = statusCell(record.morning_status, record.morning_checked_in_at, record.morning_latitude, record.morning_longitude, record.session_date, 'morning');
+    const eCell = statusCell(record.evening_status, record.evening_checked_in_at, record.evening_latitude, record.evening_longitude, record.session_date, 'evening');
+    const spCell = statusCell(record.special_status, record.special_checked_in_at, record.special_latitude, record.special_longitude, record.session_date, 'special');
+    const busTd = cell(`Bus ${record.bus_number}`);
+    const nameTd = cell(record.full_name || 'Unnamed student');
+    const regTd = cell(record.register_number || '—');
+
+    if (isMobileBc) {
+      tr.append(nameTd, regTd, mCell, eCell, spCell, dateTd, busTd);
+    } else {
+      tr.append(nameTd, regTd, busTd, dateTd, mCell, eCell, spCell);
+    }
     return tr;
   }));
 };
@@ -295,12 +311,17 @@ export async function initOperationsDashboard(expectedRole) {
 
   const loadHistory = async () => {
     const searchVal = document.getElementById('filter-search')?.value.trim() || null;
-    const dateFrom = document.getElementById('filter-date-from')?.value || null;
-    const dateTo = document.getElementById('filter-date-to')?.value || null;
-    const statusVal = document.getElementById('filter-status')?.value || null;
+    const dateFromRaw = document.getElementById('filter-date-from')?.value;
+    const dateToRaw = document.getElementById('filter-date-to')?.value;
+    const statusRaw = document.getElementById('filter-status')?.value;
+
+    const dateFrom = (dateFromRaw && dateFromRaw.trim() !== '') ? dateFromRaw.trim() : null;
+    const dateTo = (dateToRaw && dateToRaw.trim() !== '') ? dateToRaw.trim() : null;
+    const statusVal = (statusRaw && statusRaw.trim() !== '') ? statusRaw.trim() : null;
+    const busIdVal = (busFilter?.value && busFilter.value.trim() !== '') ? busFilter.value.trim() : null;
 
     const { data, error } = await supabase.rpc('authorized_attendance_history', {
-      p_bus_id: busFilter.value || null,
+      p_bus_id: busIdVal,
       p_date_from: dateFrom,
       p_date_to: dateTo,
       p_status: statusVal,
@@ -326,7 +347,8 @@ export async function initOperationsDashboard(expectedRole) {
         printDateEl.textContent = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
       }
     }
-    renderRows(records);
+    const isMobileBc = expectedRole === 'coordinator' && window.innerWidth < 768;
+    renderRows(records, isMobileBc);
   };
 
   const setTodayDefaults = () => {
