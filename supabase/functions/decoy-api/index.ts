@@ -15,7 +15,7 @@ const corsHeadersFor = (origin: string | null) => ({
 
 const base64Url = (value: string) => btoa(unescape(encodeURIComponent(value))).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 
-const sendCanaryAlertEmail = async (ip: string, userAgent: string, path: string, eventType: string, userInfoStr: string, timeline: any[]) => {
+const sendCanaryAlertEmail = async (ip: string, userAgent: string, path: string, eventType: string, userInfoStr: string, locationData: any, extraData: any, timeline: any[]) => {
   const [clientId, clientSecret, refreshToken] = ['GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_REFRESH_TOKEN'].map((name) => Deno.env.get(name) ?? '');
   if (!clientId || !clientSecret || !refreshToken) return false;
   
@@ -33,7 +33,22 @@ const sendCanaryAlertEmail = async (ip: string, userAgent: string, path: string,
   if (!refresh.ok || !credentials?.access_token) return false;
   
   const timeStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-  const subject = `INCIDENT REPORT: Honeypot Activity Detected [IP: ${ip}]`;
+  const subject = `INCIDENT REPORT: Restricted Gateway Access Detected [IP: ${ip}]`;
+  
+  let locationHtml = '<p style="margin:0 0 8px;line-height:1.5"><strong>Audited Location:</strong> Not Provided / Refused</p>';
+  if (locationData && locationData.latitude && locationData.longitude) {
+    const mapsLink = `https://www.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
+    locationHtml = `<p style="margin:0 0 8px;line-height:1.5"><strong>Audited Location:</strong> <a href="${mapsLink}" target="_blank" style="color:#2563eb;font-weight:bold;text-decoration:none">Lat: ${locationData.latitude.toFixed(6)}, Lon: ${locationData.longitude.toFixed(6)} (Acc: ${locationData.accuracy?.toFixed(1) ?? 'N/A'}m)</a></p>`;
+  } else if (extraData && extraData.message) {
+    locationHtml = `<p style="margin:0 0 8px;line-height:1.5;color:#d32f2f"><strong>Audited Location:</strong> Denied (Code ${extraData.code}: ${extraData.message})</p>';`;
+  }
+
+  let extraHtml = '';
+  if (extraData && extraData.action) {
+    extraHtml = `<p style="margin:0 0 8px;line-height:1.5"><strong>Action Details:</strong> ${extraData.action}</p>`;
+  } else if (extraData && extraData.user) {
+    extraHtml = `<p style="margin:0 0 8px;line-height:1.5;color:#d32f2f"><strong>Login Form Entry:</strong> user="${extraData.user}" / pass="${extraData.pass}"</p>`;
+  }
   
   let timelineHtml = '';
   if (timeline && timeline.length > 0) {
@@ -53,21 +68,23 @@ const sendCanaryAlertEmail = async (ip: string, userAgent: string, path: string,
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #d9e2ec;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.05)">
             <tr>
               <td style="padding:32px">
-                <h1 style="color:#d32f2f;margin:0 0 8px;font-size:22px;font-weight:bold">Security Incident Report</h1>
-                <p style="margin:0 0 20px;color:#627d98;font-size:14px">A restricted honeypot resource was accessed and probed.</p>
+                <h1 style="color:#d32f2f;margin:0 0 8px;font-size:22px;font-weight:bold">Gateway Access Incident</h1>
+                <p style="margin:0 0 20px;color:#627d98;font-size:14px">A restricted gateway interface boundary has been breached.</p>
                 
-                <h3 style="color:#102a43;margin:0 0 12px;font-size:16px;border-bottom:1px solid #d9e2ec;padding-bottom:8px">Target Information</h3>
-                <p style="margin:0 0 8px;font-size:14px;line-height:1.5"><strong>Requested Path:</strong> /${path}</p>
-                <p style="margin:0 0 8px;font-size:14px;line-height:1.5"><strong>Trigger Event:</strong> ${eventType}</p>
+                <h3 style="color:#102a43;margin:0 0 12px;font-size:16px;border-bottom:1px solid #d9e2ec;padding-bottom:8px">Target Boundary</h3>
+                <p style="margin:0 0 8px;line-height:1.5"><strong>Requested Path:</strong> /${path}</p>
+                <p style="margin:0 0 8px;line-height:1.5"><strong>Access Event Type:</strong> ${eventType}</p>
+                ${extraHtml}
 
-                <h3 style="color:#102a43;margin:20px 0 12px;font-size:16px;border-bottom:1px solid #d9e2ec;padding-bottom:8px">Attacker Profile</h3>
-                <p style="margin:0 0 8px;font-size:14px;line-height:1.5"><strong>Source IP:</strong> ${ip}</p>
-                <p style="margin:0 0 8px;font-size:14px;line-height:1.5"><strong>User-Agent:</strong> ${userAgent}</p>
-                <p style="margin:0 0 8px;font-size:14px;line-height:1.5"><strong>User Identity:</strong> ${userInfoStr}</p>
+                <h3 style="color:#102a43;margin:20px 0 12px;font-size:16px;border-bottom:1px solid #d9e2ec;padding-bottom:8px">Origin Identity Profile</h3>
+                <p style="margin:0 0 8px;line-height:1.5"><strong>Source IP:</strong> ${ip}</p>
+                <p style="margin:0 0 8px;line-height:1.5"><strong>User-Agent:</strong> ${userAgent}</p>
+                <p style="margin:0 0 8px;line-height:1.5"><strong>Identity Resolved:</strong> ${userInfoStr}</p>
+                ${locationHtml}
                 
                 ${timelineHtml}
                 
-                <p style="margin:32px 0 0;color:#627d98;font-size:12px;text-align:center;border-top:1px solid #e1e7ec;padding-top:16px">This alert was generated automatically by the security monitoring system.</p>
+                <p style="margin:32px 0 0;color:#627d98;font-size:12px;text-align:center;border-top:1px solid #e1e7ec;padding-top:16px">This notification was generated automatically by system security audits.</p>
               </td>
             </tr>
           </table>
@@ -80,7 +97,7 @@ const sendCanaryAlertEmail = async (ip: string, userAgent: string, path: string,
   const recipient = Deno.env.get('GMAIL_FROM_EMAIL') ?? 'karunya.attendance@gmail.com';
   const raw = [
     `To: ${recipient}`,
-    `From: "System Security" <${recipient}>`,
+    `From: "System Security Audit" <${recipient}>`,
     `Subject: ${subject}`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/related; boundary="${boundary}"`,
@@ -141,136 +158,6 @@ INSERT INTO public.profiles (id, email, full_name, role, register_number, bus_id
 ('e2a4c85d-cb8f-4d92-a9b8-067f91cc44a2', 'manickraja@karunya.edu', 'Manickraja', 'coordinator', 'MANICKRAJA', 'c2a3c4d5-e6f7-8a9b-0c1d-2e3f4a5b6c7d', 'active');
 `;
 
-const getFakeAdminPanelHtml = () => `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>System Login - Administration Hub</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    body { background: #0b132b; color: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-    .card { background: rgba(28, 37, 65, 0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); backdrop-filter: blur(8px); padding: 30px; width: 400px; }
-    .btn-primary { background: #3a86c8; border: none; }
-    .btn-primary:hover { background: #2a6698; }
-    .form-control { background: #1c2541; border: 1px solid rgba(255,255,255,0.1); color: #fff; }
-    .form-control:focus { background: #1c2541; border-color: #3a86c8; color: #fff; box-shadow: none; }
-  </style>
-</head>
-<body>
-  <div class="card" id="login-container">
-    <h3 class="text-center mb-4">Operations Console</h3>
-    <form id="login-form">
-      <div class="mb-3">
-        <label for="username" class="form-label">Username</label>
-        <input type="text" id="username" class="form-control" autocomplete="off" required>
-      </div>
-      <div class="mb-3">
-        <label for="password" class="form-label">Password</label>
-        <input type="password" id="password" class="form-control" autocomplete="off" required>
-      </div>
-      <button type="submit" class="btn btn-primary w-100 mt-2">Access Portal</button>
-    </form>
-  </div>
-
-  <div class="container d-none" id="dashboard-container" style="max-width: 1000px; padding: 40px 20px;">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h2>System Dashboard Center</h2>
-      <button class="btn btn-outline-danger btn-sm" onclick="window.location.reload()">Sign Out</button>
-    </div>
-    <div class="row g-4">
-      <div class="col-md-4">
-        <div class="card w-100 p-3">
-          <h5>Users Synced</h5>
-          <h2 class="text-success mt-2">1,248</h2>
-          <p class="text-muted small mb-0">Active LDAP connections</p>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="card w-100 p-3">
-          <h5>Database Status</h5>
-          <h2 class="text-info mt-2">Healthy</h2>
-          <p class="text-muted small mb-0">Pool size: 20 active connections</p>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="card w-100 p-3">
-          <h5>API Integrity</h5>
-          <h2 class="text-warning mt-2">99.98%</h2>
-          <p class="text-muted small mb-0">Average response: 48ms</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="card w-100 mt-4">
-      <h5>Management Actions</h5>
-      <div class="d-flex gap-3 mt-3">
-        <button class="btn btn-primary" onclick="executeAction('user-add')">Add User</button>
-        <button class="btn btn-danger" onclick="executeAction('user-delete')">Delete User</button>
-        <button class="btn btn-outline-info" onclick="executeAction('ldapsync')">Sync LDAP</button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    (function() {
-      var session = null;
-      try {
-        var sbKey = 'sb-kkbzofddkfusblyplnca-auth-token';
-        var raw = localStorage.getItem(sbKey) || sessionStorage.getItem(sbKey);
-        if (raw) {
-          var parsed = JSON.parse(raw);
-          if (parsed && parsed.user) {
-            session = { email: parsed.user.email, id: parsed.user.id };
-          }
-        }
-      } catch (e) {}
-
-      fetch(window.location.pathname + window.location.search, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'view', session: session })
-      }).catch(function() {});
-
-      window.executeAction = function(action) {
-        fetch(window.location.pathname + window.location.search, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'action', action: action, session: session })
-        }).catch(function() {});
-        alert('Operation succeeded! System logs updated.');
-      };
-
-      var form = document.getElementById('login-form');
-      if (form) {
-        form.addEventListener('submit', function(e) {
-          e.preventDefault();
-          var u = document.getElementById('username').value;
-          var p = document.getElementById('password').value;
-          if (u === 'admin' && p === 'changemeafterproduction') {
-            fetch(window.location.pathname + window.location.search, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ type: 'login_success', session: session })
-            }).catch(function() {});
-            document.getElementById('login-container').classList.add('d-none');
-            document.getElementById('dashboard-container').classList.remove('d-none');
-          } else {
-            fetch(window.location.pathname + window.location.search, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ type: 'login_fail', user: u, pass: p, session: session })
-            }).catch(function() {});
-            alert('Authentication failed.');
-          }
-        });
-      }
-    })();
-  </script>
-</body>
-</html>
-`;
-
 Deno.serve(async (request) => {
   const clientIp = request.headers.get('x-real-ip') ?? request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
   const userAgent = request.headers.get('user-agent') ?? '';
@@ -290,12 +177,15 @@ Deno.serve(async (request) => {
 
   const adminClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-  // POST Request from fake frontend: handle silent logging and email report dispatch
+  // POST Request: handle silent audit logging and email incident report dispatch
   if (request.method === 'POST') {
     const body = await request.json().catch(() => null);
     if (body && typeof body === 'object') {
       const type = body.type ?? 'unknown';
       const session = body.session;
+      const location = body.location;
+      const extra = body.extra ?? {};
+      
       let userInfoStr = 'Anonymous Attacker (Not Logged In)';
       let studentId = null;
 
@@ -311,21 +201,25 @@ Deno.serve(async (request) => {
 
       let actionDesc = '';
       if (type === 'view') {
-        actionDesc = 'decoy-page-view';
+        actionDesc = 'gateway-page-view';
       } else if (type === 'action') {
-        actionDesc = `decoy-action-${body.action}`;
+        actionDesc = `gateway-action-${extra.action}`;
       } else if (type === 'login_success') {
-        actionDesc = 'decoy-login-success';
+        actionDesc = 'gateway-login-success';
       } else if (type === 'login_fail') {
-        actionDesc = `decoy-login-failed(user:${body.user},pass:${body.pass})`;
+        actionDesc = `gateway-login-failed(user:${extra.user},pass:${extra.pass})`;
       } else {
-        actionDesc = `decoy-${type}`;
+        actionDesc = `gateway-${type}`;
       }
+
+      let latVal = location?.latitude ? String(location.latitude) : null;
+      let lonVal = location?.longitude ? String(location.longitude) : null;
+      let locDesc = (latVal && lonVal) ? `Coordinates: ${latVal}, ${lonVal}` : null;
 
       // Log threat entry to DB
       await adminClient.from('security_audit_events').insert({
         actor_id: studentId,
-        action: `intrusion-${alertPath}-${actionDesc}`,
+        action: `intrusion-${alertPath}-${actionDesc}` + (locDesc ? ` [${locDesc}]` : ''),
         outcome: 'unauthorized_route',
         ip_address: clientIp
       });
@@ -341,7 +235,7 @@ Deno.serve(async (request) => {
 
       // Send threat incident report email
       try {
-        await sendCanaryAlertEmail(clientIp, userAgent, alertPath, actionDesc, userInfoStr, timeline || []);
+        await sendCanaryAlertEmail(clientIp, userAgent, alertPath, actionDesc, userInfoStr, location, extra, timeline || []);
       } catch (e) {
         console.error('Failed to send canary alert email:', e);
       }
@@ -353,7 +247,7 @@ Deno.serve(async (request) => {
     }
   }
 
-  // GET Request: Serve requested decoys
+  // GET Request: Serve requested files
   if (request.method === 'GET') {
     // Log immediate basic boundary probe to database
     await adminClient.from('security_audit_events').insert({
@@ -362,15 +256,14 @@ Deno.serve(async (request) => {
       ip_address: clientIp
     });
 
-    if (alertPath.startsWith('adminpanel')) {
-      return new Response(getFakeAdminPanelHtml(), {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-          'Content-Type': 'text/html; charset=utf-8'
-        }
-      });
-    } else if (alertPath === 'env') {
+    // Send immediate email notification for basic boundary probe
+    try {
+      await sendCanaryAlertEmail(clientIp, userAgent, alertPath, 'get-boundary-probe', 'Anonymous (Direct Link Click)', null, null, []);
+    } catch (e) {
+      console.error('Failed to send canary alert email:', e);
+    }
+
+    if (alertPath === 'env') {
       return new Response(getFakeEnvContent(), {
         headers: {
           'Access-Control-Allow-Origin': '*',
