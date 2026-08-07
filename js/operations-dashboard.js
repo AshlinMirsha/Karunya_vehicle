@@ -14,13 +14,23 @@ const getTodayDateStr = () => {
   return new Date(now - tzOffset).toISOString().slice(0, 10);
 };
 
-const statusCell = (status, time, lat, lon, sessionDateStr) => {
+const statusCell = (status, time, lat, lon, sessionDateStr, sessionType = null) => {
   const td = document.createElement('td');
   if (status === 'PRESENT') {
     const timeText = time ? new Date(time).toLocaleTimeString('en-IN', { timeStyle: 'short' }) : '';
     td.innerHTML = `PRESENT <span class="text-muted small">(${timeText})</span> <a href="https://maps.google.com/?q=${lat},${lon}" target="_blank" class="btn btn-sm btn-outline-info ms-2 py-0 px-2" style="font-size: 0.75rem; border-color: rgba(var(--bs-info-rgb), 0.3);">View map</a>`;
   } else if (status === 'ABSENT') {
-    td.innerHTML = `<span class="text-danger">ABSENT</span>`;
+    if (sessionDateStr === getTodayDateStr()) {
+      const currentHour = new Date().getHours();
+      const isFutureSession = (sessionType === 'morning' && currentHour < 5) || (sessionType === 'evening' && currentHour < 15);
+      if (isFutureSession) {
+        td.innerHTML = `<span class="text-muted small fst-italic">Coming soon</span>`;
+      } else {
+        td.innerHTML = `<span class="text-danger">ABSENT</span>`;
+      }
+    } else {
+      td.innerHTML = `<span class="text-danger">ABSENT</span>`;
+    }
   } else {
     if (sessionDateStr === getTodayDateStr()) {
       td.innerHTML = `<span class="text-muted small fst-italic">Coming soon</span>`;
@@ -46,9 +56,9 @@ const renderRows = (records) => {
       cell(record.register_number || '—'),
       cell(`Bus ${record.bus_number}`),
       cell(record.session_date ? new Date(record.session_date).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : '—'),
-      statusCell(record.morning_status, record.morning_checked_in_at, record.morning_latitude, record.morning_longitude, record.session_date),
-      statusCell(record.evening_status, record.evening_checked_in_at, record.evening_latitude, record.evening_longitude, record.session_date),
-      statusCell(record.special_status, record.special_checked_in_at, record.special_latitude, record.special_longitude, record.session_date)
+      statusCell(record.morning_status, record.morning_checked_in_at, record.morning_latitude, record.morning_longitude, record.session_date, 'morning'),
+      statusCell(record.evening_status, record.evening_checked_in_at, record.evening_latitude, record.evening_longitude, record.session_date, 'evening'),
+      statusCell(record.special_status, record.special_checked_in_at, record.special_latitude, record.special_longitude, record.session_date, 'special')
     );
     return tr;
   }));
