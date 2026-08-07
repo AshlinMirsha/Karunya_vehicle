@@ -51,11 +51,13 @@ const renderRows = (records) => {
   }
   body.replaceChildren(...records.map((record) => {
     const tr = document.createElement('tr');
+    const dateTd = cell(record.session_date ? new Date(record.session_date).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : '—');
+    dateTd.classList.add('text-center');
     tr.append(
       cell(record.full_name || 'Unnamed student'),
       cell(record.register_number || '—'),
       cell(`Bus ${record.bus_number}`),
-      cell(record.session_date ? new Date(record.session_date).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : '—'),
+      dateTd,
       statusCell(record.morning_status, record.morning_checked_in_at, record.morning_latitude, record.morning_longitude, record.session_date, 'morning'),
       statusCell(record.evening_status, record.evening_checked_in_at, record.evening_latitude, record.evening_longitude, record.session_date, 'evening'),
       statusCell(record.special_status, record.special_checked_in_at, record.special_latitude, record.special_longitude, record.session_date, 'special')
@@ -257,13 +259,63 @@ export async function initOperationsDashboard(expectedRole) {
 
   ['filter-bus', 'filter-date-from', 'filter-date-to', 'filter-status'].forEach((id) => document.getElementById(id)?.addEventListener('change', loadHistory));
 
-  document.getElementById('btn-clear-filters').addEventListener('click', () => {
+  document.getElementById('btn-clear-filters')?.addEventListener('click', () => {
     setTodayDefaults();
     document.getElementById('filter-status').value = '';
     if (searchInput) searchInput.value = '';
     busFilter.value = expectedRole === 'coordinator' ? profile.bus_id : '';
     loadHistory();
   });
+
+  const btnExportExcel = document.getElementById('btn-export-excel');
+  if (btnExportExcel) {
+    btnExportExcel.onclick = () => {
+      const table = document.getElementById('attendance-print-table');
+      if (!table) return;
+
+      const headers = ['Student Name', 'Register Number', 'Bus', 'Date', 'Morning (FN)', 'Evening (AN)', 'Special'];
+      const rows = [headers];
+
+      const tbody = document.getElementById('attendance-list');
+      const trs = tbody.querySelectorAll('tr');
+      trs.forEach(tr => {
+        const tds = Array.from(tr.querySelectorAll('td')).map(td => td.innerText.replace(/\n+/g, ' ').trim());
+        if (tds.length >= 7) {
+          rows.push(tds);
+        }
+      });
+
+      if (rows.length <= 1) {
+        showToast('No records available to export.', 'warning');
+        return;
+      }
+
+      if (window.XLSX) {
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = [{ wch: 25 }, { wch: 18 }, { wch: 10 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 15 }];
+        XLSX.utils.book_append_sheet(wb, ws, 'Attendance Report');
+        const dateStr = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `Karunya_Bus_Attendance_${dateStr}.xlsx`);
+        showToast('Excel report downloaded successfully.', 'success');
+      } else {
+        const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.map(val => `"${val.replace(/"/g, '""')}"`).join(',')).join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `Karunya_Bus_Attendance_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('Attendance report exported as CSV.', 'info');
+      }
+    };
+  }
+
+  const btnExportPdf = document.getElementById('btn-export-pdf');
+  if (btnExportPdf) {
+    btnExportPdf.onclick = () => window.print();
+  }
 
   const quickFilters = document.getElementById('quick-filters');
   if (quickFilters) {
