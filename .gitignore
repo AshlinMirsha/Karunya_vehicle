@@ -5,7 +5,13 @@ functions/node_modules/
 .supabase/
 supabase/.temp/
 .env
+.env.local
 *.log
+*.ts.bak
+test-*.js
+check_*.ts
+test_*.ts
+package-lock.json
 kaluthamirsha-firebase-adminsdk-fbsvc-17d20c3334.json
 /functions/
 .opencode
