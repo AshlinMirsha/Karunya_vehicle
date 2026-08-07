@@ -160,6 +160,39 @@ Deno.serve(async (request) => {
         await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
         return response(request, { message: 'Coordinator updated. If not yet signed in, they will be assigned automatically on first login.' });
       }
+
+      if (action === 'remove-coordinator') {
+        const { email } = body as Record<string, unknown>;
+        if (!isValidEmail(email)) return response(request, { message: 'A valid email is required.' }, 400);
+        const { error: updateErr } = await adminClient.from('profiles')
+          .update({ role: 'student', bus_id: null })
+          .eq('email', (email as string).toLowerCase())
+          .eq('role', 'coordinator');
+        await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+        return response(request, { message: 'Coordinator removed and unassigned.' });
+      }
+
+      if (action === 'add-bus') {
+        const { busNumber, routeName, capacity } = body as Record<string, unknown>;
+        const num = parseInt(String(busNumber), 10);
+        if (isNaN(num) || num < 1 || num > 999) return response(request, { message: 'Bus number must be between 1 and 999.' }, 400);
+        const route = String(routeName || '').trim();
+        if (!route) return response(request, { message: 'Route description is required.' }, 400);
+        const cap = parseInt(String(capacity || 60), 10);
+
+        const { data: existing } = await adminClient.from('buses').select('id').eq('bus_number', num).maybeSingle();
+        if (existing) return response(request, { message: `Bus ${num} already exists.` }, 400);
+
+        const { data: newBus, error: insertErr } = await adminClient.from('buses').insert({
+          bus_number: num,
+          route: route,
+          capacity: cap
+        }).select().single();
+
+        if (insertErr) return response(request, { message: insertErr.message || 'Could not create bus.' }, 400);
+        await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+        return response(request, { message: `Bus ${num} added successfully!` });
+      }
     }
     
     if (action === 'create-session' || action === 'mark-attendance') {

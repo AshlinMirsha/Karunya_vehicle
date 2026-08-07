@@ -862,6 +862,65 @@ const setupStudentManagementControls = (buses) => {
     };
   }
 
+  const btnRemoveCoord = document.getElementById('btn-remove-coordinator');
+  if (btnRemoveCoord) {
+    btnRemoveCoord.onclick = async () => {
+      const email = document.getElementById('remove-coord-email')?.value?.trim()?.toLowerCase();
+      const msg = document.getElementById('remove-coord-msg');
+      if (!email) {
+        showToast('Coordinator email is required.', 'danger');
+        return;
+      }
+      btnRemoveCoord.disabled = true;
+      btnRemoveCoord.textContent = 'Removing…';
+      const { data, error } = await supabase.functions.invoke('attendance-api', {
+        body: { action: 'remove-coordinator', email }
+      });
+      btnRemoveCoord.disabled = false;
+      btnRemoveCoord.textContent = 'Remove Coordinator';
+      if (error || !data?.message) {
+        const err = error?.message || 'Could not remove coordinator.';
+        if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
+        showToast(err, 'danger');
+      } else {
+        if (msg) msg.innerHTML = `<span class="text-success">${data.message}</span>`;
+        showToast(data.message, 'success');
+        document.getElementById('remove-coord-email').value = '';
+      }
+    };
+  }
+
+  const btnAddBus = document.getElementById('btn-add-bus');
+  if (btnAddBus) {
+    btnAddBus.onclick = async () => {
+      const busNumber = document.getElementById('add-bus-number')?.value;
+      const capacity = document.getElementById('add-bus-capacity')?.value || 60;
+      const routeName = document.getElementById('add-bus-route')?.value?.trim();
+      const msg = document.getElementById('add-bus-msg');
+      if (!busNumber || !routeName) {
+        showToast('Bus number and route description are required.', 'danger');
+        return;
+      }
+      btnAddBus.disabled = true;
+      btnAddBus.textContent = 'Adding Bus…';
+      const { data, error } = await supabase.functions.invoke('attendance-api', {
+        body: { action: 'add-bus', busNumber, capacity, routeName }
+      });
+      btnAddBus.disabled = false;
+      btnAddBus.textContent = 'Add Bus';
+      if (error || !data?.message) {
+        const err = error?.message || 'Could not create bus.';
+        if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
+        showToast(err, 'danger');
+      } else {
+        if (msg) msg.innerHTML = `<span class="text-success">${data.message}</span>`;
+        showToast(data.message, 'success');
+        document.getElementById('add-bus-number').value = '';
+        document.getElementById('add-bus-route').value = '';
+      }
+    };
+  }
+
   const btnSubmitOverride = document.getElementById('btn-submit-override');
   if (btnSubmitOverride) {
     btnSubmitOverride.onclick = async () => {

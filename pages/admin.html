@@ -146,6 +146,26 @@
           <div id="add-coord-msg" class="mt-2 small"></div>
         </div>
 
+        <div class="card bg-transparent border border-secondary mb-4 p-3">
+          <h6 class="fw-semibold mb-3">Delete / Remove coordinator</h6>
+          <div class="row g-2 align-items-end">
+            <div class="col-md-12"><label class="form-label small" for="remove-coord-email">Coordinator email</label><input id="remove-coord-email" type="email" class="form-control" placeholder="faculty@karunya.edu.in"></div>
+            <div class="col-md-12 mt-2"><button id="btn-remove-coordinator" class="btn btn-outline-danger w-100">Remove Coordinator</button></div>
+          </div>
+          <div id="remove-coord-msg" class="mt-2 small"></div>
+        </div>
+
+        <div class="card bg-transparent border border-secondary mb-4 p-3">
+          <h6 class="fw-semibold mb-3">Add New Bus Route</h6>
+          <div class="row g-2 align-items-end">
+            <div class="col-md-4"><label class="form-label small" for="add-bus-number">Bus number</label><input id="add-bus-number" type="number" class="form-control" placeholder="14" min="1" max="999"></div>
+            <div class="col-md-4"><label class="form-label small" for="add-bus-capacity">Capacity</label><input id="add-bus-capacity" type="number" class="form-control" placeholder="60" value="60"></div>
+            <div class="col-md-4"><label class="form-label small" for="add-bus-route">Route description</label><input id="add-bus-route" type="text" class="form-control" placeholder="Coimbatore Town Hall" maxlength="150"></div>
+            <div class="col-md-12 mt-2"><button id="btn-add-bus" class="btn btn-glass-primary w-100">Add Bus</button></div>
+          </div>
+          <div id="add-bus-msg" class="mt-2 small"></div>
+        </div>
+
         <div class="card bg-transparent border border-secondary p-3" id="manual-override-panel">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="fw-semibold mb-0">Manual Attendance Override</h6>
