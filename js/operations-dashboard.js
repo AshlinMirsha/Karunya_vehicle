@@ -111,9 +111,35 @@ const renderStudentRoster = async () => {
   ])));
 };
 
-const updateSessionStatsCards = async (profile, defaultCount = 0) => {
+const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null) => {
   try {
-    const busId = profile?.role === 'admin' ? null : profile?.bus_id;
+    if (profile?.role === 'admin' && summary) {
+      const fnPresentEl = document.getElementById('stat-morning-checkins');
+      const fnAbsentEl = document.getElementById('stat-morning-absent');
+      if (fnPresentEl && fnAbsentEl) {
+        const mPresent = summary.morning_checkins ?? 0;
+        const mTotal = defaultCount || summary.student_count_active || 0;
+        fnPresentEl.textContent = String(mPresent);
+        fnPresentEl.className = 'fw-bold text-success fs-5';
+        fnAbsentEl.textContent = String(Math.max(0, mTotal - mPresent));
+        fnAbsentEl.className = 'fw-bold text-danger fs-5';
+      }
+
+      const anPresentEl = document.getElementById('stat-evening-checkins');
+      const anAbsentEl = document.getElementById('stat-evening-absent');
+      if (anPresentEl && anAbsentEl) {
+        const ePresent = summary.evening_checkins ?? 0;
+        const eTotal = defaultCount || summary.student_count_active || 0;
+        anPresentEl.textContent = String(ePresent);
+        anPresentEl.className = 'fw-bold text-success fs-5';
+        anAbsentEl.textContent = String(Math.max(0, eTotal - ePresent));
+        anAbsentEl.className = 'fw-bold text-danger fs-5';
+      }
+      return;
+    }
+
+    const busId = profile?.bus_id;
+    if (!busId) return;
 
     const { data: stats } = await supabase.rpc('get_today_bus_session_stats', { p_bus_id: busId });
     const fnStat = stats?.find(s => s.session_type === 'Morning');
@@ -194,11 +220,9 @@ export async function initOperationsDashboard(expectedRole) {
   if (document.getElementById('stat-students-pending')) text('stat-students-pending', summary.student_count_pending ?? 0);
   if (document.getElementById('stat-active-buses')) text('stat-active-buses', summary.bus_count ?? buses.length);
   if (document.getElementById('stat-today-attendance')) text('stat-today-attendance', summary.present_today ?? 0);
-  if (document.getElementById('stat-morning-checkins')) text('stat-morning-checkins', summary.morning_checkins ?? 0);
-  if (document.getElementById('stat-evening-checkins')) text('stat-evening-checkins', summary.evening_checkins ?? 0);
 
   try {
-    await updateSessionStatsCards(profile, summary.student_count_active ?? 0);
+    await updateSessionStatsCards(profile, summary.student_count_active ?? 0, summary);
   } catch (err) {
     console.error('Failed to update session stats cards:', err);
   }
