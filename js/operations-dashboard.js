@@ -322,7 +322,13 @@ export async function initOperationsDashboard(expectedRole) {
     const emailQr = document.getElementById('check-email-qr')?.checked || false;
     const { data, error } = await supabase.functions.invoke('attendance-api', { body: { action: 'create-session', busId: qrBus.value, sessionType: document.getElementById('select-session').value, emailQr } });
     if (error || !data?.token || !data?.expiresAt) {
-      const errorMessage = error?.context?.message || data?.message || error?.message || 'QR session could not be created.';
+      let errorMessage = 'QR session could not be created.';
+      if (error?.context && typeof error.context.clone === 'function') {
+        const body = await error.context.clone().json().catch(() => null);
+        if (body?.message) errorMessage = body.message;
+      }
+      if (errorMessage === 'QR session could not be created.' && data?.message) errorMessage = data.message;
+      if (errorMessage === 'QR session could not be created.' && error?.message) errorMessage = error.message;
       return showToast(errorMessage, 'danger');
     }
     const display = document.getElementById('qr-code-display'); display.replaceChildren();

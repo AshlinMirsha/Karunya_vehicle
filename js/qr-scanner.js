@@ -74,16 +74,21 @@ const startDecoder = (video, generation) => {
     if (isDecoding || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return scheduleNextScan();
     isDecoding = true;
     try {
+      let detectedText = null;
       if (detector) {
-        const codes = await detector.detect(video);
-        if (codes[0]?.rawValue && useDetectedValue(codes[0].rawValue)) return;
-      } else if (window.jsQR && context) {
+        try {
+          const codes = await detector.detect(video);
+          if (codes[0]?.rawValue) detectedText = codes[0].rawValue;
+        } catch { /* fallback to jsQR */ }
+      }
+      if (!detectedText && window.jsQR && context) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const result = window.jsQR(context.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
-        if (result?.data && useDetectedValue(result.data)) return;
+        const result = window.jsQR(context.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height, { inversionAttempts: 'attemptBoth' });
+        if (result?.data) detectedText = result.data;
       }
+      if (detectedText && useDetectedValue(detectedText)) return;
     } catch { /* A dropped video frame is safe to ignore. */ }
     finally { isDecoding = false; }
     scheduleNextScan();
