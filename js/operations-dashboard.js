@@ -69,54 +69,40 @@ const addOption = (select, value, label) => {
 };
 
 const renderSessionStatus = async (buses) => {
-  const now = new Date();
-  const tzOffset = now.getTimezoneOffset() * 60000;
-  const localISODate = new Date(now - tzOffset).toISOString().slice(0, 10);
-  
-  const { data: sessions, error } = await supabase
-    .from('attendance_sessions')
-    .select('id, bus_id, session_type, created_at, email_status, email_error')
-    .gte('created_at', `${localISODate}T00:00:00Z`)
-    .order('created_at', { ascending: false });
-    
-  if (error) return;
+  const { data: logs, error } = await supabase.rpc('authorized_email_logs');
+  const sessions = logs ?? [];
 
-  const section = document.createElement('section');
-  section.className = 'glass-panel p-4 mt-4';
-  section.innerHTML = `
-    <h2 class="h5 fw-bold mb-1">Today's QR Email Delivery Status</h2>
-    <p class="text-muted small mb-3">Status of QR emails sent to coordinators today.</p>
-    <div class="table-responsive">
-      <table class="table table-dark-custom align-middle mb-0">
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Bus</th>
-            <th>Session</th>
-            <th>Email Status</th>
-            <th>Error Info</th>
-          </tr>
-        </thead>
-        <tbody id="session-status-list"></tbody>
-      </table>
-    </div>
-  `;
+  const morningCount = sessions.filter(s => s.session_type === 'Morning' && s.email_status === 'sent').length;
+  const eveningCount = sessions.filter(s => s.session_type === 'Evening' && s.email_status === 'sent').length;
+  const totalCount = sessions.filter(s => s.email_status === 'sent').length;
+
+  if (document.getElementById('stat-email-sent-total')) text('stat-email-sent-total', totalCount);
+  if (document.getElementById('stat-email-morning')) text('stat-email-morning', morningCount);
+  if (document.getElementById('stat-email-evening')) text('stat-email-evening', eveningCount);
+
+  const cardToggle = document.getElementById('card-email-log-summary');
+  const emailLogSection = document.getElementById('email-log-section');
+  const closeBtn = document.getElementById('btn-close-email-log');
   
-  const main = document.querySelector('main');
-  // insert before the first glass-panel section that is not the main stats row
-  main.insertBefore(section, main.querySelector('section.glass-panel'));
-  
-  const body = section.querySelector('#session-status-list');
-  if (!sessions || sessions.length === 0) {
-    const empty = row(['No QR sessions generated today yet.']);
+  if (cardToggle && emailLogSection) {
+    cardToggle.onclick = () => emailLogSection.classList.toggle('d-none');
+  }
+  if (closeBtn && emailLogSection) {
+    closeBtn.onclick = () => emailLogSection.classList.add('d-none');
+  }
+
+  const body = document.getElementById('session-status-list');
+  if (!body) return;
+
+  if (error || !sessions.length) {
+    const empty = row(['No QR emails sent today yet.']);
     empty.firstElementChild.colSpan = 5;
     body.replaceChildren(empty);
     return;
   }
-  
+
   body.replaceChildren(...sessions.map(session => {
-    const bus = buses.find(b => b.id === session.bus_id);
-    const busLabel = bus ? `Bus ${bus.bus_number}` : 'Unknown Bus';
+    const busLabel = session.bus_number ? `Bus ${session.bus_number}` : 'Unknown Bus';
     const timeLabel = new Date(session.created_at).toLocaleTimeString('en-IN', { timeStyle: 'short' });
     
     let statusHtml = '';
@@ -130,9 +116,9 @@ const renderSessionStatus = async (buses) => {
     
     const tr = document.createElement('tr');
     tr.append(
-      cell(timeLabel),
       cell(busLabel),
       cell(session.session_type),
+      cell(timeLabel),
       cell(''),
       cell(session.email_error || '—')
     );
@@ -303,8 +289,8 @@ export async function initOperationsDashboard(expectedRole) {
 
   await renderStudentRoster();
   setupStudentManagementControls(buses);
+  await renderSessionStatus(buses);
   if (expectedRole === 'admin') {
-    await renderSessionStatus(buses);
     await renderAdminDirectory(buses);
     await renderSecurityDashboard();
   }
