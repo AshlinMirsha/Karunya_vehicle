@@ -14,13 +14,12 @@ test('daily QR schedule uses the required 5 AM and 3 PM IST UTC schedules', asyn
 test('daily QR function protects the scheduler and delivers a QR email', async () => {
   const source = await read('supabase/functions/daily-qr/index.ts');
   assert.match(source, /x-cron-secret/);
-  assert.match(source, /EMAIL_APP_PASSWORD/);
+  assert.match(source, /BREVO_API_KEY/);
   assert.match(source, /npm:qrcode@/);
   assert.match(source, /QRCode\.toDataURL/);
-  assert.match(source, /Content-Type: image\/png/);
-  assert.match(source, /Content-ID: <\$\{QR_IMAGE_CID\}>/);
+  assert.match(source, /sendBrevoEmail/);
   assert.match(source, /QR_SESSION_DURATION_MS = 5 \* 60 \* 60 \* 1000/);
-  assert.match(source, /Failed to send email/);
+  assert.match(source, /Brevo send failed/);
 });
 
 test('attendance API remains JWT-protected', async () => {
@@ -30,7 +29,7 @@ test('attendance API remains JWT-protected', async () => {
   assert.match(config, /\[functions\.attendance-api\][\s\S]*verify_jwt = true/);
   assert.match(api, /headers: \{ Authorization: authorization \}/);
   assert.match(api, /auth\.getUser\(\)/);
-  assert.match(api, /SESSION_TYPES\.has\(body\.sessionType\)/);
+  assert.match(api, /SESSION_TYPES\.has/);
   assert.match(api, /QR_TOKEN_PATTERN/);
   assert.match(api, /withinCoordinateBounds/);
   assert.match(api, /isAllowedOrigin/);

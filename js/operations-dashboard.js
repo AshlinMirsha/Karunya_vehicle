@@ -306,6 +306,7 @@ export async function initOperationsDashboard(expectedRole) {
     await renderSessionStatus(buses);
     await renderAdminDirectory(buses);
     await renderSecurityDashboard();
+    setupStudentManagementControls(buses);
   }
 
   if (!canGenerateQr) return;
@@ -620,4 +621,130 @@ const renderSecurityDashboard = async () => {
 
   // Initial runs
   await Promise.all([loadAlerts(), loadBannedIps(), loadSettings()]);
+};
+
+const setupStudentManagementControls = (buses) => {
+  const addStudentBus = document.getElementById('add-student-bus');
+  const moveStudentBus = document.getElementById('move-student-bus');
+  const addCoordBus = document.getElementById('add-coord-bus');
+
+  if (addStudentBus) {
+    addStudentBus.replaceChildren();
+    buses.forEach((b) => addOption(addStudentBus, b.id, `Bus ${b.bus_number} — ${b.route}`));
+  }
+  if (moveStudentBus) {
+    moveStudentBus.replaceChildren();
+    buses.forEach((b) => addOption(moveStudentBus, b.id, `Bus ${b.bus_number} — ${b.route}`));
+  }
+  if (addCoordBus) {
+    addCoordBus.replaceChildren();
+    buses.forEach((b) => addOption(addCoordBus, b.id, `Bus ${b.bus_number} — ${b.route}`));
+  }
+
+  const btnAddStudent = document.getElementById('btn-add-student');
+  if (btnAddStudent) {
+    btnAddStudent.onclick = async () => {
+      const name = document.getElementById('add-student-name')?.value?.trim();
+      const email = document.getElementById('add-student-email')?.value?.trim()?.toLowerCase();
+      const regNumber = document.getElementById('add-student-regnumber')?.value?.trim();
+      const busId = addStudentBus?.value;
+      const msg = document.getElementById('add-student-msg');
+
+      if (!name || !email || !regNumber || !busId) {
+        showToast('All student fields are required.', 'danger');
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('attendance-api', {
+        body: { action: 'add-student', fullName: name, email, registerNumber: regNumber, busId }
+      });
+      if (error || data?.message !== 'Student added successfully.') {
+        const err = error?.context?.message || data?.message || error?.message || 'Could not add student.';
+        if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
+        showToast(err, 'danger');
+      } else {
+        if (msg) msg.innerHTML = '<span class="text-success">Student added successfully!</span>';
+        showToast('Student added successfully.', 'success');
+        document.getElementById('add-student-name').value = '';
+        document.getElementById('add-student-email').value = '';
+        document.getElementById('add-student-regnumber').value = '';
+      }
+    };
+  }
+
+  const btnMoveStudent = document.getElementById('btn-move-student');
+  if (btnMoveStudent) {
+    btnMoveStudent.onclick = async () => {
+      const email = document.getElementById('move-student-email')?.value?.trim()?.toLowerCase();
+      const newBusId = moveStudentBus?.value;
+      const msg = document.getElementById('move-student-msg');
+      if (!email || !newBusId) {
+        showToast('Student email and target bus are required.', 'danger');
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke('attendance-api', {
+        body: { action: 'move-student', studentEmail: email, newBusId }
+      });
+      if (error || data?.message !== 'Student moved to new bus successfully.') {
+        const err = error?.context?.message || data?.message || error?.message || 'Could not move student.';
+        if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
+        showToast(err, 'danger');
+      } else {
+        if (msg) msg.innerHTML = '<span class="text-success">Student moved successfully!</span>';
+        showToast('Student moved successfully.', 'success');
+        document.getElementById('move-student-email').value = '';
+      }
+    };
+  }
+
+  const btnRemoveStudent = document.getElementById('btn-remove-student');
+  if (btnRemoveStudent) {
+    btnRemoveStudent.onclick = async () => {
+      const email = document.getElementById('remove-student-email')?.value?.trim()?.toLowerCase();
+      const msg = document.getElementById('remove-student-msg');
+      if (!email) {
+        showToast('Student email is required.', 'danger');
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke('attendance-api', {
+        body: { action: 'remove-student', studentEmail: email }
+      });
+      if (error || data?.message !== 'Student removed from bus.') {
+        const err = error?.context?.message || data?.message || error?.message || 'Could not remove student.';
+        if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
+        showToast(err, 'danger');
+      } else {
+        if (msg) msg.innerHTML = '<span class="text-success">Student removed from bus.</span>';
+        showToast('Student removed from bus.', 'info');
+        document.getElementById('remove-student-email').value = '';
+      }
+    };
+  }
+
+  const btnAddCoord = document.getElementById('btn-add-coordinator');
+  if (btnAddCoord) {
+    btnAddCoord.onclick = async () => {
+      const name = document.getElementById('add-coord-name')?.value?.trim();
+      const email = document.getElementById('add-coord-email')?.value?.trim()?.toLowerCase();
+      const busId = addCoordBus?.value;
+      const msg = document.getElementById('add-coord-msg');
+      if (!name || !email || !busId) {
+        showToast('Name, email, and bus are required.', 'danger');
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke('attendance-api', {
+        body: { action: 'add-coordinator', fullName: name, email, busId }
+      });
+      if (error) {
+        const err = error?.context?.message || data?.message || error?.message || 'Could not add coordinator.';
+        if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
+        showToast(err, 'danger');
+      } else {
+        if (msg) msg.innerHTML = `<span class="text-success">${data?.message || 'Coordinator updated successfully.'}</span>`;
+        showToast('Coordinator updated successfully.', 'success');
+        document.getElementById('add-coord-name').value = '';
+        document.getElementById('add-coord-email').value = '';
+      }
+    };
+  }
 };
