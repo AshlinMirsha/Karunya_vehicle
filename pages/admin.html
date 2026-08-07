@@ -135,6 +135,43 @@
       </div>
       <div id="add-coord-msg" class="mt-2 small"></div>
     </div>
+
+    <div class="card bg-transparent border border-secondary mt-4 p-3" id="manual-override-panel">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="fw-semibold mb-0">Manual Attendance Override</h6>
+        <span class="badge bg-warning text-dark">Reason / Comment Required</span>
+      </div>
+      <p class="text-muted small mb-3">Mark a student as Present or Absent manually (e.g. phone dead, medical leave, late permission). A reason/comment is mandatory.</p>
+      <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small" for="override-student-email">Student Email (@karunya.edu.in)</label>
+          <input id="override-student-email" type="email" class="form-control" placeholder="student@karunya.edu.in">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small" for="override-session-type">Session</label>
+          <select id="override-session-type" class="form-select">
+            <option value="Morning">Morning</option>
+            <option value="Evening">Evening</option>
+            <option value="Special">Special</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small" for="override-status">Status</label>
+          <select id="override-status" class="form-select">
+            <option value="PRESENT">PRESENT</option>
+            <option value="ABSENT">ABSENT</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small" for="override-remark">Reason / Comment <span class="text-danger">*</span></label>
+          <input id="override-remark" type="text" class="form-control" placeholder="e.g. Phone battery dead / Medical leave" maxlength="250">
+        </div>
+        <div class="col-md-2">
+          <button id="btn-submit-override" class="btn btn-glass-primary w-100">Submit Override</button>
+        </div>
+      </div>
+      <div id="override-msg" class="mt-2 small"></div>
+    </div>
   </section>
 
 </main>

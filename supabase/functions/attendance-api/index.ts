@@ -92,7 +92,7 @@ Deno.serve(async (request) => {
     }
     const body = await request.json().catch(() => null);
     const action = (body as { action?: string })?.action ?? '';
-    if (!body || typeof body !== 'object' || !['create-session', 'mark-attendance', 'update-coordinator-location', ...ADMIN_ACTIONS].includes(action)) return response(request, { message: 'Invalid request.' }, 400);
+    if (!body || typeof body !== 'object' || !['create-session', 'mark-attendance', 'update-coordinator-location', 'manual-override-attendance', ...ADMIN_ACTIONS].includes(action)) return response(request, { message: 'Invalid request.' }, 400);
 
     // ── Admin-only actions ────────────────────────────────────────────────────
     if (ADMIN_ACTIONS.has(action)) {
@@ -202,6 +202,93 @@ Deno.serve(async (request) => {
         return response(request, { message: 'Could not update live position.' }, 500);
       }
       return response(request, { success: true });
+    }
+
+    if (action === 'manual-override-attendance') {
+      if (profile.role !== 'coordinator' && profile.role !== 'admin') {
+        return response(request, { message: 'Coordinator or Admin authorization required.' }, 403);
+      }
+      const b = body as Record<string, unknown>;
+      const studentEmail = (b.studentEmail as string)?.toLowerCase()?.trim() ?? '';
+      const status = String(b.status ?? '').toUpperCase();
+      const sessionType = String(b.sessionType ?? 'Morning');
+      const remark = String(b.remark ?? '').trim();
+
+      if (!isValidEmail(studentEmail)) return response(request, { message: 'A valid student email is required.' }, 400);
+      if (status !== 'PRESENT' && status !== 'ABSENT') return response(request, { message: 'Status must be PRESENT or ABSENT.' }, 400);
+      if (remark.length < 3 || remark.length > 250) {
+        return response(request, { message: 'A reason/comment (3–250 characters) is required for manual override.' }, 400);
+      }
+      if (!['Morning', 'Evening', 'Special'].includes(sessionType)) {
+        return response(request, { message: 'Session type must be Morning, Evening, or Special.' }, 400);
+      }
+
+      const { data: targetStudent } = await adminClient.from('profiles').select('id, bus_id, role, full_name, email').eq('email', studentEmail).single();
+      if (!targetStudent || targetStudent.role !== 'student') {
+        return response(request, { message: 'Student profile not found.' }, 404);
+      }
+      if (!targetStudent.bus_id) {
+        return response(request, { message: 'Student is not assigned to any bus.' }, 400);
+      }
+      if (profile.role === 'coordinator' && targetStudent.bus_id !== profile.bus_id) {
+        return response(request, { message: 'Student is not assigned to your bus.' }, 403);
+      }
+
+      const now = new Date();
+      const istOffset = 5.5 * 60 * 60 * 1000;
+      const istTime = new Date(now.getTime() + istOffset);
+      istTime.setUTCHours(0, 0, 0, 0);
+      const startOfDay = new Date(istTime.getTime() - istOffset);
+
+      let { data: session } = await adminClient
+        .from('attendance_sessions')
+        .select('id')
+        .eq('bus_id', targetStudent.bus_id)
+        .eq('session_type', sessionType)
+        .gte('created_at', startOfDay.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!session) {
+        const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
+        const expiresAt = new Date(Date.now() + SESSION_DURATION_MS).toISOString();
+        const { data: newSession, error: createErr } = await adminClient.from('attendance_sessions').insert({
+          bus_id: targetStudent.bus_id,
+          session_type: sessionType,
+          token_hash: await hashToken(token, qrSecret),
+          expires_at: expiresAt,
+          created_by: user.id,
+          email_status: 'manual_override',
+        }).select('id').single();
+        if (createErr || !newSession) return response(request, { message: 'Could not initialize attendance session.' }, 500);
+        session = newSession;
+      }
+
+      if (status === 'PRESENT') {
+        const { error: upsertErr } = await adminClient.from('attendance').upsert({
+          session_id: session.id,
+          student_id: targetStudent.id,
+          latitude: 0.0,
+          longitude: 0.0,
+          status: 'PRESENT',
+          remark: remark,
+        }, { onConflict: 'session_id,student_id' });
+        if (upsertErr) return response(request, { message: 'Could not record manual attendance.' }, 500);
+      } else {
+        await adminClient.from('attendance')
+          .delete()
+          .eq('session_id', session.id)
+          .eq('student_id', targetStudent.id);
+      }
+
+      await adminClient.from('security_audit_events').insert({
+        actor_id: user.id,
+        action: 'manual-override-attendance',
+        outcome: 'allowed',
+      });
+
+      return response(request, { message: `Attendance for ${targetStudent.full_name || studentEmail} marked as ${status} (${sessionType}) with comment: "${remark}".` });
     }
 
     if (action === 'mark-attendance') {

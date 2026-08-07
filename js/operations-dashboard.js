@@ -302,11 +302,11 @@ export async function initOperationsDashboard(expectedRole) {
   await loadHistory();
 
   await renderStudentRoster();
+  setupStudentManagementControls(buses);
   if (expectedRole === 'admin') {
     await renderSessionStatus(buses);
     await renderAdminDirectory(buses);
     await renderSecurityDashboard();
-    setupStudentManagementControls(buses);
   }
 
   if (!canGenerateQr) return;
@@ -750,6 +750,52 @@ const setupStudentManagementControls = (buses) => {
         showToast('Coordinator updated successfully.', 'success');
         document.getElementById('add-coord-name').value = '';
         document.getElementById('add-coord-email').value = '';
+      }
+    };
+  }
+
+  const btnSubmitOverride = document.getElementById('btn-submit-override');
+  if (btnSubmitOverride) {
+    btnSubmitOverride.onclick = async () => {
+      const email = document.getElementById('override-student-email')?.value?.trim()?.toLowerCase();
+      const sessionType = document.getElementById('override-session-type')?.value;
+      const status = document.getElementById('override-status')?.value;
+      const remark = document.getElementById('override-remark')?.value?.trim();
+      const msg = document.getElementById('override-msg');
+
+      if (!email) {
+        showToast('Student email is required.', 'danger');
+        return;
+      }
+      if (!remark || remark.length < 3) {
+        showToast('A reason/comment (at least 3 characters) is mandatory for manual override.', 'warning');
+        if (msg) msg.innerHTML = '<span class="text-warning">Reason/comment is mandatory.</span>';
+        return;
+      }
+
+      btnSubmitOverride.disabled = true;
+      btnSubmitOverride.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting…';
+
+      const { data, error } = await supabase.functions.invoke('attendance-api', {
+        body: { action: 'manual-override-attendance', studentEmail: email, sessionType, status, remark }
+      });
+
+      btnSubmitOverride.disabled = false;
+      btnSubmitOverride.innerHTML = 'Submit Override';
+
+      if (error || !data?.message) {
+        let err = 'Could not record manual attendance.';
+        if (error?.context && typeof error.context.clone === 'function') {
+          const body = await error.context.clone().json().catch(() => null);
+          if (body?.message) err = body.message;
+        }
+        if (err === 'Could not record manual attendance.' && data?.message) err = data.message;
+        if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
+        showToast(err, 'danger');
+      } else {
+        if (msg) msg.innerHTML = `<span class="text-success">${data.message}</span>`;
+        showToast(data.message, 'success');
+        document.getElementById('override-remark').value = '';
       }
     };
   }
