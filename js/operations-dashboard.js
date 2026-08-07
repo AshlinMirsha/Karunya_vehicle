@@ -139,26 +139,51 @@ const renderStudentRoster = async () => {
 const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null) => {
   try {
     if (profile?.role === 'admin' && summary) {
+      const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const startOfToday = `${todayIST}T00:00:00`;
+
+      const { data: todaySessions } = await supabase
+        .from('attendance_sessions')
+        .select('session_type')
+        .gte('created_at', startOfToday);
+
+      const hasMorningSession = (todaySessions ?? []).some(s => s.session_type === 'Morning');
+      const hasEveningSession = (todaySessions ?? []).some(s => s.session_type === 'Evening');
+
       const fnPresentEl = document.getElementById('stat-morning-checkins');
       const fnAbsentEl = document.getElementById('stat-morning-absent');
       if (fnPresentEl && fnAbsentEl) {
-        const mPresent = summary.morning_checkins ?? 0;
-        const mTotal = defaultCount || summary.student_count_active || 0;
-        fnPresentEl.textContent = String(mPresent);
-        fnPresentEl.className = 'fw-bold text-success fs-5';
-        fnAbsentEl.textContent = String(Math.max(0, mTotal - mPresent));
-        fnAbsentEl.className = 'fw-bold text-danger fs-5';
+        if (!hasMorningSession) {
+          fnPresentEl.textContent = 'to be loaded';
+          fnPresentEl.className = 'fw-bold text-muted fst-italic';
+          fnAbsentEl.textContent = 'to be loaded';
+          fnAbsentEl.className = 'fw-bold text-muted fst-italic';
+        } else {
+          const mPresent = summary.morning_checkins ?? 0;
+          const mTotal = defaultCount || summary.student_count_active || 0;
+          fnPresentEl.textContent = String(mPresent);
+          fnPresentEl.className = 'fw-bold text-success fs-5';
+          fnAbsentEl.textContent = String(Math.max(0, mTotal - mPresent));
+          fnAbsentEl.className = 'fw-bold text-danger fs-5';
+        }
       }
 
       const anPresentEl = document.getElementById('stat-evening-checkins');
       const anAbsentEl = document.getElementById('stat-evening-absent');
       if (anPresentEl && anAbsentEl) {
-        const ePresent = summary.evening_checkins ?? 0;
-        const eTotal = defaultCount || summary.student_count_active || 0;
-        anPresentEl.textContent = String(ePresent);
-        anPresentEl.className = 'fw-bold text-success fs-5';
-        anAbsentEl.textContent = String(Math.max(0, eTotal - ePresent));
-        anAbsentEl.className = 'fw-bold text-danger fs-5';
+        if (!hasEveningSession) {
+          anPresentEl.textContent = 'to be loaded';
+          anPresentEl.className = 'fw-bold text-muted fst-italic';
+          anAbsentEl.textContent = 'to be loaded';
+          anAbsentEl.className = 'fw-bold text-muted fst-italic';
+        } else {
+          const ePresent = summary.evening_checkins ?? 0;
+          const eTotal = defaultCount || summary.student_count_active || 0;
+          anPresentEl.textContent = String(ePresent);
+          anPresentEl.className = 'fw-bold text-success fs-5';
+          anAbsentEl.textContent = String(Math.max(0, eTotal - ePresent));
+          anAbsentEl.className = 'fw-bold text-danger fs-5';
+        }
       }
       return;
     }
