@@ -15,7 +15,7 @@ const corsHeadersFor = (origin: string | null) => ({
 
 const base64Url = (value: string) => btoa(unescape(encodeURIComponent(value))).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 
-const sendCanaryAlertEmail = async (ip: string, userAgent: string, path: string, eventType: string, userInfoStr: string, locationData: any, extraData: any, timeline: any[]) => {
+const sendAuditAlertEmail = async (ip: string, userAgent: string, path: string, eventType: string, userInfoStr: string, locationData: any, extraData: any, timeline: any[]) => {
   const [clientId, clientSecret, refreshToken] = ['GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_REFRESH_TOKEN'].map((name) => Deno.env.get(name) ?? '');
   if (!clientId || !clientSecret || !refreshToken) return false;
   
@@ -40,7 +40,7 @@ const sendCanaryAlertEmail = async (ip: string, userAgent: string, path: string,
     const mapsLink = `https://www.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
     locationHtml = `<p style="margin:0 0 8px;line-height:1.5"><strong>Audited Location:</strong> <a href="${mapsLink}" target="_blank" style="color:#2563eb;font-weight:bold;text-decoration:none">Lat: ${locationData.latitude.toFixed(6)}, Lon: ${locationData.longitude.toFixed(6)} (Acc: ${locationData.accuracy?.toFixed(1) ?? 'N/A'}m)</a></p>`;
   } else if (extraData && extraData.message) {
-    locationHtml = `<p style="margin:0 0 8px;line-height:1.5;color:#d32f2f"><strong>Audited Location:</strong> Denied (Code ${extraData.code}: ${extraData.message})</p>';`;
+    locationHtml = `<p style="margin:0 0 8px;line-height:1.5;color:#d32f2f"><strong>Audited Location:</strong> Denied (Code ${extraData.code}: ${extraData.message})</p>`;
   }
 
   let extraHtml = '';
@@ -93,7 +93,7 @@ const sendCanaryAlertEmail = async (ip: string, userAgent: string, path: string,
     </table>
   </body></html>`;
   
-  const boundary = `canary-alert-${crypto.randomUUID()}`;
+  const boundary = `audit-alert-${crypto.randomUUID()}`;
   const recipient = Deno.env.get('GMAIL_FROM_EMAIL') ?? 'karunya.attendance@gmail.com';
   const raw = [
     `To: ${recipient}`,
@@ -235,9 +235,9 @@ Deno.serve(async (request) => {
 
       // Send threat incident report email
       try {
-        await sendCanaryAlertEmail(clientIp, userAgent, alertPath, actionDesc, userInfoStr, location, extra, timeline || []);
+        await sendAuditAlertEmail(clientIp, userAgent, alertPath, actionDesc, userInfoStr, location, extra, timeline || []);
       } catch (e) {
-        console.error('Failed to send canary alert email:', e);
+        console.error('Failed to send audit alert email:', e);
       }
 
       return new Response(JSON.stringify({ status: 'ok' }), {
@@ -258,9 +258,9 @@ Deno.serve(async (request) => {
 
     // Send immediate email notification for basic boundary probe
     try {
-      await sendCanaryAlertEmail(clientIp, userAgent, alertPath, 'get-boundary-probe', 'Anonymous (Direct Link Click)', null, null, []);
+      await sendAuditAlertEmail(clientIp, userAgent, alertPath, 'get-boundary-probe', 'Anonymous (Direct Link Click)', null, null, []);
     } catch (e) {
-      console.error('Failed to send canary alert email:', e);
+      console.error('Failed to send audit alert email:', e);
     }
 
     if (alertPath === 'env') {
