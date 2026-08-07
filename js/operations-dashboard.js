@@ -115,52 +115,23 @@ const updateSessionStatsCards = async (profile, defaultCount = 0) => {
   const busId = profile?.bus_id;
   if (!busId) return;
 
-  const now = new Date();
-  const istOffsetMs = 5.5 * 60 * 60 * 1000;
-  const istNow = new Date(now.getTime() + istOffsetMs);
-  const istStartOfDay = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate(), 0, 0, 0));
-  const startOfDayUTCISO = new Date(istStartOfDay.getTime() - istOffsetMs).toISOString();
-
-  const { count: busStudentCount } = await supabase
-    .from('profiles')
-    .select('id', { count: 'exact', head: true })
-    .eq('bus_id', busId)
-    .eq('role', 'student')
-    .eq('status', 'active');
-
-  const activeStudentsCount = busStudentCount || defaultCount || 0;
-
-  const { data: todaySessions } = await supabase
-    .from('attendance_sessions')
-    .select('id, session_type, created_at')
-    .eq('bus_id', busId)
-    .gte('created_at', startOfDayUTCISO);
-
-  const fnSession = todaySessions?.find(s => s.session_type === 'Morning');
-  const anSession = todaySessions?.find(s => s.session_type === 'Evening');
+  const { data: stats } = await supabase.rpc('get_today_bus_session_stats', { p_bus_id: busId });
+  const fnStat = stats?.find(s => s.session_type === 'Morning');
+  const anStat = stats?.find(s => s.session_type === 'Evening');
 
   const fnPresentEl = document.getElementById('stat-fn-present');
   const fnAbsentEl = document.getElementById('stat-fn-absent');
 
   if (fnPresentEl && fnAbsentEl) {
-    if (!fnSession) {
+    if (!fnStat) {
       fnPresentEl.textContent = 'to be loaded';
       fnPresentEl.className = 'fw-bold text-muted fst-italic';
       fnAbsentEl.textContent = 'to be loaded';
       fnAbsentEl.className = 'fw-bold text-muted fst-italic';
     } else {
-      const { count: fnPresentCount } = await supabase
-        .from('attendance')
-        .select('id', { count: 'exact', head: true })
-        .eq('session_id', fnSession.id)
-        .eq('status', 'PRESENT');
-
-      const present = fnPresentCount ?? 0;
-      const absent = Math.max(0, activeStudentsCount - present);
-
-      fnPresentEl.textContent = present;
+      fnPresentEl.textContent = fnStat.present_count;
       fnPresentEl.className = 'fw-bold text-success fs-5';
-      fnAbsentEl.textContent = absent;
+      fnAbsentEl.textContent = fnStat.absent_count;
       fnAbsentEl.className = 'fw-bold text-danger fs-5';
     }
   }
@@ -169,24 +140,15 @@ const updateSessionStatsCards = async (profile, defaultCount = 0) => {
   const anAbsentEl = document.getElementById('stat-an-absent');
 
   if (anPresentEl && anAbsentEl) {
-    if (!anSession) {
+    if (!anStat) {
       anPresentEl.textContent = 'to be loaded';
       anPresentEl.className = 'fw-bold text-muted fst-italic';
       anAbsentEl.textContent = 'to be loaded';
       anAbsentEl.className = 'fw-bold text-muted fst-italic';
     } else {
-      const { count: anPresentCount } = await supabase
-        .from('attendance')
-        .select('id', { count: 'exact', head: true })
-        .eq('session_id', anSession.id)
-        .eq('status', 'PRESENT');
-
-      const present = anPresentCount ?? 0;
-      const absent = Math.max(0, activeStudentsCount - present);
-
-      anPresentEl.textContent = present;
+      anPresentEl.textContent = anStat.present_count;
       anPresentEl.className = 'fw-bold text-success fs-5';
-      anAbsentEl.textContent = absent;
+      anAbsentEl.textContent = anStat.absent_count;
       anAbsentEl.className = 'fw-bold text-danger fs-5';
     }
   }
@@ -204,6 +166,12 @@ export async function initOperationsDashboard(expectedRole) {
   document.body.classList.add('role-authorized');
   const canGenerateQr = expectedRole === 'coordinator';
   document.getElementById('qr-panel')?.toggleAttribute('hidden', !canGenerateQr);
+
+  const headerDateText = document.getElementById('header-date-text');
+  if (headerDateText) {
+    const today = new Date();
+    headerDateText.textContent = today.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
+  }
 
   const [busesResult, summaryResult] = await Promise.all([
     supabase.rpc('authorized_bus_records'),
