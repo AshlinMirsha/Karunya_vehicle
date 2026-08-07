@@ -968,19 +968,35 @@ const setupStudentManagementControls = (buses) => {
   }
 };
 
-window.addEventListener('scroll', () => {
-  const btn = document.getElementById('btn-back-to-top');
-  if (btn) {
-    if (window.scrollY > 300) {
-      btn.classList.remove('d-none');
-    } else {
-      btn.classList.add('d-none');
-    }
+const initBackToTopButton = () => {
+  let btn = document.getElementById('btn-back-to-top');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'btn-back-to-top';
+    btn.setAttribute('aria-label', 'Back to top');
+    btn.setAttribute('title', 'Back to top');
+    btn.innerHTML = '↑';
+    document.body.append(btn);
   }
-});
 
-document.addEventListener('click', (e) => {
-  if (e.target.closest('#btn-back-to-top')) {
+  const checkScroll = () => {
+    if (window.scrollY > 200 || document.documentElement.scrollTop > 200) {
+      btn.classList.add('show');
+    } else {
+      btn.classList.remove('show');
+    }
+  };
+
+  window.addEventListener('scroll', checkScroll, { passive: true });
+  checkScroll();
+
+  btn.onclick = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-});
+  };
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initBackToTopButton);
+} else {
+  initBackToTopButton();
+}
