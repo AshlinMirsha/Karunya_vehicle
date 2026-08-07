@@ -95,85 +95,93 @@
   </section>
 
   <section class="glass-panel p-4 mb-4" id="admin-student-mgmt">
-    <h2 class="h5 fw-bold mb-3">Student management</h2>
-
-    <div class="card bg-transparent border border-secondary mb-4 p-3">
-      <h6 class="fw-semibold mb-3">Add / update student</h6>
-      <div class="row g-2 align-items-end">
-        <div class="col-md-3"><label class="form-label small" for="add-student-name">Full name</label><input id="add-student-name" type="text" class="form-control" placeholder="Mohammed Sadiq A" maxlength="100"></div>
-        <div class="col-md-3"><label class="form-label small" for="add-student-email">Email (@karunya.edu.in)</label><input id="add-student-email" type="email" class="form-control" placeholder="student@karunya.edu.in" maxlength="254"></div>
-        <div class="col-md-2"><label class="form-label small" for="add-student-regnumber">Register number</label><input id="add-student-regnumber" type="text" class="form-control" placeholder="URK25CS1001" maxlength="30"></div>
-        <div class="col-md-2"><label class="form-label small" for="add-student-bus">Bus</label><select id="add-student-bus" class="form-select"></select></div>
-        <div class="col-md-2"><button id="btn-add-student" class="btn btn-glass-primary w-100">Add Student</button></div>
+    <div class="d-flex justify-content-between align-items-center cursor-pointer" data-bs-toggle="collapse" data-bs-target="#student-mgmt-collapse" aria-expanded="false" aria-controls="student-mgmt-collapse" style="cursor: pointer;">
+      <div>
+        <h2 class="h5 fw-bold mb-1">⚙️ Student &amp; Staff Management</h2>
+        <p class="text-muted small mb-0">Click to add, move, remove students, update coordinators, or process manual overrides.</p>
       </div>
-      <div id="add-student-msg" class="mt-2 small"></div>
+      <span class="badge bg-info text-dark">Click to expand / collapse</span>
     </div>
 
-    <div class="card bg-transparent border border-secondary mb-4 p-3">
-      <h6 class="fw-semibold mb-3">Move student to another bus</h6>
-      <div class="row g-2 align-items-end">
-        <div class="col-md-4"><label class="form-label small" for="move-student-email">Student email</label><input id="move-student-email" type="email" class="form-control" placeholder="student@karunya.edu.in"></div>
-        <div class="col-md-4"><label class="form-label small" for="move-student-bus">Target bus</label><select id="move-student-bus" class="form-select"></select></div>
-        <div class="col-md-4"><button id="btn-move-student" class="btn btn-outline-warning w-100">Move Student</button></div>
+    <div class="collapse mt-4" id="student-mgmt-collapse">
+      <div class="card bg-transparent border border-secondary mb-4 p-3">
+        <h6 class="fw-semibold mb-3">Add / update student</h6>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3"><label class="form-label small" for="add-student-name">Full name</label><input id="add-student-name" type="text" class="form-control" placeholder="Mohammed Sadiq A" maxlength="100"></div>
+          <div class="col-md-3"><label class="form-label small" for="add-student-email">Email (@karunya.edu.in)</label><input id="add-student-email" type="email" class="form-control" placeholder="student@karunya.edu.in" maxlength="254"></div>
+          <div class="col-md-2"><label class="form-label small" for="add-student-regnumber">Register number</label><input id="add-student-regnumber" type="text" class="form-control" placeholder="URK25CS1001" maxlength="30"></div>
+          <div class="col-md-2"><label class="form-label small" for="add-student-bus">Bus</label><select id="add-student-bus" class="form-select"></select></div>
+          <div class="col-md-2"><button id="btn-add-student" class="btn btn-glass-primary w-100">Add Student</button></div>
+        </div>
+        <div id="add-student-msg" class="mt-2 small"></div>
       </div>
-      <div id="move-student-msg" class="mt-2 small"></div>
-    </div>
 
-    <div class="card bg-transparent border border-secondary mb-4 p-3">
-      <h6 class="fw-semibold mb-3">Remove student from bus</h6>
-      <div class="row g-2 align-items-end">
-        <div class="col-md-6"><label class="form-label small" for="remove-student-email">Student email</label><input id="remove-student-email" type="email" class="form-control" placeholder="student@karunya.edu.in"></div>
-        <div class="col-md-6"><button id="btn-remove-student" class="btn btn-outline-danger w-100">Remove Student</button></div>
+      <div class="card bg-transparent border border-secondary mb-4 p-3">
+        <h6 class="fw-semibold mb-3">Move student to another bus</h6>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-4"><label class="form-label small" for="move-student-email">Student email</label><input id="move-student-email" type="email" class="form-control" placeholder="student@karunya.edu.in"></div>
+          <div class="col-md-4"><label class="form-label small" for="move-student-bus">Target bus</label><select id="move-student-bus" class="form-select"></select></div>
+          <div class="col-md-4"><button id="btn-move-student" class="btn btn-outline-warning w-100">Move Student</button></div>
+        </div>
+        <div id="move-student-msg" class="mt-2 small"></div>
       </div>
-      <div id="remove-student-msg" class="mt-2 small"></div>
-    </div>
 
-    <div class="card bg-transparent border border-secondary p-3">
-      <h6 class="fw-semibold mb-3">Add / update coordinator</h6>
-      <div class="row g-2 align-items-end">
-        <div class="col-md-3"><label class="form-label small" for="add-coord-name">Full name</label><input id="add-coord-name" type="text" class="form-control" placeholder="Dr. John Smith" maxlength="100"></div>
-        <div class="col-md-3"><label class="form-label small" for="add-coord-email">Email</label><input id="add-coord-email" type="email" class="form-control" placeholder="faculty@karunya.edu.in" maxlength="254"></div>
-        <div class="col-md-3"><label class="form-label small" for="add-coord-bus">Bus</label><select id="add-coord-bus" class="form-select"></select></div>
-        <div class="col-md-3"><button id="btn-add-coordinator" class="btn btn-glass-primary w-100">Add Coordinator</button></div>
+      <div class="card bg-transparent border border-secondary mb-4 p-3">
+        <h6 class="fw-semibold mb-3">Remove student from bus</h6>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-6"><label class="form-label small" for="remove-student-email">Student email</label><input id="remove-student-email" type="email" class="form-control" placeholder="student@karunya.edu.in"></div>
+          <div class="col-md-6"><button id="btn-remove-student" class="btn btn-outline-danger w-100">Remove Student</button></div>
+        </div>
+        <div id="remove-student-msg" class="mt-2 small"></div>
       </div>
-      <div id="add-coord-msg" class="mt-2 small"></div>
-    </div>
 
-    <div class="card bg-transparent border border-secondary mt-4 p-3" id="manual-override-panel">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h6 class="fw-semibold mb-0">Manual Attendance Override</h6>
-        <span class="badge bg-warning text-dark">Reason / Comment Required</span>
+      <div class="card bg-transparent border border-secondary p-3">
+        <h6 class="fw-semibold mb-3">Add / update coordinator</h6>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3"><label class="form-label small" for="add-coord-name">Full name</label><input id="add-coord-name" type="text" class="form-control" placeholder="Dr. John Smith" maxlength="100"></div>
+          <div class="col-md-3"><label class="form-label small" for="add-coord-email">Email</label><input id="add-coord-email" type="email" class="form-control" placeholder="faculty@karunya.edu.in" maxlength="254"></div>
+          <div class="col-md-3"><label class="form-label small" for="add-coord-bus">Bus</label><select id="add-coord-bus" class="form-select"></select></div>
+          <div class="col-md-3"><button id="btn-add-coordinator" class="btn btn-glass-primary w-100">Add Coordinator</button></div>
+        </div>
+        <div id="add-coord-msg" class="mt-2 small"></div>
       </div>
-      <p class="text-muted small mb-3">Mark a student as Present or Absent manually (e.g. phone dead, medical leave, late permission). A reason/comment is mandatory.</p>
-      <div class="row g-2 align-items-end">
-        <div class="col-md-3">
-          <label class="form-label small" for="override-student-email">Student Email (@karunya.edu.in)</label>
-          <input id="override-student-email" type="email" class="form-control" placeholder="student@karunya.edu.in">
+
+      <div class="card bg-transparent border border-secondary mt-4 p-3" id="manual-override-panel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="fw-semibold mb-0">Manual Attendance Override</h6>
+          <span class="badge bg-warning text-dark">Reason / Comment Required</span>
         </div>
-        <div class="col-md-2">
-          <label class="form-label small" for="override-session-type">Session</label>
-          <select id="override-session-type" class="form-select">
-            <option value="Morning">Morning</option>
-            <option value="Evening">Evening</option>
-            <option value="Special">Special</option>
-          </select>
+        <p class="text-muted small mb-3">Mark a student as Present or Absent manually (e.g. phone dead, medical leave, late permission). A reason/comment is mandatory.</p>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label small" for="override-student-email">Student Email (@karunya.edu.in)</label>
+            <input id="override-student-email" type="email" class="form-control" placeholder="student@karunya.edu.in">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small" for="override-session-type">Session</label>
+            <select id="override-session-type" class="form-select">
+              <option value="Morning">Morning</option>
+              <option value="Evening">Evening</option>
+              <option value="Special">Special</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small" for="override-status">Status</label>
+            <select id="override-status" class="form-select">
+              <option value="PRESENT">PRESENT</option>
+              <option value="ABSENT">ABSENT</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small" for="override-remark">Reason / Comment <span class="text-danger">*</span></label>
+            <input id="override-remark" type="text" class="form-control" placeholder="e.g. Phone battery dead / Medical leave" maxlength="250">
+          </div>
+          <div class="col-md-2">
+            <button id="btn-submit-override" class="btn btn-glass-primary w-100">Submit Override</button>
+          </div>
         </div>
-        <div class="col-md-2">
-          <label class="form-label small" for="override-status">Status</label>
-          <select id="override-status" class="form-select">
-            <option value="PRESENT">PRESENT</option>
-            <option value="ABSENT">ABSENT</option>
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label small" for="override-remark">Reason / Comment <span class="text-danger">*</span></label>
-          <input id="override-remark" type="text" class="form-control" placeholder="e.g. Phone battery dead / Medical leave" maxlength="250">
-        </div>
-        <div class="col-md-2">
-          <button id="btn-submit-override" class="btn btn-glass-primary w-100">Submit Override</button>
-        </div>
+        <div id="override-msg" class="mt-2 small"></div>
       </div>
-      <div id="override-msg" class="mt-2 small"></div>
     </div>
   </section>
 

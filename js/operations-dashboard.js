@@ -77,7 +77,7 @@ const renderAdminDirectory = async (buses) => {
   if (error) return showToast('Student and coordinator records could not be loaded.', 'danger');
   const section = document.createElement('section');
   section.className = 'glass-panel p-4 mt-4';
-  section.innerHTML = `<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3"><div><h2 class="h5 fw-bold mb-1">People and bus assignments</h2><p class="text-muted small mb-0">Students, coordinators, and their assigned bus details.</p></div><div class="d-flex gap-2"><select class="form-select" id="directory-role"><option value="">All people</option><option value="student">Students</option><option value="coordinator">Coordinators</option><option value="admin">Admins</option></select><select class="form-select" id="directory-bus"><option value="">All buses</option></select></div></div><div class="table-responsive"><table class="table table-dark-custom align-middle mb-0"><thead><tr><th>Role</th><th>Name</th><th>Register number</th><th>Email</th><th>Bus</th><th>Route</th><th>Status</th></tr></thead><tbody id="directory-list"></tbody></table></div>`;
+  section.innerHTML = `<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3"><div><h2 class="h5 fw-bold mb-1">People and bus assignments</h2><p class="text-muted small mb-0">Students, coordinators, and their assigned bus details.</p></div><div class="d-flex gap-2"><select class="form-select" id="directory-role"><option value="">All people</option><option value="student">Students</option><option value="coordinator">Coordinators</option><option value="admin">Admins</option></select><select class="form-select" id="directory-bus"><option value="">All buses</option></select></div></div><div class="table-responsive" style="max-height: 450px; overflow-y: auto;"><table class="table table-dark-custom align-middle mb-0"><thead><tr><th>Role</th><th>Name</th><th>Register number</th><th>Email</th><th>Bus</th><th>Route</th><th>Status</th></tr></thead><tbody id="directory-list"></tbody></table></div>`;
   document.querySelector('main').append(section);
   const roleFilter = section.querySelector('#directory-role');
   const busFilter = section.querySelector('#directory-bus');
@@ -100,10 +100,26 @@ const renderStudentRoster = async () => {
   if (error) return showToast('Assigned student roster could not be loaded.', 'danger');
   const section = document.createElement('section');
   section.className = 'glass-panel p-4 mt-4';
-  section.innerHTML = '<h2 class="h5 fw-bold mb-1">Assigned students</h2><p class="text-muted small mb-3">Active students and pre-assigned students awaiting their first sign-in.</p><div class="table-responsive"><table class="table table-dark-custom align-middle mb-0"><thead><tr><th>Name</th><th>Register number</th><th>Email</th><th>Bus</th><th>Status</th></tr></thead><tbody id="student-roster-list"></tbody></table></div>';
+  const totalCount = (students ?? []).length;
+  section.innerHTML = `
+    <div class="d-flex justify-content-between align-items-center cursor-pointer" data-bs-toggle="collapse" data-bs-target="#student-roster-collapse" aria-expanded="false" style="cursor: pointer;">
+      <div>
+        <h2 class="h5 fw-bold mb-1">👥 Assigned students (${totalCount})</h2>
+        <p class="text-muted small mb-0">Click to view active &amp; pending student roster.</p>
+      </div>
+      <span class="badge bg-info text-dark">Click to expand / collapse</span>
+    </div>
+    <div class="collapse mt-3" id="student-roster-collapse">
+      <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
+        <table class="table table-dark-custom align-middle mb-0">
+          <thead><tr><th>Name</th><th>Register number</th><th>Email</th><th>Bus</th><th>Status</th></tr></thead>
+          <tbody id="student-roster-list"></tbody>
+        </table>
+      </div>
+    </div>`;
   document.querySelector('main').append(section);
   const body = section.querySelector('#student-roster-list');
-  if (!(students ?? []).length) {
+  if (!totalCount) {
     const empty = row(['No students are assigned to this bus.']); empty.firstElementChild.colSpan = 5; body.replaceChildren(empty); return;
   }
   body.replaceChildren(...students.map((student) => row([
