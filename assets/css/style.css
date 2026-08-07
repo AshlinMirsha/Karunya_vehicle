@@ -638,35 +638,37 @@ body {
 /* Floating Back to Top Button */
 #btn-back-to-top {
   position: fixed !important;
-  bottom: 28px !important;
-  right: 28px !important;
-  width: 52px !important;
-  height: 52px !important;
+  bottom: 30px !important;
+  right: 30px !important;
+  width: 54px !important;
+  height: 54px !important;
   border-radius: 50% !important;
   background: #1d72d8 !important;
   color: #ffffff !important;
-  border: 2px solid rgba(255, 255, 255, 0.8) !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
+  border: 2px solid #ffffff !important;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 1.5rem !important;
-  font-weight: 800 !important;
+  font-size: 1.6rem !important;
+  font-weight: 900 !important;
   cursor: pointer !important;
-  z-index: 9999 !important;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease, transform 0.2s ease !important;
+  z-index: 999999 !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.2s ease !important;
 }
 
 #btn-back-to-top.show {
   opacity: 1 !important;
+  visibility: visible !important;
   pointer-events: auto !important;
 }
 
 #btn-back-to-top:hover {
   background: #155bb5 !important;
-  transform: translateY(-4px) scale(1.05) !important;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45) !important;
+  transform: translateY(-4px) scale(1.08) !important;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55) !important;
 }
 

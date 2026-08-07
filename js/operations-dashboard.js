@@ -966,6 +966,7 @@ const setupStudentManagementControls = (buses) => {
       }
     };
   }
+  initBackToTopButton();
 };
 
 const initBackToTopButton = () => {
