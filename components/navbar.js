@@ -21,21 +21,85 @@ export function renderNavbar(user = null, activeRole = null) {
          <span>Not Signed In</span>
        </div>`;
 
+  const isStaff = activeRole === 'Admin' || activeRole === 'Coordinator';
+  const navItems = isStaff
+    ? `
+      <div class="collapse navbar-collapse justify-content-center" id="mainNavbarCollapse">
+        <ul class="navbar-nav align-items-center gap-1 my-2 my-lg-0">
+          <li class="nav-item">
+            <a class="nav-link text-white px-3 py-1 rounded-3 active fw-medium" href="#top">Dashboard</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link text-white-50 px-3 py-1 rounded-3 fw-medium text-hover-white" href="#attendance-section">Attendance</a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link text-white-50 px-3 py-1 rounded-3 fw-medium dropdown-toggle text-hover-white" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              People
+            </a>
+            <ul class="dropdown-menu dropdown-menu-dark glass-dropdown shadow-lg border-secondary rounded-3">
+              <li>
+                <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-white-50 text-hover-white" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarAssignedStudents">
+                  <span>👥</span> Students
+                </button>
+              </li>
+              <li>
+                <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-white-50 text-hover-white" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarStudentMgmt">
+                  <span>👤</span> Coordinators
+                </button>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link text-white-50 px-3 py-1 rounded-3 fw-medium dropdown-toggle text-hover-white" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              Buses
+            </a>
+            <ul class="dropdown-menu dropdown-menu-dark glass-dropdown shadow-lg border-secondary rounded-3">
+              <li>
+                <a class="dropdown-item d-flex align-items-center gap-2 py-2 text-white-50 text-hover-white" href="#admin-directory-section">
+                  <span>🚌</span> Bus Details
+                </a>
+              </li>
+              <li>
+                <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-white-50 text-hover-white" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarStudentMgmt">
+                  <span>🔄</span> Bus Assignments
+                </button>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link text-white-50 px-3 py-1 rounded-3 fw-medium text-hover-white" href="#attendance-section" onclick="document.getElementById('btn-export-excel')?.click()">Reports</a>
+          </li>
+        </ul>
+      </div>
+    `
+    : '';
+
+  const mobileToggler = isStaff
+    ? `<button class="navbar-toggler text-white border-secondary d-lg-none ms-auto me-2 p-1" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbarCollapse" aria-controls="mainNavbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+       </button>`
+    : '';
+
   container.innerHTML = `
     <header class="navbar-wrapper">
-      <div class="glass-nav-floating d-flex align-items-center justify-content-between">
-        <button id="brand-easter-egg" type="button" class="navbar-brand-button d-flex align-items-center gap-3 text-decoration-none" aria-label="Karunya Bus Attendance">
-          <img src="../Logo.png" alt="Karunya Bus Attendance" height="36" width="32">
-          <div class="d-flex flex-column">
-            <span class="fw-bold text-white fs-6 mb-0" style="letter-spacing: -0.01em;">Karunya Institute of Technology and Sciences</span>
-            <small class="text-white-50" style="font-size: 0.72rem;">Bus Attendance Management System</small>
-          </div>
-        </button>
+      <nav class="navbar navbar-expand-lg glass-nav-floating p-2 px-3">
+        <div class="container-fluid p-0 d-flex align-items-center justify-content-between">
+          <button id="brand-easter-egg" type="button" class="navbar-brand-button d-flex align-items-center gap-3 text-decoration-none" aria-label="Karunya Bus Attendance">
+            <img src="../Logo.png" alt="Karunya Bus Attendance" height="36" width="32">
+            <div class="d-flex flex-column">
+              <span class="fw-bold text-white fs-6 mb-0" style="letter-spacing: -0.01em;">Karunya Institute of Technology and Sciences</span>
+              <small class="text-white-50" style="font-size: 0.72rem;">Bus Attendance Management System</small>
+            </div>
+          </button>
 
-        <div class="d-flex align-items-center gap-3">
-          ${authBadge}
+          ${mobileToggler}
+          ${navItems}
+
+          <div class="d-flex align-items-center gap-3 ms-auto ms-lg-0">
+            ${authBadge}
+          </div>
         </div>
-      </div>
+      </nav>
     </header>
     <dialog id="brand-easter-egg-dialog" class="brand-easter-egg-dialog" aria-labelledby="brand-easter-egg-title">
       <button type="button" class="brand-easter-egg-close" aria-label="Close">×</button>

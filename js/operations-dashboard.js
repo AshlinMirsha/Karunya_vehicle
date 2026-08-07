@@ -76,6 +76,7 @@ const renderAdminDirectory = async (buses) => {
   const { data: people, error } = await supabase.rpc('admin_people_records');
   if (error) return showToast('Student and coordinator records could not be loaded.', 'danger');
   const section = document.createElement('section');
+  section.id = 'admin-directory-section';
   section.className = 'glass-panel p-4 mt-4';
   section.innerHTML = `<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3"><div><h2 class="h5 fw-bold mb-1">People and bus assignments</h2><p class="text-muted small mb-0">Students, coordinators, and their assigned bus details.</p></div><div class="d-flex gap-2"><select class="form-select" id="directory-role"><option value="">All people</option><option value="student">Students</option><option value="coordinator">Coordinators</option><option value="admin">Admins</option></select><select class="form-select" id="directory-bus"><option value="">All buses</option></select></div></div><div class="table-responsive" style="max-height: 450px; overflow-y: auto;"><table class="table table-dark-custom align-middle mb-0"><thead><tr><th>Role</th><th>Name</th><th>Register number</th><th>Email</th><th>Bus</th><th>Route</th><th>Status</th></tr></thead><tbody id="directory-list"></tbody></table></div>`;
   document.querySelector('main').append(section);

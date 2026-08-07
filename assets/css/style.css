@@ -532,5 +532,22 @@ body {
   tr {
     page-break-inside: avoid !important;
   }
+
+.glass-dropdown {
+  background: rgba(15, 23, 42, 0.96) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5) !important;
+}
+
+.glass-dropdown .dropdown-item:hover,
+.glass-dropdown .dropdown-item:focus {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+
+.text-hover-white:hover {
+  color: #ffffff !important;
 }
 
