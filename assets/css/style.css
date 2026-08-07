@@ -635,21 +635,23 @@ body {
   color: #94a3b8 !important;
 }
 
-/* Classy Floating Back-to-Top Button (Rounded Corners) */
+/* Tiny Classy Floating Back-to-Top Button */
 #btn-back-to-top,
 button#btn-back-to-top {
   position: fixed !important;
-  bottom: 28px !important;
-  right: 28px !important;
-  width: 48px !important;
-  height: 48px !important;
+  bottom: 24px !important;
+  right: 24px !important;
+  width: 38px !important;
+  height: 38px !important;
+  max-width: 38px !important;
+  max-height: 38px !important;
   padding: 0 !important;
   margin: 0 !important;
-  border-radius: 12px !important;
+  border-radius: 8px !important;
   background: #0f172a !important;
   color: #ffffff !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.35) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -658,8 +660,9 @@ button#btn-back-to-top {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition: all 0.2s ease !important;
   outline: none !important;
+  overflow: hidden !important;
 }
 
 #btn-back-to-top.show,
@@ -674,14 +677,20 @@ button#btn-back-to-top:hover {
   background: #1e293b !important;
   color: #38bdf8 !important;
   border-color: #38bdf8 !important;
-  transform: translateY(-4px) !important;
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.45) !important;
+  transform: translateY(-3px) !important;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.45) !important;
 }
 
-#btn-back-to-top svg {
-  width: 22px !important;
-  height: 22px !important;
+#btn-back-to-top svg,
+button#btn-back-to-top svg {
+  width: 18px !important;
+  height: 18px !important;
+  max-width: 18px !important;
+  max-height: 18px !important;
+  flex: 0 0 18px !important;
+  stroke: currentColor !important;
   stroke-width: 2.5 !important;
   pointer-events: none !important;
+  display: block !important;
 }
 
