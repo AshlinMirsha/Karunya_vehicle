@@ -127,16 +127,15 @@ const updateSessionStatsCards = async (profile, activeStudentsCount) => {
   const fnSession = todaySessions?.find(s => s.session_type === 'Morning');
   const anSession = todaySessions?.find(s => s.session_type === 'Evening');
 
-  const fnStatusEl = document.getElementById('stat-fn-status');
-  const fnChipsEl = document.getElementById('chips-fn-attendance');
   const fnPresentEl = document.getElementById('stat-fn-present');
   const fnAbsentEl = document.getElementById('stat-fn-absent');
 
-  if (fnStatusEl) {
+  if (fnPresentEl && fnAbsentEl) {
     if (!fnSession) {
-      fnStatusEl.textContent = 'To be loaded';
-      fnStatusEl.className = 'fs-3 fw-bold text-muted fst-italic mt-1';
-      if (fnChipsEl) fnChipsEl.style.setProperty('display', 'none', 'important');
+      fnPresentEl.textContent = 'to be loaded';
+      fnPresentEl.className = 'fw-bold text-muted fst-italic';
+      fnAbsentEl.textContent = 'to be loaded';
+      fnAbsentEl.className = 'fw-bold text-muted fst-italic';
     } else {
       const { count: fnPresentCount } = await supabase
         .from('attendance')
@@ -147,24 +146,22 @@ const updateSessionStatsCards = async (profile, activeStudentsCount) => {
       const present = fnPresentCount ?? 0;
       const absent = Math.max(0, activeStudentsCount - present);
 
-      fnStatusEl.textContent = `${present} / ${activeStudentsCount} Present`;
-      fnStatusEl.className = 'fs-2 fw-bold text-white mt-1';
-      if (fnPresentEl) fnPresentEl.textContent = present;
-      if (fnAbsentEl) fnAbsentEl.textContent = absent;
-      if (fnChipsEl) fnChipsEl.style.setProperty('display', 'flex', 'important');
+      fnPresentEl.textContent = present;
+      fnPresentEl.className = 'fw-bold text-success fs-5';
+      fnAbsentEl.textContent = absent;
+      fnAbsentEl.className = 'fw-bold text-danger fs-5';
     }
   }
 
-  const anStatusEl = document.getElementById('stat-an-status');
-  const anChipsEl = document.getElementById('chips-an-attendance');
   const anPresentEl = document.getElementById('stat-an-present');
   const anAbsentEl = document.getElementById('stat-an-absent');
 
-  if (anStatusEl) {
+  if (anPresentEl && anAbsentEl) {
     if (!anSession) {
-      anStatusEl.textContent = 'To be loaded';
-      anStatusEl.className = 'fs-3 fw-bold text-muted fst-italic mt-1';
-      if (anChipsEl) anChipsEl.style.setProperty('display', 'none', 'important');
+      anPresentEl.textContent = 'to be loaded';
+      anPresentEl.className = 'fw-bold text-muted fst-italic';
+      anAbsentEl.textContent = 'to be loaded';
+      anAbsentEl.className = 'fw-bold text-muted fst-italic';
     } else {
       const { count: anPresentCount } = await supabase
         .from('attendance')
@@ -175,11 +172,10 @@ const updateSessionStatsCards = async (profile, activeStudentsCount) => {
       const present = anPresentCount ?? 0;
       const absent = Math.max(0, activeStudentsCount - present);
 
-      anStatusEl.textContent = `${present} / ${activeStudentsCount} Present`;
-      anStatusEl.className = 'fs-2 fw-bold text-white mt-1';
-      if (anPresentEl) anPresentEl.textContent = present;
-      if (anAbsentEl) anAbsentEl.textContent = absent;
-      if (anChipsEl) anChipsEl.style.setProperty('display', 'flex', 'important');
+      anPresentEl.textContent = present;
+      anPresentEl.className = 'fw-bold text-success fs-5';
+      anAbsentEl.textContent = absent;
+      anAbsentEl.className = 'fw-bold text-danger fs-5';
     }
   }
 };
