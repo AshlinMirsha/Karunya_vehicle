@@ -160,6 +160,7 @@ const updateSessionStatsCards = async (profile, defaultCount = 0) => {
 
 export async function initOperationsDashboard(expectedRole) {
   try {
+    document.body.classList.add('role-authorized');
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { rememberProtectedRedirect(); return location.replace('/'); }
     const { data: { user } } = await supabase.auth.getUser();
@@ -173,7 +174,6 @@ export async function initOperationsDashboard(expectedRole) {
     }
 
     renderNavbar(user, expectedRole === 'admin' ? 'Admin' : 'Coordinator');
-    document.body.classList.add('role-authorized');
   const canGenerateQr = expectedRole === 'coordinator';
   document.getElementById('qr-panel')?.toggleAttribute('hidden', !canGenerateQr);
 
