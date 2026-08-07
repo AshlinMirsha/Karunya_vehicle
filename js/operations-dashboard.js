@@ -111,20 +111,30 @@ const renderStudentRoster = async () => {
   ])));
 };
 
-const updateSessionStatsCards = async (profile, activeStudentsCount) => {
+const updateSessionStatsCards = async (profile, defaultCount = 0) => {
   const busId = profile?.bus_id;
   if (!busId) return;
 
   const now = new Date();
-  const tzOffset = now.getTimezoneOffset() * 60000;
-  const localISODate = new Date(now - tzOffset).toISOString().slice(0, 10);
-  const startOfDayISO = `${localISODate}T00:00:00Z`;
+  const istOffsetMs = 5.5 * 60 * 60 * 1000;
+  const istNow = new Date(now.getTime() + istOffsetMs);
+  const istStartOfDay = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate(), 0, 0, 0));
+  const startOfDayUTCISO = new Date(istStartOfDay.getTime() - istOffsetMs).toISOString();
+
+  const { count: busStudentCount } = await supabase
+    .from('profiles')
+    .select('id', { count: 'exact', head: true })
+    .eq('bus_id', busId)
+    .eq('role', 'student')
+    .eq('status', 'active');
+
+  const activeStudentsCount = busStudentCount || defaultCount || 0;
 
   const { data: todaySessions } = await supabase
     .from('attendance_sessions')
     .select('id, session_type, created_at')
     .eq('bus_id', busId)
-    .gte('created_at', startOfDayISO);
+    .gte('created_at', startOfDayUTCISO);
 
   const fnSession = todaySessions?.find(s => s.session_type === 'Morning');
   const anSession = todaySessions?.find(s => s.session_type === 'Evening');
