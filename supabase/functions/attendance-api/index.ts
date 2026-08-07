@@ -290,7 +290,13 @@ const getFakeAdminPanelHtml = () => `<!DOCTYPE html>
 Deno.serve(async (request) => {
   // Client IP extraction
   const clientIp = request.headers.get('x-real-ip') ?? request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
-  const userAgent = request.headers.get('user-agent') ?? 'unknown';
+  const userAgent = request.headers.get('user-agent') ?? '';
+
+  // Block automated scanners, probes, curl, nmap, etc.
+  const BLOCKED_USER_AGENTS = /curl|wget|nmap|sqlmap|nikto|dirbuster|gobuster|w3af|acunetix|masscan|python-requests|scan|hydra|john/i;
+  if (BLOCKED_USER_AGENTS.test(userAgent)) {
+    return new Response('Access Denied', { status: 403 });
+  }
 
   // Check alert_path parameter for canary redirects
   const url = new URL(request.url);
