@@ -293,18 +293,31 @@ export async function initOperationsDashboard(expectedRole) {
   buses.forEach((bus) => addOption(busFilter, bus.id, `Bus ${bus.bus_number} — ${bus.route}`));
   if (expectedRole === 'coordinator' && profile.bus_id) busFilter.value = profile.bus_id;
 
-  const loadHistory = async () => {
+  const loadHistory = async (isRetry = false) => {
     const searchVal = document.getElementById('filter-search')?.value.trim() || null;
+    const dateFrom = document.getElementById('filter-date-from')?.value || null;
+    const dateTo = document.getElementById('filter-date-to')?.value || null;
+    const statusVal = document.getElementById('filter-status')?.value || null;
+
     const { data, error } = await supabase.rpc('authorized_attendance_history', {
       p_bus_id: busFilter.value || null,
-      p_date_from: document.getElementById('filter-date-from').value || null,
-      p_date_to: document.getElementById('filter-date-to').value || null,
-      p_status: document.getElementById('filter-status').value || null,
+      p_date_from: dateFrom,
+      p_date_to: dateTo,
+      p_status: statusVal,
       p_search: searchVal,
       p_day_type: null,
     });
     if (error) { showToast('Attendance history could not be loaded.', 'danger'); return; }
-    const records = data ?? [];
+
+    let records = data ?? [];
+
+    // Fallback: If no records match today's date range, clear date filters to display all available historical sessions!
+    if (!records.length && !isRetry && !searchVal && dateFrom && dateTo) {
+      document.getElementById('filter-date-from').value = '';
+      document.getElementById('filter-date-to').value = '';
+      return loadHistory(true);
+    }
+
     if (document.getElementById('stat-history-count')) text('stat-history-count', records.length);
     const printDateEl = document.getElementById('print-date-val');
     if (printDateEl) {
@@ -317,11 +330,12 @@ export async function initOperationsDashboard(expectedRole) {
         const toStr = toVal ? new Date(toVal).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Today';
         printDateEl.textContent = `${fromStr} – ${toStr}`;
       } else {
-        printDateEl.textContent = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+        printDateEl.textContent = 'All Available Sessions';
       }
     }
     renderRows(records);
   };
+
   const setTodayDefaults = () => {
     const now = new Date();
     const tzOffset = now.getTimezoneOffset() * 60000;
@@ -329,6 +343,28 @@ export async function initOperationsDashboard(expectedRole) {
     document.getElementById('filter-date-from').value = `${localISODate}T00:00`;
     document.getElementById('filter-date-to').value = `${localISODate}T23:59`;
   };
+
+  const quickFilterContainer = document.getElementById('quick-filters');
+  if (quickFilterContainer) {
+    quickFilterContainer.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-filter]');
+      if (!btn) return;
+      const filterType = btn.getAttribute('data-filter');
+      if (filterType === 'today') {
+        setTodayDefaults();
+        document.getElementById('filter-status').value = '';
+      } else if (filterType === 'present') {
+        document.getElementById('filter-date-from').value = '';
+        document.getElementById('filter-date-to').value = '';
+        document.getElementById('filter-status').value = 'PRESENT';
+      } else if (filterType === 'absent') {
+        document.getElementById('filter-date-from').value = '';
+        document.getElementById('filter-date-to').value = '';
+        document.getElementById('filter-status').value = 'ABSENT';
+      }
+      loadHistory(true);
+    });
+  }
 
   let searchTimeout;
   const searchInput = document.getElementById('filter-search');
@@ -339,18 +375,19 @@ export async function initOperationsDashboard(expectedRole) {
         document.getElementById('filter-date-to').value = '';
       }
       clearTimeout(searchTimeout);
-      searchTimeout = setTimeout(loadHistory, 300);
+      searchTimeout = setTimeout(() => loadHistory(true), 300);
     });
   }
 
-  ['filter-bus', 'filter-date-from', 'filter-date-to', 'filter-status'].forEach((id) => document.getElementById(id)?.addEventListener('change', loadHistory));
+  ['filter-bus', 'filter-date-from', 'filter-date-to', 'filter-status'].forEach((id) => document.getElementById(id)?.addEventListener('change', () => loadHistory(true)));
 
   document.getElementById('btn-clear-filters')?.addEventListener('click', () => {
-    setTodayDefaults();
+    document.getElementById('filter-date-from').value = '';
+    document.getElementById('filter-date-to').value = '';
     document.getElementById('filter-status').value = '';
     if (searchInput) searchInput.value = '';
     busFilter.value = expectedRole === 'coordinator' ? profile.bus_id : '';
-    loadHistory();
+    loadHistory(true);
   });
 
   const refreshDashboard = async () => {

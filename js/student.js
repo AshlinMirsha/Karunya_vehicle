@@ -16,14 +16,28 @@ export async function initStudentDashboard() {
   if (roleProfile.role === 'coordinator') return location.replace('/coordinator');
   renderNavbar(user, 'Student');
   document.body.classList.add('role-authorized');
-  const { data: profile, error: profileError } = await supabase.from('profiles').select('full_name, register_number, status, buses(bus_number)').eq('id', user.id).single();
-  if (profileError) { showToast('Your student profile is still being created. Refresh in a moment.', 'warning'); return; }
-  const studentName = profile.full_name || user.user_metadata?.full_name || 'Karunya Student';
-  document.getElementById('student-profile').innerHTML = `<div class="student-profile-card"><div class="student-avatar" aria-label="${escapeHtml(studentName)} profile photo">${escapeHtml(initialFromName(studentName))}</div><div class="student-profile-details"><p class="student-eyebrow">Student profile</p><h1>${escapeHtml(studentName)}</h1><p class="student-email">${escapeHtml(user.email)}</p><div class="student-meta"><span class="student-pill">Reg no. ${escapeHtml(profile.register_number)}</span><span class="student-pill bus">Bus ${escapeHtml(profile.buses?.bus_number || 'Pending')}</span><span class="student-pill active">${escapeHtml(profile.status)}</span></div></div></div>`;
-  const { data: records, error: attendanceError } = await supabase.rpc('student_attendance_history');
+  const { data: profile } = await supabase.from('profiles').select('full_name, register_number, status, bus_id').eq('id', user.id).maybeSingle();
+  const displayName = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Karunya Student';
+  const regNumber = profile?.register_number || user.user_metadata?.register_number || 'Pending';
+  const busNum = roleProfile?.bus_number ? `Bus ${roleProfile.bus_number}` : 'Pending Assignment';
+  const statusStr = profile?.status || roleProfile?.status || 'active';
+
+  const profileEl = document.getElementById('student-profile');
+  if (profileEl) {
+    profileEl.innerHTML = `<div class="student-profile-card"><div class="student-avatar" aria-label="${escapeHtml(displayName)} profile photo">${escapeHtml(initialFromName(displayName))}</div><div class="student-profile-details"><p class="student-eyebrow">Student profile</p><h1>${escapeHtml(displayName)}</h1><p class="student-email">${escapeHtml(user.email)}</p><div class="student-meta"><span class="student-pill">Reg no. ${escapeHtml(regNumber)}</span><span class="student-pill bus">${escapeHtml(busNum)}</span><span class="student-pill active">${escapeHtml(statusStr)}</span></div></div></div>`;
+  }
+
   const history = document.getElementById('attendance-history');
-  if (attendanceError) { history.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-3">Attendance history could not be loaded.</td></tr>'; return; }
-  history.innerHTML = records?.length ? records.map((record) => `<tr><td class="font-monospace">${escapeHtml(new Date(record.checked_in_at).toLocaleString('en-IN'))}</td><td>${escapeHtml(record.session_type)}</td><td class="fw-semibold text-info">${escapeHtml(record.bus_number)}</td><td><small class="text-white-50">Verified</small></td><td><span class="badge-status badge-present">${escapeHtml(record.status)}</span></td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-white-50 py-3">No attendance has been recorded yet.</td></tr>';
+  try {
+    const { data: records, error: attendanceError } = await supabase.rpc('student_attendance_history');
+    if (attendanceError || !history) {
+      if (history) history.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No attendance has been recorded yet.</td></tr>';
+    } else {
+      history.innerHTML = records?.length ? records.map((record) => `<tr><td class="font-monospace">${escapeHtml(new Date(record.checked_in_at).toLocaleString('en-IN'))}</td><td>${escapeHtml(record.session_type)}</td><td class="fw-semibold text-info">Bus ${escapeHtml(record.bus_number)}</td><td><small class="text-white-50">Verified</small></td><td><span class="badge-status badge-present">${escapeHtml(record.status)}</span></td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted py-3">No attendance has been recorded yet.</td></tr>';
+    }
+  } catch (err) {
+    if (history) history.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No attendance has been recorded yet.</td></tr>';
+  }
 
   let btn = document.getElementById('btn-back-to-top');
   if (btn) {
