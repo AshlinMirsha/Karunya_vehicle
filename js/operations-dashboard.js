@@ -104,20 +104,20 @@ const renderStudentRoster = async () => {
   if (!section) {
     section = document.createElement('div');
     section.id = 'sidebarAssignedStudents';
-    section.className = 'offcanvas offcanvas-end text-bg-dark border-start border-secondary';
+    section.className = 'offcanvas offcanvas-end glass-sidebar';
     section.tabIndex = -1;
-    section.style.cssText = 'width: 600px; max-width: 95vw; background: rgba(15, 23, 42, 0.96); backdrop-filter: blur(20px);';
+    section.style.cssText = 'width: 600px; max-width: 95vw;';
     section.innerHTML = `
-      <div class="offcanvas-header border-bottom border-secondary p-3">
+      <div class="offcanvas-header p-3">
         <div>
           <h5 class="offcanvas-title fw-bold mb-0">👥 Assigned Students (${(students ?? []).length})</h5>
           <small class="text-muted">Active students &amp; pre-assigned roster</small>
         </div>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
       </div>
       <div class="offcanvas-body p-3">
         <div class="table-responsive">
-          <table class="table table-dark-custom align-middle mb-0">
+          <table class="table align-middle mb-0">
             <thead><tr><th>Name</th><th>Register number</th><th>Email</th><th>Bus</th><th>Status</th></tr></thead>
             <tbody id="student-roster-list"></tbody>
           </table>

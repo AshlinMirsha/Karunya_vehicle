@@ -551,67 +551,88 @@ body {
   color: #ffffff !important;
 }
 
-/* Offcanvas Theme & Text Contrast Fixes */
-.offcanvas.text-bg-dark {
-  background: #0f172a !important;
-  color: #f8fafc !important;
-  border-left: 1px solid rgba(255, 255, 255, 0.15) !important;
+/* Light Glass Theme for Offcanvas Sidebars with Dark Outline */
+.glass-sidebar,
+.offcanvas.glass-sidebar {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-left: 3px solid #0f172a !important;
+  box-shadow: -10px 0 35px rgba(15, 23, 42, 0.2) !important;
 }
 
-.offcanvas-title {
-  color: #38bdf8 !important;
+.glass-sidebar .offcanvas-header {
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.glass-sidebar .offcanvas-title {
+  color: #0f172a !important;
   font-weight: 700 !important;
 }
 
-.offcanvas-header .text-muted,
-.offcanvas-body .text-muted {
-  color: #94a3b8 !important;
+.glass-sidebar .btn-close {
+  filter: none !important;
 }
 
-.offcanvas-body table,
-.offcanvas-body .table-dark-custom {
-  color: #f8fafc !important;
-  background: transparent !important;
+.glass-sidebar .text-muted {
+  color: #64748b !important;
 }
 
-.offcanvas-body table th {
-  color: #38bdf8 !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
+.glass-sidebar table,
+.glass-sidebar .table,
+.glass-sidebar .table-dark-custom {
+  color: #0f172a !important;
+  background: #ffffff !important;
+}
+
+.glass-sidebar table th {
+  color: #0f172a !important;
+  border-bottom: 2px solid #cbd5e1 !important;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: rgba(30, 41, 59, 0.8) !important;
+  background: #f1f5f9 !important;
+  font-weight: 700 !important;
 }
 
-.offcanvas-body table td {
-  color: #e2e8f0 !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-  background: transparent !important;
+.glass-sidebar table td {
+  color: #334155 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  background: #ffffff !important;
 }
 
-.offcanvas-body .card {
-  background: rgba(30, 41, 59, 0.7) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+.glass-sidebar .card {
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
   border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
 }
 
-.offcanvas-body .card h6 {
-  color: #38bdf8 !important;
+.glass-sidebar .card h6 {
+  color: #0f172a !important;
+  font-weight: 700 !important;
 }
 
-.offcanvas-body label {
-  color: #cbd5e1 !important;
+.glass-sidebar label {
+  color: #334155 !important;
+  font-weight: 600 !important;
 }
 
-.offcanvas-body input.form-control,
-.offcanvas-body select.form-select {
-  background-color: #1e293b !important;
-  color: #ffffff !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+.glass-sidebar input.form-control,
+.glass-sidebar select.form-select {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
 }
 
-.offcanvas-body input.form-control::placeholder {
-  color: #64748b !important;
+.glass-sidebar input.form-control:focus,
+.glass-sidebar select.form-select:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+}
+
+.glass-sidebar input.form-control::placeholder {
+  color: #94a3b8 !important;
 }
 
 /* Floating Back to Top Button */
