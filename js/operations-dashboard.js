@@ -113,15 +113,14 @@ const renderStudentRoster = async () => {
 
 const updateSessionStatsCards = async (profile, defaultCount = 0) => {
   try {
-    const busId = profile?.bus_id;
-    if (!busId) return;
+    const busId = profile?.role === 'admin' ? null : profile?.bus_id;
 
     const { data: stats } = await supabase.rpc('get_today_bus_session_stats', { p_bus_id: busId });
     const fnStat = stats?.find(s => s.session_type === 'Morning');
     const anStat = stats?.find(s => s.session_type === 'Evening');
 
-    const fnPresentEl = document.getElementById('stat-fn-present');
-    const fnAbsentEl = document.getElementById('stat-fn-absent');
+    const fnPresentEl = document.getElementById('stat-fn-present') || document.getElementById('stat-morning-checkins');
+    const fnAbsentEl = document.getElementById('stat-fn-absent') || document.getElementById('stat-morning-absent');
 
     if (fnPresentEl && fnAbsentEl) {
       if (!fnStat || !fnStat.session_exists) {
@@ -137,8 +136,8 @@ const updateSessionStatsCards = async (profile, defaultCount = 0) => {
       }
     }
 
-    const anPresentEl = document.getElementById('stat-an-present');
-    const anAbsentEl = document.getElementById('stat-an-absent');
+    const anPresentEl = document.getElementById('stat-an-present') || document.getElementById('stat-evening-checkins');
+    const anAbsentEl = document.getElementById('stat-an-absent') || document.getElementById('stat-evening-absent');
 
     if (anPresentEl && anAbsentEl) {
       if (!anStat || !anStat.session_exists) {
