@@ -159,15 +159,21 @@ const updateSessionStatsCards = async (profile, defaultCount = 0) => {
 };
 
 export async function initOperationsDashboard(expectedRole) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) { rememberProtectedRedirect(); return location.replace('/'); }
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile, error: profileError } = await supabase.rpc('current_app_profile').single();
-  if (!user || profileError || !profile?.role) { showToast('Your profile could not be verified. Please sign in again.', 'danger'); return; }
-  if (profile.role !== expectedRole) return location.replace(profile.role === 'admin' ? '/admin' : profile.role === 'coordinator' ? '/coordinator' : '/student');
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { rememberProtectedRedirect(); return location.replace('/'); }
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profile, error: profileError } = await supabase.rpc('current_app_profile').single();
+    if (!user || profileError || !profile?.role) { 
+      rememberProtectedRedirect(); 
+      return location.replace('/'); 
+    }
+    if (profile.role !== expectedRole) {
+      return location.replace(profile.role === 'admin' ? '/admin' : profile.role === 'coordinator' ? '/coordinator' : '/student');
+    }
 
-  renderNavbar(user, expectedRole === 'admin' ? 'Admin' : 'Coordinator');
-  document.body.classList.add('role-authorized');
+    renderNavbar(user, expectedRole === 'admin' ? 'Admin' : 'Coordinator');
+    document.body.classList.add('role-authorized');
   const canGenerateQr = expectedRole === 'coordinator';
   document.getElementById('qr-panel')?.toggleAttribute('hidden', !canGenerateQr);
 
@@ -387,6 +393,9 @@ export async function initOperationsDashboard(expectedRole) {
     showToast(`Manual QR session generated for ${sessionType}!`, 'success');
     await updateSessionStatsCards(profile, summary.student_count_active ?? 0);
   };
+  } catch (err) {
+    console.error('initOperationsDashboard error:', err);
+  }
 }
 
 const renderSecurityDashboard = async () => {
