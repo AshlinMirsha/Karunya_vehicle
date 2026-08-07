@@ -193,6 +193,16 @@ export async function initOperationsDashboard(expectedRole) {
 
   await updateSessionStatsCards(profile, summary.student_count_active ?? 0);
 
+  const myBus = buses.find(b => b.id === profile.bus_id);
+  const busBadgeEl = document.getElementById('header-bus-badge');
+  if (busBadgeEl) {
+    if (expectedRole === 'coordinator' && myBus) {
+      busBadgeEl.textContent = `Bus ${myBus.bus_number} Access`;
+    } else if (expectedRole === 'admin') {
+      busBadgeEl.textContent = `All Buses Access`;
+    }
+  }
+
   const busFilter = document.getElementById('filter-bus');
   busFilter.replaceChildren();
   addOption(busFilter, '', expectedRole === 'admin' ? 'All buses' : 'My assigned bus');
