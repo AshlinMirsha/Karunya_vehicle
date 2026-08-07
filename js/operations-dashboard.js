@@ -109,6 +109,81 @@ const renderStudentRoster = async () => {
   ])));
 };
 
+const updateSessionStatsCards = async (profile, activeStudentsCount) => {
+  const busId = profile?.bus_id;
+  if (!busId) return;
+
+  const now = new Date();
+  const tzOffset = now.getTimezoneOffset() * 60000;
+  const localISODate = new Date(now - tzOffset).toISOString().slice(0, 10);
+  const startOfDayISO = `${localISODate}T00:00:00Z`;
+
+  const { data: todaySessions } = await supabase
+    .from('attendance_sessions')
+    .select('id, session_type, created_at')
+    .eq('bus_id', busId)
+    .gte('created_at', startOfDayISO);
+
+  const fnSession = todaySessions?.find(s => s.session_type === 'Morning');
+  const anSession = todaySessions?.find(s => s.session_type === 'Evening');
+
+  const fnStatusEl = document.getElementById('stat-fn-status');
+  const fnChipsEl = document.getElementById('chips-fn-attendance');
+  const fnPresentEl = document.getElementById('stat-fn-present');
+  const fnAbsentEl = document.getElementById('stat-fn-absent');
+
+  if (fnStatusEl) {
+    if (!fnSession) {
+      fnStatusEl.textContent = 'To be loaded';
+      fnStatusEl.className = 'fs-3 fw-bold text-muted fst-italic mt-1';
+      if (fnChipsEl) fnChipsEl.style.setProperty('display', 'none', 'important');
+    } else {
+      const { count: fnPresentCount } = await supabase
+        .from('attendance')
+        .select('id', { count: 'exact', head: true })
+        .eq('session_id', fnSession.id)
+        .eq('status', 'PRESENT');
+
+      const present = fnPresentCount ?? 0;
+      const absent = Math.max(0, activeStudentsCount - present);
+
+      fnStatusEl.textContent = `${present} / ${activeStudentsCount} Present`;
+      fnStatusEl.className = 'fs-2 fw-bold text-white mt-1';
+      if (fnPresentEl) fnPresentEl.textContent = present;
+      if (fnAbsentEl) fnAbsentEl.textContent = absent;
+      if (fnChipsEl) fnChipsEl.style.setProperty('display', 'flex', 'important');
+    }
+  }
+
+  const anStatusEl = document.getElementById('stat-an-status');
+  const anChipsEl = document.getElementById('chips-an-attendance');
+  const anPresentEl = document.getElementById('stat-an-present');
+  const anAbsentEl = document.getElementById('stat-an-absent');
+
+  if (anStatusEl) {
+    if (!anSession) {
+      anStatusEl.textContent = 'To be loaded';
+      anStatusEl.className = 'fs-3 fw-bold text-muted fst-italic mt-1';
+      if (anChipsEl) anChipsEl.style.setProperty('display', 'none', 'important');
+    } else {
+      const { count: anPresentCount } = await supabase
+        .from('attendance')
+        .select('id', { count: 'exact', head: true })
+        .eq('session_id', anSession.id)
+        .eq('status', 'PRESENT');
+
+      const present = anPresentCount ?? 0;
+      const absent = Math.max(0, activeStudentsCount - present);
+
+      anStatusEl.textContent = `${present} / ${activeStudentsCount} Present`;
+      anStatusEl.className = 'fs-2 fw-bold text-white mt-1';
+      if (anPresentEl) anPresentEl.textContent = present;
+      if (anAbsentEl) anAbsentEl.textContent = absent;
+      if (anChipsEl) anChipsEl.style.setProperty('display', 'flex', 'important');
+    }
+  }
+};
+
 export async function initOperationsDashboard(expectedRole) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) { rememberProtectedRedirect(); return location.replace('/'); }
@@ -136,9 +211,11 @@ export async function initOperationsDashboard(expectedRole) {
   if (document.getElementById('stat-students-active')) text('stat-students-active', summary.student_count_active ?? 0);
   if (document.getElementById('stat-students-pending')) text('stat-students-pending', summary.student_count_pending ?? 0);
   if (document.getElementById('stat-active-buses')) text('stat-active-buses', summary.bus_count ?? buses.length);
-  text('stat-today-attendance', summary.present_today ?? 0);
+  if (document.getElementById('stat-today-attendance')) text('stat-today-attendance', summary.present_today ?? 0);
   if (document.getElementById('stat-morning-checkins')) text('stat-morning-checkins', summary.morning_checkins ?? 0);
   if (document.getElementById('stat-evening-checkins')) text('stat-evening-checkins', summary.evening_checkins ?? 0);
+
+  await updateSessionStatsCards(profile, summary.student_count_active ?? 0);
 
   const busFilter = document.getElementById('filter-bus');
   busFilter.replaceChildren();
@@ -253,6 +330,7 @@ export async function initOperationsDashboard(expectedRole) {
     new window.QRCode(display, { text: `${location.origin}/checkin?token=${encodeURIComponent(data.token)}`, width: 220, height: 220 });
     text('qr-url-text', `Active Session: Bus ${myBus ? myBus.bus_number : ''} (${sessionType}) • Expires ${new Date(data.expiresAt).toLocaleTimeString('en-IN')}`);
     showToast(`Manual QR session generated for ${sessionType}!`, 'success');
+    await updateSessionStatsCards(profile, summary.student_count_active ?? 0);
   };
 }
 
