@@ -98,29 +98,37 @@ const renderAdminDirectory = async (buses) => {
 const renderStudentRoster = async () => {
   const { data: students, error } = await supabase.rpc('authorized_student_records');
   if (error) return showToast('Assigned student roster could not be loaded.', 'danger');
-  const section = document.createElement('section');
-  section.className = 'glass-panel p-4 mt-4';
-  const totalCount = (students ?? []).length;
-  section.innerHTML = `
-    <div class="d-flex justify-content-between align-items-center cursor-pointer" data-bs-toggle="collapse" data-bs-target="#student-roster-collapse" aria-expanded="false" style="cursor: pointer;">
-      <div>
-        <h2 class="h5 fw-bold mb-1">👥 Assigned students (${totalCount})</h2>
-        <p class="text-muted small mb-0">Click to view active &amp; pending student roster.</p>
+  
+  let section = document.getElementById('sidebarAssignedStudents');
+  if (!section) {
+    section = document.createElement('div');
+    section.id = 'sidebarAssignedStudents';
+    section.className = 'offcanvas offcanvas-end text-bg-dark border-start border-secondary';
+    section.tabIndex = -1;
+    section.style.cssText = 'width: 600px; max-width: 95vw; background: rgba(15, 23, 42, 0.96); backdrop-filter: blur(20px);';
+    section.innerHTML = `
+      <div class="offcanvas-header border-bottom border-secondary p-3">
+        <div>
+          <h5 class="offcanvas-title fw-bold mb-0">👥 Assigned Students (${(students ?? []).length})</h5>
+          <small class="text-muted">Active students &amp; pre-assigned roster</small>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
       </div>
-      <span class="badge bg-info text-dark">Click to expand / collapse</span>
-    </div>
-    <div class="collapse mt-3" id="student-roster-collapse">
-      <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
-        <table class="table table-dark-custom align-middle mb-0">
-          <thead><tr><th>Name</th><th>Register number</th><th>Email</th><th>Bus</th><th>Status</th></tr></thead>
-          <tbody id="student-roster-list"></tbody>
-        </table>
-      </div>
-    </div>`;
-  document.querySelector('main').append(section);
+      <div class="offcanvas-body p-3">
+        <div class="table-responsive">
+          <table class="table table-dark-custom align-middle mb-0">
+            <thead><tr><th>Name</th><th>Register number</th><th>Email</th><th>Bus</th><th>Status</th></tr></thead>
+            <tbody id="student-roster-list"></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.body.append(section);
+  }
+  
   const body = section.querySelector('#student-roster-list');
+  const totalCount = (students ?? []).length;
   if (!totalCount) {
-    const empty = row(['No students are assigned to this bus.']); empty.firstElementChild.colSpan = 5; body.replaceChildren(empty); return;
+    const empty = row(['No students are assigned.']); empty.firstElementChild.colSpan = 5; body.replaceChildren(empty); return;
   }
   body.replaceChildren(...students.map((student) => row([
     student.full_name || '—', student.register_number || '—', student.email, `Bus ${student.bus_number}`, student.status,
