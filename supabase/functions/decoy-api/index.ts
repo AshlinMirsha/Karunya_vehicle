@@ -16,21 +16,11 @@ const corsHeadersFor = (origin: string | null) => ({
 const base64Url = (value: string) => btoa(unescape(encodeURIComponent(value))).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 
 const sendAuditAlertEmail = async (ip: string, userAgent: string, path: string, eventType: string, userInfoStr: string, locationData: any, extraData: any, timeline: any[]) => {
-  const [clientId, clientSecret, refreshToken] = ['GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_REFRESH_TOKEN'].map((name) => Deno.env.get(name) ?? '');
-  if (!clientId || !clientSecret || !refreshToken) return false;
-  
-  const refresh = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token'
-    })
-  });
-  const credentials = await refresh.json().catch(() => null);
-  if (!refresh.ok || !credentials?.access_token) return false;
+  const apiKey = Deno.env.get('BREVO_API_KEY');
+  if (!apiKey) {
+    console.error('BREVO_API_KEY is missing');
+    return false;
+  }
   
   const timeStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
   const subject = `INCIDENT REPORT: Restricted Gateway Access Detected [IP: ${ip}]`;
@@ -93,30 +83,33 @@ const sendAuditAlertEmail = async (ip: string, userAgent: string, path: string, 
     </table>
   </body></html>`;
   
-  const boundary = `audit-alert-${crypto.randomUUID()}`;
-  const recipient = Deno.env.get('GMAIL_FROM_EMAIL') ?? 'karunya.attendance@gmail.com';
-  const raw = [
-    `To: ${recipient}`,
-    `From: "System Security Audit" <${recipient}>`,
-    `Subject: ${subject}`,
-    'MIME-Version: 1.0',
-    `Content-Type: multipart/related; boundary="${boundary}"`,
-    '',
-    `--${boundary}`,
-    'Content-Type: text/html; charset=UTF-8',
-    '',
-    html,
-    `--${boundary}--`
-  ].join('\r\n');
+  const senderEmail = Deno.env.get('EMAIL_ID') ?? 'karunya.attendance@gmail.com';
   
-  const sent = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+  // Use adminClient to fetch the dynamic TO email from system_settings
+  const adminClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  const { data: setting } = await adminClient.from('system_settings').select('value').eq('key', 'security_email_to').maybeSingle();
+  const recipient = setting?.value || Deno.env.get('SECURITY_EMAIL_TO') || 'lohita@karunya.edu.in';
+  
+  const payload = {
+    sender: { name: "System Security Audit", email: senderEmail },
+    to: [{ email: recipient }],
+    subject: subject,
+    htmlContent: html
+  };
+  
+  const sent = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${credentials.access_token}`,
-      'Content-Type': 'application/json'
+      'accept': 'application/json',
+      'api-key': apiKey,
+      'content-type': 'application/json'
     },
-    body: JSON.stringify({ raw: base64Url(raw) })
+    body: JSON.stringify(payload)
   });
+  
+  if (!sent.ok) {
+    console.error('Brevo API Error:', await sent.text());
+  }
   return sent.ok;
 };
 

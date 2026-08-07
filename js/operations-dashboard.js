@@ -400,10 +400,45 @@ const renderSecurityDashboard = async () => {
         </div>
       </div>
 
-      <!-- Security Intrusion & Tamper Logs -->
+      <!-- Security Settings & Admin Transfer -->
       <div class="col-md-7">
         <div class="card bg-dark-custom text-white border-0 p-3 h-100">
-          <h6 class="fw-bold text-warning mb-3"><i class="fa-solid fa-shield-halved me-2"></i>Security Alert Logs</h6>
+          <h6 class="fw-bold text-info mb-3"><i class="fa-solid fa-gear me-2"></i>Security Settings</h6>
+          <div class="row g-3">
+            <div class="col-md-12">
+              <label class="form-label small text-white-50 mb-1">Security Alerts Email Destination</label>
+              <div class="input-group input-group-sm mb-2">
+                <input type="email" id="input-security-email" class="form-control" placeholder="admin@karunya.edu.in">
+                <button id="btn-save-email" class="btn btn-info text-dark">Save</button>
+              </div>
+            </div>
+            <div class="col-md-12 mt-2">
+              <label class="form-label small text-white-50 mb-1">Transfer Admin Role</label>
+              <div class="input-group input-group-sm">
+                <input type="email" id="input-transfer-admin" class="form-control" placeholder="newadmin@karunya.edu.in">
+                <button id="btn-transfer-admin" class="btn btn-outline-warning">Transfer Access</button>
+              </div>
+              <small class="text-warning d-block mt-1">This transfers ALL admin rights to this user.</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Security Intrusion & Tamper Logs -->
+    <div class="row g-4 mt-2">
+      <div class="col-md-12">
+        <div class="card bg-dark-custom text-white border-0 p-3 h-100">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="fw-bold text-warning mb-0"><i class="fa-solid fa-shield-halved me-2"></i>Security Alert Logs</h6>
+            <div class="btn-group" role="group">
+              <input type="radio" class="btn-check" name="alertTabs" id="tab-active" checked>
+              <label class="btn btn-sm btn-outline-warning" for="tab-active">Active</label>
+              
+              <input type="radio" class="btn-check" name="alertTabs" id="tab-archived">
+              <label class="btn btn-sm btn-outline-secondary" for="tab-archived">Archived</label>
+            </div>
+          </div>
           <div class="table-responsive" style="max-height: 220px; overflow-y: auto;">
             <table class="table table-dark-custom align-middle mb-0 small">
               <thead>
@@ -412,10 +447,11 @@ const renderSecurityDashboard = async () => {
                   <th>Actor / Info</th>
                   <th>Incident Type</th>
                   <th>Outcome</th>
+                  <th class="text-end">Action</th>
                 </tr>
               </thead>
               <tbody id="security-alerts-list">
-                <tr><td colspan="4" class="text-center text-muted">Loading security events…</td></tr>
+                <tr><td colspan="5" class="text-center text-muted">Loading security events…</td></tr>
               </tbody>
             </table>
           </div>
@@ -431,18 +467,22 @@ const renderSecurityDashboard = async () => {
   const alertsBody = section.querySelector('#security-alerts-list');
   const bannedList = section.querySelector('#banned-ip-list');
 
-  // Load Security Alerts
   const loadAlerts = async () => {
+    const isArchived = section.querySelector('#tab-archived').checked;
     const { data: alerts, error } = await supabase.rpc('get_security_alerts');
     if (error) {
-      alertsBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Failed to load security logs.</td></tr>`;
+      alertsBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Failed to load security logs.</td></tr>`;
       return;
     }
-    if (!alerts || alerts.length === 0) {
-      alertsBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">No security incidents logged.</td></tr>`;
+    
+    const filteredAlerts = (alerts || []).filter(a => (isArchived ? a.resolved === true : a.resolved !== true));
+    
+    if (filteredAlerts.length === 0) {
+      alertsBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">No ${isArchived ? 'archived' : 'active'} security incidents.</td></tr>`;
       return;
     }
-    alertsBody.replaceChildren(...alerts.map(alert => {
+    
+    alertsBody.replaceChildren(...filteredAlerts.map(alert => {
       const tr = document.createElement('tr');
       const timeLabel = new Date(alert.created_at).toLocaleString('en-IN', { timeStyle: 'short', dateStyle: 'short' });
       const ipSuffix = alert.ip_address ? ` [IP: ${alert.ip_address}]` : '';
@@ -456,12 +496,63 @@ const renderSecurityDashboard = async () => {
         cell(timeLabel),
         cell(actorLabel),
         cell(alert.action),
-        cell('')
+        cell(''),
+        cell('') // actions cell
       ];
       trContent[3].innerHTML = `<span class="badge ${badgeClass}">${alert.outcome}</span>`;
+      trContent[4].className = 'text-end';
+      
+      if (!isArchived) {
+        trContent[4].innerHTML = `<button class="btn btn-xs btn-outline-success py-0 px-2 small-resolve" style="font-size:0.7rem;">Resolve</button>`;
+        trContent[4].querySelector('.small-resolve').onclick = async () => {
+          const { error: resErr } = await supabase.rpc('resolve_security_alert', { p_id: alert.id });
+          if (resErr) return showToast('Failed to resolve alert.', 'danger');
+          showToast('Alert resolved.', 'success');
+          loadAlerts();
+        };
+      } else {
+        trContent[4].innerHTML = `<button class="btn btn-xs btn-outline-danger py-0 px-2 small-clear" style="font-size:0.7rem;">Clear</button>`;
+        trContent[4].querySelector('.small-clear').onclick = async () => {
+          if(!confirm('Permanently delete this archived alert?')) return;
+          const { error: delErr } = await supabase.rpc('clear_security_alert', { p_id: alert.id });
+          if (delErr) return showToast('Failed to clear alert.', 'danger');
+          showToast('Alert deleted.', 'success');
+          loadAlerts();
+        };
+      }
+      
       tr.append(...trContent);
       return tr;
     }));
+  };
+
+  section.querySelector('#tab-active').addEventListener('change', loadAlerts);
+  section.querySelector('#tab-archived').addEventListener('change', loadAlerts);
+  
+  // Settings Management
+  const loadSettings = async () => {
+    const { data: email, error } = await supabase.rpc('get_system_setting', { p_key: 'security_email_to' });
+    if (!error && email) {
+      section.querySelector('#input-security-email').value = email;
+    }
+  };
+  
+  section.querySelector('#btn-save-email').onclick = async () => {
+    const newEmail = section.querySelector('#input-security-email').value.trim();
+    if (!newEmail) return showToast('Enter a valid email', 'warning');
+    const { error } = await supabase.rpc('update_system_setting', { p_key: 'security_email_to', p_value: newEmail });
+    if (error) return showToast('Failed to update email setting', 'danger');
+    showToast('Security email updated successfully', 'success');
+  };
+
+  section.querySelector('#btn-transfer-admin').onclick = async () => {
+    const newAdmin = section.querySelector('#input-transfer-admin').value.trim();
+    if (!newAdmin) return showToast('Enter new admin email', 'warning');
+    if (!confirm(`Are you absolutely sure you want to transfer your admin access to ${newAdmin}? You will become a student and lose access.`)) return;
+    const { error } = await supabase.rpc('transfer_admin_access', { p_new_email: newAdmin });
+    if (error) return showToast('Transfer failed: ' + error.message, 'danger');
+    showToast('Admin access transferred! You will be logged out.', 'success');
+    setTimeout(() => location.reload(), 2000);
   };
 
   // Load Banned IPs
@@ -528,5 +619,5 @@ const renderSecurityDashboard = async () => {
   };
 
   // Initial runs
-  await Promise.all([loadAlerts(), loadBannedIps()]);
+  await Promise.all([loadAlerts(), loadBannedIps(), loadSettings()]);
 };

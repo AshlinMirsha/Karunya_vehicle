@@ -37,88 +37,52 @@ const requestedSessionTypes = async (request: Request) => {
   return [...new Set(requested)] as string[];
 };
 
-const buildMimeEmail = async (recipient: string, busNumber: string, checkinUrl: string, sessionType: string) => {
-  const boundary = `bus-attendance-${crypto.randomUUID()}`;
+const buildBrevoPayload = async (recipient: string, busNumber: string, checkinUrl: string, sessionType: string) => {
   const qrDataUrl = await QRCode.toDataURL(checkinUrl, { errorCorrectionLevel: 'M', margin: 2, width: 640 });
   const encodedPng = qrDataUrl.split(',', 2)[1];
   if (!encodedPng) throw new Error('Could not encode attendance QR image');
-  const wrappedPng = encodedPng.replace(/(.{76})/g, '$1\r\n');
+  
   const dateStr = new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', dateStyle: 'long' });
   const subject = `Bus ${busNumber} ${sessionType} Attendance QR - ${dateStr}`;
-  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f7fa;color:#102a43;font-family:Arial,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #d9e2ec;border-radius:16px"><tr><td style="padding:32px"><p style="margin:0 0 12px;color:#486581;font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase">Karunya bus attendance - ${dateStr}</p><h1 style="margin:0 0 16px;font-size:24px">Bus ${busNumber} ${sessionType} QR</h1><p style="margin:0 0 24px;line-height:1.5">Scan this QR code to open the secure attendance check-in.</p><p style="margin:0 0 24px;text-align:center"><img src="cid:${QR_IMAGE_CID}" alt="Bus ${busNumber} attendance QR code" width="320" height="320" style="display:inline-block;max-width:100%;height:auto;border:0"></p><p style="margin:0 0 12px;line-height:1.5">If the image does not appear, use this secure link:</p><p style="margin:0 0 24px"><a href="${checkinUrl}" style="display:inline-block;padding:12px 18px;background:#1769aa;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold">Open attendance check-in</a></p><p style="margin:0;color:#627d98;font-size:13px">This code expires in five hours.</p></td></tr></table></td></tr></table></body></html>`;
-  const fromEmail = Deno.env.get('GMAIL_FROM_EMAIL') || 'karunya.attendance@gmail.com';
-  const messageId = `<${crypto.randomUUID()}@supabase.co>`;
-  return [
-    `To: ${recipient}`,
-    `From: "Karunya Bus Attendance" <${fromEmail}>`,
-    `Subject: ${subject}`,
-    `Message-ID: ${messageId}`,
-    `Date: ${new Date().toUTCString()}`,
-    'MIME-Version: 1.0',
-    `Content-Type: multipart/related; boundary="${boundary}"`,
-    '',
-    `--${boundary}`,
-    'Content-Type: text/html; charset=UTF-8',
-    '',
-    html,
-    `--${boundary}`,
-    'Content-Type: image/png; name="bus-attendance-qr.png"',
-    'Content-Transfer-Encoding: base64',
-    `Content-ID: <${QR_IMAGE_CID}>`,
-    'Content-Disposition: inline; filename="bus-attendance-qr.png"',
-    '',
-    wrappedPng,
-    `--${boundary}--`,
-  ].join('\r\n');
+  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f7fa;color:#102a43;font-family:Arial,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #d9e2ec;border-radius:16px"><tr><td style="padding:32px"><p style="margin:0 0 12px;color:#486581;font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase">Karunya bus attendance - ${dateStr}</p><h1 style="margin:0 0 16px;font-size:24px">Bus ${busNumber} ${sessionType} QR</h1><p style="margin:0 0 24px;line-height:1.5">Scan this QR code to open the secure attendance check-in.</p><p style="margin:0 0 24px;text-align:center"><img src="data:image/png;base64,${encodedPng}" alt="Bus ${busNumber} attendance QR code" width="320" height="320" style="display:inline-block;max-width:100%;height:auto;border:0"></p><p style="margin:0 0 12px;line-height:1.5">If the image does not appear, use this secure link:</p><p style="margin:0 0 24px"><a href="${checkinUrl}" style="display:inline-block;padding:12px 18px;background:#1769aa;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold">Open attendance check-in</a></p><p style="margin:0;color:#627d98;font-size:13px">This code expires in five hours.</p></td></tr></table></td></tr></table></body></html>`;
+  
+  const senderEmail = Deno.env.get('EMAIL_ID') || 'karunya.attendance@gmail.com';
+  
+  return {
+    sender: { name: "Karunya Bus Attendance", email: senderEmail },
+    to: [{ email: recipient }],
+    subject: subject,
+    htmlContent: html,
+    attachment: [{
+      content: encodedPng,
+      name: "bus-attendance-qr.png"
+    }]
+  };
 };
 
 /**
- * Sends email via Gmail REST API over HTTPS (port 443).
- * Raw SMTP (Deno.connectTls / port 465/587) is blocked in Supabase Edge Functions
- * because they only allow outbound HTTPS. This uses OAuth2 client credentials to
- * obtain a fresh access token, then calls the Gmail messages.send REST endpoint.
+ * Sends email via Brevo transactional email API over HTTPS.
  */
-const sendGmailEmail = async (to: string, rawMime: string): Promise<void> => {
-  const clientId = Deno.env.get('GMAIL_CLIENT_ID') ?? '';
-  const clientSecret = Deno.env.get('GMAIL_CLIENT_SECRET') ?? '';
-  const refreshToken = Deno.env.get('GMAIL_REFRESH_TOKEN') ?? '';
+const sendBrevoEmail = async (payload: any): Promise<void> => {
+  const apiKey = Deno.env.get('BREVO_API_KEY');
 
-  if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error('Gmail OAuth2 credentials are not configured (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN)');
+  if (!apiKey) {
+    throw new Error('BREVO_API_KEY is not configured');
   }
 
-  // Step 1: Exchange refresh token for a new access token
-  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  });
-
-  const credentials = await tokenResponse.json().catch(() => null);
-  if (!tokenResponse.ok || !credentials?.access_token) {
-    const reason = credentials?.error_description ?? credentials?.error ?? 'token refresh failed';
-    throw new Error(`Gmail OAuth2 token refresh failed: ${reason}`);
-  }
-
-  // Step 2: Send the raw MIME message via Gmail REST API
-  const sendResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+  const sendResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${credentials.access_token}`,
-      'Content-Type': 'application/json',
+      'accept': 'application/json',
+      'api-key': apiKey,
+      'content-type': 'application/json'
     },
-    body: JSON.stringify({ raw: base64Url(rawMime) }),
+    body: JSON.stringify(payload),
   });
 
   if (!sendResponse.ok) {
-    const errBody = await sendResponse.json().catch(() => ({}));
-    const reason = (errBody as { error?: { message?: string } })?.error?.message ?? `HTTP ${sendResponse.status}`;
-    throw new Error(`Gmail send failed: ${reason}`);
+    const errText = await sendResponse.text().catch(() => '');
+    throw new Error(`Brevo send failed: ${sendResponse.status} ${errText}`);
   }
 };
 
@@ -174,11 +138,11 @@ Deno.serve(async (request: Request) => {
           continue;
         }
 
-        // Build and send email via Gmail REST API
+        // Build and send email via Brevo REST API
         const checkinUrl = `${APP_URL}/checkin?token=${token}`;
         try {
-          const rawMime = await buildMimeEmail(faculty.email, bus.bus_number, checkinUrl, sessionType);
-          await sendGmailEmail(faculty.email, rawMime);
+          const payload = await buildBrevoPayload(faculty.email, bus.bus_number, checkinUrl, sessionType);
+          await sendBrevoEmail(payload);
           await database.from('attendance_sessions').update({ email_status: 'sent' }).eq('id', session.id);
           console.log(`Email sent to ${faculty.email} for Bus ${bus.bus_number} (${sessionType})`);
           results.push({ bus: bus.bus_number, sessionType, emailStatus: 'sent' });
