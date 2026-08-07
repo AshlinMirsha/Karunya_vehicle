@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /adminpanel
+Disallow: /.env
+Disallow: /students/allstudents.csv
+Disallow: /db_backup.sql

@@ -216,3 +216,9 @@ export async function initCheckinPage() {
   if (token && QR_TOKEN_PATTERN.test(token)) showCheckinConfirmation();
   window.addEventListener('pagehide', stopCamera, { once: true });
 }
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initCheckinPage, { once: true });
+} else {
+  initCheckinPage();
+}

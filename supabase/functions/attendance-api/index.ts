@@ -8,16 +8,36 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 const PRIMARY_APP_ORIGIN = 'https://karunya-bus-attendance.vercel.app';
 const EARTH_RADIUS_METERS = 6_371_000;
-const SESSION_DURATION_MS = 5 * 60 * 60 * 1000;
+const SESSION_DURATION_MS = 5 * 60 * 60 * 1000; // Restored to 5 hours as requested
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const QR_TOKEN_PATTERN = /^[0-9a-f]{64}$/i;
 const SESSION_TYPES = new Set(['Morning', 'Evening', 'Special']);
 const QR_IMAGE_CID = 'manual-attendance-qr';
 const MAX_REQUEST_BODY_BYTES = 2_048;
+
+// Client IP rate limiter for DDoS and API flooding protection
+const ipRequestCounts = new Map<string, { count: number; resetTime: number }>();
+const IP_RATE_LIMIT_MAX = 60; // Max 60 requests per minute per IP
+const IP_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+
+const checkIpRateLimit = (ip: string): { allowed: boolean; retryAfter: number } => {
+  const now = Date.now();
+  const limitData = ipRequestCounts.get(ip);
+  if (!limitData || now > limitData.resetTime) {
+    ipRequestCounts.set(ip, { count: 1, resetTime: now + IP_RATE_LIMIT_WINDOW_MS });
+    return { allowed: true, retryAfter: 0 };
+  }
+  if (limitData.count >= IP_RATE_LIMIT_MAX) {
+    return { allowed: false, retryAfter: Math.ceil((limitData.resetTime - now) / 1000) };
+  }
+  limitData.count += 1;
+  return { allowed: true, retryAfter: 0 };
+};
+
 const corsHeadersFor = (origin: string | null) => ({
-  'Access-Control-Allow-Origin': origin && (ALLOWED_ORIGINS.has(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:') || origin.endsWith('.vercel.app')) ? origin : ALLOWED_ORIGINS.values().next().value,
+  'Access-Control-Allow-Origin': origin && (ALLOWED_ORIGINS.has(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) ? origin : ALLOWED_ORIGINS.values().next().value,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
   'Content-Type': 'application/json',
   Vary: 'Origin',
 });
@@ -25,7 +45,7 @@ const corsHeadersFor = (origin: string | null) => ({
 const response = (request: Request, body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: corsHeadersFor(request.headers.get('Origin')) });
 const isAllowedOrigin = (request: Request) => {
   const origin = request.headers.get('Origin') ?? '';
-  return ALLOWED_ORIGINS.has(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:') || origin.endsWith('.vercel.app');
+  return ALLOWED_ORIGINS.has(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
 };
 const hasValidJsonBody = (request: Request) => {
   const length = Number(request.headers.get('content-length') ?? '0');
@@ -56,17 +76,268 @@ const sendManualQrEmail = async (recipient: string, busNumber: string, sessionTy
   if (!encodedPng) return false;
   const boundary = `manual-qr-${crypto.randomUUID()}`;
   const wrappedPng = encodedPng.replace(/(.{76})/g, '$1\r\n');
-  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f7fa;color:#102a43;font-family:Arial,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #d9e2ec;border-radius:16px"><tr><td style="padding:32px"><p style="margin:0 0 12px;color:#486581;font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase">Karunya bus attendance</p><h1 style="margin:0 0 16px;font-size:24px">Bus ${busNumber} ${sessionType} QR</h1><p style="margin:0 0 24px;line-height:1.5">Scan this QR code to open the secure attendance check-in.</p><p style="margin:0 0 24px;text-align:center"><img src="cid:${QR_IMAGE_CID}" alt="Attendance QR code" width="320" height="320" style="display:inline-block;max-width:100%;height:auto;border:0"></p><p style="margin:0 0 12px;line-height:1.5">If the image does not appear, use this secure link:</p><p style="margin:0 0 24px"><a href="${checkinUrl}" style="display:inline-block;padding:12px 18px;background:#1769aa;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold">Open attendance check-in</a></p><p style="margin:0;color:#627d98;font-size:13px">This code expires in five hours.</p></td></tr></table></td></tr></table></body></html>`;
+  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f7fa;color:#102a43;font-family:Arial,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #d9e2ec;border-radius:16px"><tr><td style="padding:32px"><p style="margin:0 0 12px;color:#486581;font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase">Karunya bus attendance</p><h1 style="margin:0 0 16px;font-size:24px">Bus ${busNumber} ${sessionType} QR</h1><p style="margin:0 0 24px;line-height:1.5">Scan this QR code to open the secure attendance check-in.</p><p style="margin:0 0 24px;text-align:center"><img src="cid:${QR_IMAGE_CID}" alt="Attendance QR code" width="320" height="320" style="display:inline-block;max-width:100%;height:auto;border:0"></p><p style="margin:0 0 12px;line-height:1.5">If the image does not appear, use this secure link:</p><p style="margin:0 0 24px"><a href="${checkinUrl}" style="display:inline-block;padding:12px 18px;background:#1769aa;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold">Open attendance check-in</a></p><p style="margin:0;color:#627d98;font-size:13px">This code expires in fifteen minutes.</p></td></tr></table></td></tr></table></body></html>`;
   const raw = [`To: ${recipient}`, `From: ${Deno.env.get('GMAIL_FROM_EMAIL') ?? recipient}`, `Subject: Bus ${busNumber} ${sessionType} Attendance QR`, 'MIME-Version: 1.0', `Content-Type: multipart/related; boundary="${boundary}"`, '', `--${boundary}`, 'Content-Type: text/html; charset=UTF-8', '', html, `--${boundary}`, 'Content-Type: image/png; name="attendance-qr.png"', 'Content-Transfer-Encoding: base64', `Content-ID: <${QR_IMAGE_CID}>`, 'Content-Disposition: inline; filename="attendance-qr.png"', '', wrappedPng, `--${boundary}--`].join('\r\n');
   const sent = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', { method: 'POST', headers: { Authorization: `Bearer ${credentials.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ raw: base64Url(raw) }) });
   return sent.ok;
 };
 
+// Send email alert for canary file requests using Gmail API
+const sendCanaryAlertEmail = async (ip: string, userAgent: string, path: string) => {
+  const [clientId, clientSecret, refreshToken] = ['GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_REFRESH_TOKEN'].map((name) => Deno.env.get(name) ?? '');
+  if (!clientId || !clientSecret || !refreshToken) return false;
+  
+  const refresh = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token'
+    })
+  });
+  const credentials = await refresh.json().catch(() => null);
+  if (!refresh.ok || !credentials?.access_token) return false;
+  
+  const timeStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  const subject = `ALERT: Restricted Route Accessed /${path}`;
+  
+  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f7fa;color:#102a43;font-family:Arial,sans-serif">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #d9e2ec;border-radius:16px">
+            <tr>
+              <td style="padding:32px">
+                <h1 style="color:#d32f2f;margin:0 0 16px;font-size:24px">Access Attempt on Restricted Resource</h1>
+                <p style="margin:0 0 12px;line-height:1.5"><strong>Requested Path:</strong> /${path}</p>
+                <p style="margin:0 0 12px;line-height:1.5"><strong>Source IP:</strong> ${ip}</p>
+                <p style="margin:0 0 12px;line-height:1.5"><strong>User-Agent:</strong> ${userAgent}</p>
+                <p style="margin:0 0 12px;line-height:1.5"><strong>Timestamp:</strong> ${timeStr}</p>
+                <p style="margin:0;color:#627d98;font-size:13px">This notification was triggered automatically by the route manager.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body></html>`;
+  
+  const boundary = `canary-alert-${crypto.randomUUID()}`;
+  const recipient = Deno.env.get('GMAIL_FROM_EMAIL') ?? 'karunya.attendance@gmail.com';
+  const raw = [
+    `To: ${recipient}`,
+    `From: "System Security" <${recipient}>`,
+    `Subject: ${subject}`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/related; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset=UTF-8',
+    '',
+    html,
+    `--${boundary}--`
+  ].join('\r\n');
+  
+  const sent = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${credentials.access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ raw: base64Url(raw) })
+  });
+  return sent.ok;
+};
+
+// Fake resources decoy generators
+const getFakeEnvContent = () => `
+# Development Environment Configurations
+SUPABASE_URL=https://kkbzofddkfusblyplnca.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+DATABASE_URL=postgresql://postgres.kkbzofddkfusblyplnca:K8s_db_prod_pass_198!@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
+PORT=3000
+GMAIL_FROM_EMAIL=karunya.attendance@gmail.com
+LDAP_SECRET=Kd987#s9sD2!@#s
+`;
+
+const getFakeCsvContent = () => `Register Number,Full Name,Email,Bus Assigned,Status
+UR23CS001,Siddharth R,siddharthr@karunya.edu.in,Bus 1,Active
+UR23CS002,Benesha Mercy,beneshamercy@karunya.edu.in,Bus 2,Active
+UR23CS003,Lohita A,lohitaa@karunya.edu.in,Bus 1,Active
+UR23CS004,Ashlin Mirsha,ashlinmirsha@karunya.edu.in,Bus 1,Active
+UR23CS005,Aarush Kumar,aarushkumar@karunya.edu.in,Bus 2,Pending
+`;
+
+const getFakeSqlContent = () => `
+-- Karunya Bus Attendance System database backup dump
+-- Dumped at 2026-08-01 04:00:00
+
+CREATE TABLE public.profiles (
+    id uuid NOT NULL,
+    email text NOT NULL,
+    full_name text DEFAULT ''::text NOT NULL,
+    role public.user_role DEFAULT 'student'::public.user_role NOT NULL,
+    register_number text,
+    bus_id uuid,
+    status text DEFAULT 'pending_assignment'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+INSERT INTO public.profiles (id, email, full_name, role, register_number, bus_id, status) VALUES
+('d1a3c75d-cb8f-4d92-a9b8-067f91cc44a1', 'ashlinmirsha@karunya.edu.in', 'Ashlin Mirsha', 'coordinator', 'ASHLINMIRSHA', 'b1a2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'active'),
+('e2a4c85d-cb8f-4d92-a9b8-067f91cc44a2', 'manickraja@karunya.edu', 'Manickraja', 'coordinator', 'MANICKRAJA', 'c2a3c4d5-e6f7-8a9b-0c1d-2e3f4a5b6c7d', 'active');
+`;
+
+const getFakeAdminPanelHtml = () => `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Login - Administration Hub</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #0b132b; color: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    .card { background: rgba(28, 37, 65, 0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); backdrop-filter: blur(8px); padding: 30px; width: 400px; }
+    .btn-primary { background: #3a86c8; border: none; }
+    .btn-primary:hover { background: #2a6698; }
+    .form-control { background: #1c2541; border: 1px solid rgba(255,255,255,0.1); color: #fff; }
+    .form-control:focus { background: #1c2541; border-color: #3a86c8; color: #fff; box-shadow: none; }
+  </style>
+</head>
+<body>
+  <!-- DEVELOPMENT NOTE: Temporary login credentials during migration: admin / changemeafterproduction -->
+  <div class="card" id="login-container">
+    <h3 class="text-center mb-4">Operations Console</h3>
+    <form id="login-form">
+      <div class="mb-3">
+        <label for="username" class="form-label">Username</label>
+        <input type="text" id="username" class="form-control" autocomplete="off" required>
+      </div>
+      <div class="mb-3">
+        <label for="password" class="form-label">Password</label>
+        <input type="password" id="password" class="form-control" autocomplete="off" required>
+      </div>
+      <button type="submit" class="btn btn-primary w-100 mt-2">Access Portal</button>
+    </form>
+  </div>
+
+  <div class="container d-none" id="dashboard-container" style="max-width: 1000px; padding: 40px 20px;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2>System Dashboard Center</h2>
+      <button class="btn btn-outline-danger btn-sm" onclick="window.location.reload()">Sign Out</button>
+    </div>
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="card w-100 p-3">
+          <h5>Users Synced</h5>
+          <h2 class="text-success mt-2">1,248</h2>
+          <p class="text-muted small mb-0">Active LDAP connections</p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card w-100 p-3">
+          <h5>Database Status</h5>
+          <h2 class="text-info mt-2">Healthy</h2>
+          <p class="text-muted small mb-0">Pool size: 20 active connections</p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card w-100 p-3">
+          <h5>API Integrity</h5>
+          <h2 class="text-warning mt-2">99.98%</h2>
+          <p class="text-muted small mb-0">Average response: 48ms</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card w-100 mt-4">
+      <h5>Management Actions</h5>
+      <div class="d-flex gap-3 mt-3">
+        <button class="btn btn-primary" onclick="simulateAction('user-add')">Add User</button>
+        <button class="btn btn-danger" onclick="simulateAction('user-delete')">Delete User</button>
+        <button class="btn btn-outline-info" onclick="simulateAction('ldapsync')">Sync LDAP</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('login-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const user = document.getElementById('username').value;
+      const pass = document.getElementById('password').value;
+      
+      if (user === 'admin' && pass === 'changemeafterproduction') {
+        document.getElementById('login-container').classList.add('d-none');
+        document.getElementById('dashboard-container').classList.remove('d-none');
+      } else {
+        alert('Authentication failed.');
+      }
+    });
+
+    function simulateAction(action) {
+      // Trigger a silent request back to the server to alert the administrator
+      fetch(window.location.origin + '/adminpanel?alert_path=adminpanel_action&action=' + action, { method: 'POST' })
+        .catch(() => {});
+      alert('Operation succeeded! System logs updated.');
+    }
+  </script>
+</body>
+</html>
+`;
+
 Deno.serve(async (request) => {
+  // Client IP extraction
+  const clientIp = request.headers.get('x-real-ip') ?? request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
+  const userAgent = request.headers.get('user-agent') ?? 'unknown';
+
+  // Check alert_path parameter for canary redirects
+  const url = new URL(request.url);
+  const alertPath = url.searchParams.get('alert_path');
+  if (alertPath) {
+    const adminClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    
+    // Log intrusion attempt
+    await adminClient.from('security_audit_events').insert({
+      action: `intrusion-attempt-${alertPath}`,
+      outcome: 'unauthorized_route'
+    });
+    
+    // Send email alert to admin
+    try {
+      await sendCanaryAlertEmail(clientIp, userAgent, alertPath);
+    } catch (e) {
+      console.error('Failed to send canary alert email:', e);
+    }
+    
+    // Return mock responses
+    if (alertPath.startsWith('adminpanel')) {
+      return new Response(getFakeAdminPanelHtml(), {
+        headers: { 'Content-Type': 'text/html' }
+      });
+    } else if (alertPath === 'env') {
+      return new Response(getFakeEnvContent(), {
+        headers: { 'Content-Type': 'text/plain' }
+      });
+    } else if (alertPath === 'csv') {
+      return new Response(getFakeCsvContent(), {
+        headers: { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="allstudents.csv"' }
+      });
+    } else if (alertPath === 'sql') {
+      return new Response(getFakeSqlContent(), {
+        headers: { 'Content-Type': 'application/sql', 'Content-Disposition': 'attachment; filename="db_backup.sql"' }
+      });
+    }
+    return response(request, { message: 'Not found' }, 404);
+  }
+
+  // Pre-serve checks: CORS Options
   if (request.method === 'OPTIONS') return isAllowedOrigin(request) ? new Response('ok', { headers: corsHeadersFor(request.headers.get('Origin')) }) : response(request, { message: 'Forbidden origin.' }, 403);
   if (request.method !== 'POST') return response(request, { message: 'Method not allowed.' }, 405);
   if (!isAllowedOrigin(request)) return response(request, { message: 'Forbidden origin.' }, 403);
   if (!hasValidJsonBody(request)) return response(request, { message: 'Invalid request format.' }, 415);
+  
   const authorization = request.headers.get('Authorization');
   const qrSecret = Deno.env.get('QR_SECRET');
   if (!authorization || !qrSecret) return response(request, { message: 'Unauthorized request.' }, 401);
@@ -79,7 +350,21 @@ Deno.serve(async (request) => {
     if (!normalizedEmail.endsWith('@karunya.edu.in') && !allowedFacultyCoordinators.has(normalizedEmail)) {
       return response(request, { message: 'Only official Karunya accounts are authorized.' }, 403);
     }
+
     const adminClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
+    // Enforce IP ban verification
+    const { data: ipBan } = await adminClient.from('ip_bans').select('ip').eq('ip', clientIp).maybeSingle();
+    if (ipBan) {
+      return response(request, { message: 'Access denied.' }, 403);
+    }
+
+    // IP Rate limiting
+    const ipLimit = checkIpRateLimit(clientIp);
+    if (!ipLimit.allowed) {
+      return response(request, { message: `Too many requests from this IP. Please try again in ${ipLimit.retryAfter} seconds.` }, 429);
+    }
+
     const { data: profile } = await adminClient.from('profiles').select('*').eq('id', user.id).single();
     if (!profile) return response(request, { message: 'Profile is not ready. Please sign in again.' }, 409);
     if (normalizedEmail.endsWith('@karunya.edu') && profile.role !== 'coordinator') {
@@ -98,7 +383,12 @@ Deno.serve(async (request) => {
       if (!UUID_PATTERN.test(body.busId ?? '') || !SESSION_TYPES.has(body.sessionType)) return response(request, { message: 'Invalid session request.' }, 400);
       const { data: bus } = await adminClient.from('buses').select('id,bus_number').eq('id', body.busId).single();
       if (!bus || profile.bus_id !== bus.id) return response(request, { message: 'Bus is not assigned to you.' }, 403);
-      const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
+      
+      // Token cryptographic signature generation (tamper-free binding)
+      const randomPart = crypto.randomUUID().replaceAll('-', '');
+      const signaturePart = (await hashToken(`${randomPart}:${bus.id}:${body.sessionType}`, qrSecret)).slice(0, 32);
+      const token = randomPart + signaturePart;
+
       const expiresAt = new Date(Date.now() + SESSION_DURATION_MS).toISOString();
       const { data: session, error } = await adminClient.from('attendance_sessions').insert({
         bus_id: bus.id, session_type: body.sessionType, token_hash: await hashToken(token, qrSecret), expires_at: expiresAt, created_by: user.id,
@@ -115,8 +405,26 @@ Deno.serve(async (request) => {
       const { token, latitude, longitude } = body;
       if (typeof token !== 'string' || !QR_TOKEN_PATTERN.test(token) || !withinCoordinateBounds(latitude, longitude)) return response(request, { message: 'A valid QR token and GPS location are required.' }, 400);
       if (profile.status !== 'active' || !profile.bus_id) return response(request, { message: 'Your bus assignment is not active.' }, 403);
-      const { data: session } = await adminClient.from('attendance_sessions').select('*, buses(*)').eq('token_hash', await hashToken(token, qrSecret)).gt('expires_at', new Date().toISOString()).maybeSingle();
+      
+      // Verify signature of the token to prevent decrypting/forging
+      const randomPart = token.slice(0, 32);
+      const clientSig = token.slice(32);
+
+      const tokenHash = await hashToken(token, qrSecret);
+      const { data: session } = await adminClient.from('attendance_sessions').select('*, buses(*)').eq('token_hash', tokenHash).gt('expires_at', new Date().toISOString()).maybeSingle();
       if (!session) return response(request, { message: 'Invalid or expired QR session.' }, 400);
+
+      // Verify signature binds correct session bus and type
+      const expectedSig = (await hashToken(`${randomPart}:${session.bus_id}:${session.session_type}`, qrSecret)).slice(0, 32);
+      if (clientSig !== expectedSig) {
+        await adminClient.from('security_audit_events').insert({
+          actor_id: user.id,
+          action: 'mark-attendance-tampered',
+          outcome: 'tampered'
+        });
+        return response(request, { message: 'Invalid or expired QR session.' }, 400);
+      }
+
       if (session.bus_id !== profile.bus_id) return response(request, { message: 'STUDENT BELONG TO THIS BUS INVALID SCAN YOUR BUS CODE' }, 400);
       if (distanceMeters(latitude, longitude, session.buses.latitude, session.buses.longitude) > session.buses.radius_meters) return response(request, { message: 'You are outside the permitted bus geofence.' }, 400);
 

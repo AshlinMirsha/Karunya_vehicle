@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import QRCode from 'npm:qrcode@1.5.4';
 
 const APP_URL = 'https://karunya-bus-attendance.vercel.app';
-const QR_SESSION_DURATION_MS = 5 * 60 * 60 * 1000;
+const QR_SESSION_DURATION_MS = 5 * 60 * 60 * 1000; // 5 hours validity
 const QR_IMAGE_CID = 'bus-attendance-qr';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
@@ -24,9 +24,11 @@ const sessionHash = async (token: string) => {
     .join('');
 };
 
-const getSessionType = () => Number(new Date().toLocaleString('en-US', {
-  timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false,
-})) < 12 ? 'Morning' : 'Evening';
+const getSessionType = () => {
+  const now = new Date();
+  const istTime = new Date(now.getTime() + (5 * 60 + 30) * 60000);
+  return istTime.getUTCHours() < 12 ? 'Morning' : 'Evening';
+};
 
 const requestedSessionTypes = async (request: Request) => {
   const body = await request.json().catch(() => ({}));
@@ -42,9 +44,26 @@ const requestedSessionTypes = async (request: Request) => {
   return [...new Set(requested)];
 };
 
-const buildEmail = async (recipient: string, busNumber: string, checkinUrl: string, sessionType: string) => {
-  const boundary = `bus-attendance-${crypto.randomUUID()}`;
-  // Gmail mobile clients render CID PNG reliably; inline SVG QR images are often suppressed.
+// Rewrite: Gmail API OAuth2 integration (HTTP POST) instead of SMTP to resolve TCP-bound blocking
+const sendGmailApiEmail = async (recipient: string, busNumber: string, sessionType: string, token: string) => {
+  const [clientId, clientSecret, refreshToken] = ['GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_REFRESH_TOKEN'].map((name) => Deno.env.get(name) ?? '');
+  if (!clientId || !clientSecret || !refreshToken) throw new Error('Gmail OAuth environment variables are missing');
+  
+  const refresh = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token'
+    })
+  });
+  
+  const credentials = await refresh.json().catch(() => null);
+  if (!refresh.ok || !credentials?.access_token) throw new Error('Could not refresh Gmail API access token');
+  
+  const checkinUrl = `${APP_URL}/checkin?token=${token}`;
   const qrDataUrl = await QRCode.toDataURL(checkinUrl, { errorCorrectionLevel: 'M', margin: 2, width: 640 });
   const encodedPng = qrDataUrl.split(',', 2)[1];
   if (!encodedPng) throw new Error('Could not encode attendance QR image');
@@ -52,10 +71,13 @@ const buildEmail = async (recipient: string, busNumber: string, checkinUrl: stri
   const dateStr = new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', dateStyle: 'long' });
   const subject = `Bus ${busNumber} ${sessionType} Attendance QR - ${dateStr}`;
   const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f7fa;color:#102a43;font-family:Arial,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #d9e2ec;border-radius:16px"><tr><td style="padding:32px"><p style="margin:0 0 12px;color:#486581;font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase">Karunya bus attendance - ${dateStr}</p><h1 style="margin:0 0 16px;font-size:24px">Bus ${busNumber} ${sessionType} QR</h1><p style="margin:0 0 24px;line-height:1.5">Scan this QR code to open the secure attendance check-in.</p><p style="margin:0 0 24px;text-align:center"><img src="cid:${QR_IMAGE_CID}" alt="Bus ${busNumber} attendance QR code" width="320" height="320" style="display:inline-block;max-width:100%;height:auto;border:0"></p><p style="margin:0 0 12px;line-height:1.5">If the image does not appear, use this secure link:</p><p style="margin:0 0 24px"><a href="${checkinUrl}" style="display:inline-block;padding:12px 18px;background:#1769aa;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold">Open attendance check-in</a></p><p style="margin:0;color:#627d98;font-size:13px">This code expires in five hours.</p></td></tr></table></td></tr></table></body></html>`;
+  const boundary = `bus-attendance-${crypto.randomUUID()}`;
   const messageId = `<${crypto.randomUUID()}@supabase.co>`;
-  return [
+  const fromEmail = Deno.env.get('GMAIL_FROM_EMAIL') ?? 'karunya.attendance@gmail.com';
+  
+  const rawMimeMessage = [
     `To: ${recipient}`,
-    `From: "Karunya Bus Attendance" <karunya.attendance@gmail.com>`,
+    `From: "Karunya Bus Attendance" <${fromEmail}>`,
     `Subject: ${subject}`,
     `Message-ID: ${messageId}`,
     `Date: ${new Date().toUTCString()}`,
@@ -73,64 +95,21 @@ const buildEmail = async (recipient: string, busNumber: string, checkinUrl: stri
     'Content-Disposition: inline; filename="bus-attendance-qr.png"',
     '',
     wrappedPng,
-    `--${boundary}--`,
+    `--${boundary}--`
   ].join('\r\n');
-};
-
-const sendSmtpEmail = async (user: string, password: string, to: string, rawMimeMessage: string) => {
-  const conn = await Deno.connectTls({ hostname: "smtp.gmail.com", port: 465 });
-  const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
-  const reader = conn.readable.getReader();
-  const writer = conn.writable.getWriter();
-
-  let buffer = '';
-  async function readResponse(): Promise<string> {
-    let response = '';
-    while (true) {
-      const newlineIdx = buffer.indexOf('\r\n');
-      if (newlineIdx !== -1) {
-        const line = buffer.slice(0, newlineIdx + 2);
-        buffer = buffer.slice(newlineIdx + 2);
-        response += line;
-        if (line.length >= 4 && line[3] === ' ') {
-          return response;
-        }
-      } else {
-        const { value, done } = await reader.read();
-        if (value) buffer += decoder.decode(value, { stream: true });
-        if (done) break;
-      }
-    }
-    return response;
-  }
-
-  async function sendCmd(cmd: string): Promise<string> {
-    await writer.write(encoder.encode(cmd + "\r\n"));
-    const response = await readResponse();
-    const code = parseInt(response.slice(0, 3), 10);
-    if (code >= 400) {
-      throw new Error(`SMTP command failed: ${response.trim()}`);
-    }
-    return response;
-  }
-
-  try {
-    const welcome = await readResponse();
-    if (parseInt(welcome.slice(0, 3), 10) >= 400) throw new Error(`SMTP connect failed: ${welcome.trim()}`);
-    
-    await sendCmd("EHLO kkbzofddkfusblyplnca.supabase.co");
-    await sendCmd("AUTH LOGIN");
-    await sendCmd(btoa(user));
-    await sendCmd(btoa(password));
-    
-    await sendCmd(`MAIL FROM:<${user}>`);
-    await sendCmd(`RCPT TO:<${to}>`);
-    await sendCmd("DATA");
-    await sendCmd(rawMimeMessage + "\r\n.");
-    await sendCmd("QUIT");
-  } finally {
-    conn.close();
+  
+  const sent = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${credentials.access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ raw: base64Url(rawMimeMessage) })
+  });
+  
+  if (!sent.ok) {
+    const errorText = await sent.text().catch(() => 'Unknown error');
+    throw new Error(`Gmail API failed: ${errorText}`);
   }
 };
 
@@ -138,13 +117,6 @@ Deno.serve(async (request) => {
   if (request.headers.get('x-cron-secret') !== Deno.env.get('CRON_SECRET')) return json({ message: 'Unauthorized' }, 401);
   
   try {
-    const emailUser = Deno.env.get('EMAIL_ID') || 'karunya.attendance@gmail.com';
-    const emailPassword = Deno.env.get('EMAIL_APP_PASSWORD');
-    
-    if (!emailPassword) {
-      return json({ message: 'EMAIL_APP_PASSWORD environment variable is missing.' }, 500);
-    }
-
     const database = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const [{ data: buses, error: busesError }, { data: coordinators, error: coordsError }] = await Promise.all([
       database.from('buses').select('id,bus_number'),
@@ -163,21 +135,23 @@ Deno.serve(async (request) => {
           continue;
         }
 
-        const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
+        // Generate signed token to enforce server-side tamper-free check
+        const randomPart = crypto.randomUUID().replaceAll('-', '');
+        const signaturePart = (await sessionHash(`${randomPart}:${bus.id}:${sessionType}`)).slice(0, 32);
+        const token = randomPart + signaturePart;
+        
         const expiresAt = new Date(Date.now() + QR_SESSION_DURATION_MS).toISOString();
         const { data: session, error: sessionError } = await database.from('attendance_sessions').insert({
           bus_id: bus.id, session_type: sessionType, token_hash: await sessionHash(token), expires_at: expiresAt, created_by: faculty.id, email_status: 'pending',
         }).select('id').single();
+        
         if (sessionError || !session) {
           console.error(`Could not create Bus ${bus.bus_number} attendance session`, sessionError);
           continue;
         }
 
-        const checkinUrl = `${APP_URL}/checkin?token=${token}`;
-        const rawMime = await buildEmail(faculty.email, bus.bus_number, checkinUrl, sessionType);
-        
         try {
-          await sendSmtpEmail(emailUser, emailPassword.replace(/\s+/g, ''), faculty.email, rawMime);
+          await sendGmailApiEmail(faculty.email, bus.bus_number, sessionType, token);
           await database.from('attendance_sessions').update({ email_status: 'sent' }).eq('id', session.id);
         } catch (emailError) {
           const errMsg = emailError instanceof Error ? emailError.message : String(emailError);

@@ -293,6 +293,7 @@ export async function initOperationsDashboard(expectedRole) {
   if (expectedRole === 'admin') {
     await renderSessionStatus(buses);
     await renderAdminDirectory(buses);
+    await renderSecurityDashboard();
   }
 
   if (!canGenerateQr) return;
@@ -326,3 +327,193 @@ export async function initOperationsDashboard(expectedRole) {
     }
   };
 }
+
+const renderSecurityDashboard = async () => {
+  const section = document.createElement('section');
+  section.className = 'glass-panel p-4 mt-4';
+  section.innerHTML = `
+    <h2 class="h5 fw-bold mb-1">Security & Storage Operations Center</h2>
+    <p class="text-muted small mb-4">Monitor system alerts, manage IP access bans, and maintain database storage capacity.</p>
+    
+    <!-- Row for Storage Warning & Purge Control -->
+    <div class="row g-4 mb-4">
+      <div class="col-md-6">
+        <div class="card bg-dark-custom text-white border-0 p-3 h-100">
+          <h6 class="fw-bold text-warning mb-2"><i class="fa-solid fa-database me-2"></i>Database Storage Capacity</h6>
+          <p class="small text-white-50 mb-3">Supabase free tier provides <strong>500 MB</strong> of database storage. As check-ins grow, consider purging historic attendance data to maintain free tier eligibility.</p>
+          <div class="progress mb-2" style="height: 10px; background: rgba(255,255,255,0.1);">
+            <div id="db-storage-progress" class="progress-bar bg-info" role="progressbar" style="width: 5%;" aria-valuenow="5" aria-valuemin="0" aria-valuemax="100"></div>
+          </div>
+          <div class="d-flex justify-content-between small text-white-50">
+            <span>Estimated usage: ~15MB</span>
+            <span>Limit: 500MB</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-6">
+        <div class="card bg-dark-custom text-white border-0 p-3 h-100">
+          <h6 class="fw-bold text-danger mb-2"><i class="fa-solid fa-trash-can me-2"></i>Purge Historic Records</h6>
+          <p class="small text-danger-emphasis mb-3"><strong>⚠️ WARNING:</strong> Export database logs via CSV from the history table above before purging. Purged data is permanently deleted.</p>
+          <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+              <input type="datetime-local" id="purge-start" class="form-control form-control-sm" placeholder="Start Date">
+            </div>
+            <div class="col-md-5">
+              <input type="datetime-local" id="purge-end" class="form-control form-control-sm" placeholder="End Date">
+            </div>
+            <div class="col-md-2">
+              <button id="btn-purge-data" class="btn btn-sm btn-danger w-100">Purge</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IP Ban Controls -->
+    <div class="row g-4 mb-4">
+      <div class="col-md-5">
+        <div class="card bg-dark-custom text-white border-0 p-3 h-100">
+          <h6 class="fw-bold text-danger mb-3"><i class="fa-solid fa-ban me-2"></i>Ban IP Address</h6>
+          <div class="input-group input-group-sm mb-3">
+            <input type="text" id="input-ban-ip" class="form-control" placeholder="Enter IP address (e.g. 192.168.1.5)">
+            <button id="btn-ban-ip" class="btn btn-danger">Ban IP</button>
+          </div>
+          <h6 class="fw-bold small text-white-50 mb-2">Banned IP List</h6>
+          <div class="overflow-y-auto" style="max-height: 150px;">
+            <ul id="banned-ip-list" class="list-group list-group-flush small bg-transparent">
+              <li class="list-group-item text-muted bg-transparent border-0 px-0">No active IP bans.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Security Intrusion & Tamper Logs -->
+      <div class="col-md-7">
+        <div class="card bg-dark-custom text-white border-0 p-3 h-100">
+          <h6 class="fw-bold text-warning mb-3"><i class="fa-solid fa-shield-halved me-2"></i>Security Alert Logs</h6>
+          <div class="table-responsive" style="max-height: 220px; overflow-y: auto;">
+            <table class="table table-dark-custom align-middle mb-0 small">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Actor / Info</th>
+                  <th>Incident Type</th>
+                  <th>Outcome</th>
+                </tr>
+              </thead>
+              <tbody id="security-alerts-list">
+                <tr><td colspan="4" class="text-center text-muted">Loading security events…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.querySelector('main').append(section);
+
+  const purgeBtn = section.querySelector('#btn-purge-data');
+  const banBtn = section.querySelector('#btn-ban-ip');
+  const ipInput = section.querySelector('#input-ban-ip');
+  const alertsBody = section.querySelector('#security-alerts-list');
+  const bannedList = section.querySelector('#banned-ip-list');
+
+  // Load Security Alerts
+  const loadAlerts = async () => {
+    const { data: alerts, error } = await supabase.rpc('get_security_alerts');
+    if (error) {
+      alertsBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Failed to load security logs.</td></tr>`;
+      return;
+    }
+    if (!alerts || alerts.length === 0) {
+      alertsBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">No security incidents logged.</td></tr>`;
+      return;
+    }
+    alertsBody.replaceChildren(...alerts.map(alert => {
+      const tr = document.createElement('tr');
+      const timeLabel = new Date(alert.created_at).toLocaleString('en-IN', { timeStyle: 'short', dateStyle: 'short' });
+      const actorLabel = alert.email ? `${alert.full_name || 'Student'} (${alert.email})` : 'System decoy path / API probe';
+      
+      let badgeClass = 'bg-warning text-dark';
+      if (alert.outcome === 'tampered') badgeClass = 'bg-danger';
+      else if (alert.outcome === 'unauthorized_route') badgeClass = 'bg-danger-subtle text-danger border border-danger-subtle';
+      
+      const trContent = [
+        cell(timeLabel),
+        cell(actorLabel),
+        cell(alert.action),
+        cell('')
+      ];
+      trContent[3].innerHTML = `<span class="badge ${badgeClass}">${alert.outcome}</span>`;
+      tr.append(...trContent);
+      return tr;
+    }));
+  };
+
+  // Load Banned IPs
+  const loadBannedIps = async () => {
+    const { data: bans, error } = await supabase.from('ip_bans').select('*').order('banned_at', { ascending: false });
+    if (error || !bans || bans.length === 0) {
+      bannedList.innerHTML = `<li class="list-group-item text-muted bg-transparent border-0 px-0">No active IP bans.</li>`;
+      return;
+    }
+    bannedList.replaceChildren(...bans.map(ban => {
+      const li = document.createElement('li');
+      li.className = 'list-group-item bg-transparent text-white border-0 px-0 d-flex justify-content-between align-items-center';
+      li.innerHTML = `
+        <span><i class="fa-solid fa-circle text-danger me-2" style="font-size:0.5rem;"></i>${ban.ip} <span class="text-muted small">(${new Date(ban.banned_at).toLocaleDateString('en-IN')})</span></span>
+        <button class="btn btn-xs btn-outline-danger py-0 px-2 small-unban" data-ip="${ban.ip}">Unban</button>
+      `;
+      li.querySelector('.small-unban').onclick = async () => {
+        const { error: delErr } = await supabase.from('ip_bans').delete().eq('ip', ban.ip);
+        if (delErr) {
+          showToast('Could not unban IP.', 'danger');
+        } else {
+          showToast(`IP ${ban.ip} unbanned successfully.`, 'success');
+          loadBannedIps();
+        }
+      };
+      return li;
+    }));
+  };
+
+  // Ban IP trigger
+  banBtn.onclick = async () => {
+    const ip = ipInput.value.trim();
+    if (!ip) return showToast('Please enter a valid IP address.', 'warning');
+    const { error } = await supabase.from('ip_bans').insert({ ip });
+    if (error) {
+      showToast('Could not ban IP address (possibly already banned).', 'danger');
+    } else {
+      showToast(`IP ${ip} banned successfully.`, 'success');
+      ipInput.value = '';
+      loadBannedIps();
+    }
+  };
+
+  // Purge historic records trigger
+  purgeBtn.onclick = async () => {
+    const startVal = section.querySelector('#purge-start').value;
+    const endVal = section.querySelector('#purge-end').value;
+    if (!startVal || !endVal) return showToast('Please select both start and end date ranges for purging.', 'warning');
+    
+    if (!confirm('Are you absolutely sure you want to permanently delete all attendance records in this range? Ensure you exported them to CSV first.')) return;
+    
+    purgeBtn.disabled = true;
+    const { data: result, error } = await supabase.rpc('delete_attendance_range', { p_start_date: new Date(startVal).toISOString(), p_end_date: new Date(endVal).toISOString() });
+    
+    purgeBtn.disabled = false;
+    if (error) {
+      showToast('Purging failed: ' + error.message, 'danger');
+    } else {
+      const counts = result?.[0] ?? { deleted_attendance: 0, deleted_sessions: 0 };
+      showToast(`Purged ${counts.deleted_attendance} attendance records and ${counts.deleted_sessions} sessions successfully.`, 'success');
+      section.querySelector('#purge-start').value = '';
+      section.querySelector('#purge-end').value = '';
+    }
+  };
+
+  // Initial runs
+  await Promise.all([loadAlerts(), loadBannedIps()]);
+};

@@ -20,7 +20,6 @@ test('daily QR function protects the scheduler and delivers a QR email', async (
   assert.match(source, /Content-Type: image\/png/);
   assert.match(source, /Content-ID: <\$\{QR_IMAGE_CID\}>/);
   assert.match(source, /QR_SESSION_DURATION_MS = 5 \* 60 \* 60 \* 1000/);
-  assert.match(source, /Gmail did not accept/);
 });
 
 test('attendance API remains JWT-protected', async () => {
@@ -156,9 +155,11 @@ test('protected pages require authenticated render and preserve safe post-login 
   assert.doesNotMatch(index, /assigned Bus 2 coordinator/i);
   assert.match(styles, /\.protected-page:not\(\.role-authorized\) main/);
   assert.match(student, /protected-page/);
-  assert.match(student, /document\.readyState === 'loading'/);
+  assert.match(student, /student\.js/);
+  assert.match(await read('js/student.js'), /document\.readyState === 'loading'/);
   assert.match(coordinator, /protected-page/);
-  assert.match(coordinator, /document\.readyState\s*={2,3}\s*'loading'/);
+  assert.match(coordinator, /coordinator\.js/);
+  assert.match(await read('js/coordinator.js'), /document\.readyState\s*={2,3}\s*'loading'/);
   assert.match(scanner, /document\.body\.classList\.add\('role-authorized'\)/);
   assert.doesNotMatch(navbar, /\?\.[^;\n]*\)\.[^;\n]*=/);
 });

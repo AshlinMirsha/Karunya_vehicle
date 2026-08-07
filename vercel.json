@@ -5,6 +5,22 @@
   "trailingSlash": false,
   "rewrites": [
     {
+      "source": "/adminpanel",
+      "destination": "https://kkbzofddkfusblyplnca.supabase.co/functions/v1/attendance-api?alert_path=adminpanel"
+    },
+    {
+      "source": "/.env",
+      "destination": "https://kkbzofddkfusblyplnca.supabase.co/functions/v1/attendance-api?alert_path=env"
+    },
+    {
+      "source": "/students/allstudents.csv",
+      "destination": "https://kkbzofddkfusblyplnca.supabase.co/functions/v1/attendance-api?alert_path=csv"
+    },
+    {
+      "source": "/db_backup.sql",
+      "destination": "https://kkbzofddkfusblyplnca.supabase.co/functions/v1/attendance-api?alert_path=sql"
+    },
+    {
       "source": "/",
       "destination": "/pages/index.html"
     },
@@ -98,7 +114,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; connect-src 'self' https://kkbzofddkfusblyplnca.supabase.co https://*.supabase.co; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://esm.sh https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https://www.karunya.edu; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+          "value": "default-src 'self'; connect-src 'self' https://kkbzofddkfusblyplnca.supabase.co https://*.supabase.co; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://esm.sh https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https://www.karunya.edu; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         }
       ]
     }

@@ -25,3 +25,9 @@ export async function initStudentDashboard() {
   if (attendanceError) { history.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-3">Attendance history could not be loaded.</td></tr>'; return; }
   history.innerHTML = records?.length ? records.map((record) => `<tr><td class="font-monospace">${escapeHtml(new Date(record.checked_in_at).toLocaleString('en-IN'))}</td><td>${escapeHtml(record.session_type)}</td><td class="fw-semibold text-info">${escapeHtml(record.bus_number)}</td><td><small class="text-white-50">Verified</small></td><td><span class="badge-status badge-present">${escapeHtml(record.status)}</span></td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-white-50 py-3">No attendance has been recorded yet.</td></tr>';
 }
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initStudentDashboard, { once: true });
+} else {
+  initStudentDashboard();
+}
