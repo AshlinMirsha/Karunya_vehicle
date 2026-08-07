@@ -97,17 +97,14 @@
     </div>
     <div class="mb-3 d-flex gap-2 flex-wrap" id="quick-filters">
       <button class="btn btn-sm btn-outline-secondary" data-filter="today">Today</button>
-      <button class="btn btn-sm btn-outline-secondary" data-filter="weekdays">Weekdays</button>
-      <button class="btn btn-sm btn-outline-secondary" data-filter="weekends">Weekends</button>
       <button class="btn btn-sm btn-outline-secondary" data-filter="present">Only Present</button>
       <button class="btn btn-sm btn-outline-secondary" data-filter="absent">Only Absent</button>
     </div>
     <div class="row g-3 mb-4">
       <div class="col-md-2"><label class="form-label small" for="filter-bus">Bus number</label><select id="filter-bus" class="form-select"></select></div>
-      <div class="col-md-3"><label class="form-label small" for="filter-search">Search student</label><input id="filter-search" type="text" class="form-control" placeholder="Name or roll no. (comma-separated)"></div>
-      <div class="col-md-2"><label class="form-label small" for="filter-day-type">Day Type</label><select id="filter-day-type" class="form-select"><option value="">All days</option><option value="weekday">Weekdays</option><option value="weekend">Weekends</option></select></div>
+      <div class="col-md-4"><label class="form-label small" for="filter-search">Search student</label><input id="filter-search" type="text" class="form-control" placeholder="Name or roll no. (comma-separated)"></div>
       <div class="col-md-3"><label class="form-label small" for="filter-date-from">From date/time</label><input id="filter-date-from" type="datetime-local" class="form-control"></div>
-      <div class="col-md-2"><label class="form-label small" for="filter-date-to">To date/time</label><input id="filter-date-to" type="datetime-local" class="form-control"></div>
+      <div class="col-md-3"><label class="form-label small" for="filter-date-to">To date/time</label><input id="filter-date-to" type="datetime-local" class="form-control"></div>
       <div class="col-md-2"><label class="form-label small" for="filter-status">Status</label><select id="filter-status" class="form-select"><option value="">Present and absent</option><option value="PRESENT">Present</option><option value="ABSENT">Absent</option></select></div>
     </div>
     <div class="table-responsive">

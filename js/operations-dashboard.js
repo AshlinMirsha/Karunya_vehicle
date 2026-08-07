@@ -154,7 +154,7 @@ export async function initOperationsDashboard(expectedRole) {
       p_date_to: document.getElementById('filter-date-to').value || null,
       p_status: document.getElementById('filter-status').value || null,
       p_search: searchVal,
-      p_day_type: document.getElementById('filter-day-type')?.value || null,
+      p_day_type: null,
     });
     if (error) { showToast('Attendance history could not be loaded.', 'danger'); return; }
     const records = data ?? [];
@@ -182,15 +182,13 @@ export async function initOperationsDashboard(expectedRole) {
     });
   }
 
-  ['filter-bus', 'filter-date-from', 'filter-date-to', 'filter-status', 'filter-day-type'].forEach((id) => document.getElementById(id)?.addEventListener('change', loadHistory));
+  ['filter-bus', 'filter-date-from', 'filter-date-to', 'filter-status'].forEach((id) => document.getElementById(id)?.addEventListener('change', loadHistory));
 
   document.getElementById('btn-clear-filters').addEventListener('click', () => {
     setTodayDefaults();
     document.getElementById('filter-status').value = '';
     if (searchInput) searchInput.value = '';
     busFilter.value = expectedRole === 'coordinator' ? profile.bus_id : '';
-    const dayType = document.getElementById('filter-day-type');
-    if (dayType) dayType.value = '';
     loadHistory();
   });
 
@@ -204,19 +202,9 @@ export async function initOperationsDashboard(expectedRole) {
       const df = document.getElementById('filter-date-from');
       const dt = document.getElementById('filter-date-to');
       const st = document.getElementById('filter-status');
-      const dy = document.getElementById('filter-day-type');
-      const search = document.getElementById('filter-search');
       
-      // Clear specific filters when running a quick filter to ensure it works nicely
       if (filter === 'today') {
         setTodayDefaults();
-        if (dy) dy.value = '';
-      } else if (filter === 'weekdays') {
-        df.value = ''; dt.value = '';
-        if (dy) dy.value = 'weekday';
-      } else if (filter === 'weekends') {
-        df.value = ''; dt.value = '';
-        if (dy) dy.value = 'weekend';
       } else if (filter === 'present') {
         st.value = 'PRESENT';
       } else if (filter === 'absent') {
