@@ -976,9 +976,9 @@ const initBackToTopButton = () => {
     btn.id = 'btn-back-to-top';
     btn.setAttribute('aria-label', 'Back to top');
     btn.setAttribute('title', 'Back to top');
-    btn.innerHTML = '↑';
     document.body.append(btn);
   }
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
 
   const checkScroll = () => {
     if (window.scrollY > 200 || document.documentElement.scrollTop > 200) {
