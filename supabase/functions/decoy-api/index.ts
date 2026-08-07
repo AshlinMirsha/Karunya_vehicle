@@ -15,7 +15,7 @@ const corsHeadersFor = (origin: string | null) => ({
 
 const base64Url = (value: string) => btoa(unescape(encodeURIComponent(value))).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 
-const sendCanaryAlertEmail = async (ip: string, userAgent: string, path: string) => {
+const sendCanaryAlertEmail = async (ip: string, userAgent: string, path: string, eventType: string, userInfoStr: string, timeline: any[]) => {
   const [clientId, clientSecret, refreshToken] = ['GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_REFRESH_TOKEN'].map((name) => Deno.env.get(name) ?? '');
   if (!clientId || !clientSecret || !refreshToken) return false;
   
@@ -33,21 +33,41 @@ const sendCanaryAlertEmail = async (ip: string, userAgent: string, path: string)
   if (!refresh.ok || !credentials?.access_token) return false;
   
   const timeStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-  const subject = `ALERT: Restricted Route Accessed /${path}`;
+  const subject = `INCIDENT REPORT: Honeypot Activity Detected [IP: ${ip}]`;
   
+  let timelineHtml = '';
+  if (timeline && timeline.length > 0) {
+    timelineHtml = `<h3 style="color:#102a43;margin:24px 0 12px;font-size:16px;border-bottom:1px solid #d9e2ec;padding-bottom:8px">Activity Timeline (Last 1 Hour)</h3>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="4" style="font-size:13px;line-height:1.4">
+      ${timeline.map(e => {
+        const t = new Date(e.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', timeStyle: 'medium' });
+        return `<tr><td width="90" style="color:#627d98;vertical-align:top"><strong>${t}</strong></td><td style="color:#102a43">${e.action} (${e.outcome})</td></tr>`;
+      }).join('')}
+    </table>`;
+  }
+
   const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f7fa;color:#102a43;font-family:Arial,sans-serif">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #d9e2ec;border-radius:16px">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #d9e2ec;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.05)">
             <tr>
               <td style="padding:32px">
-                <h1 style="color:#d32f2f;margin:0 0 16px;font-size:24px">Access Attempt on Restricted Resource</h1>
-                <p style="margin:0 0 12px;line-height:1.5"><strong>Requested Path:</strong> /${path}</p>
-                <p style="margin:0 0 12px;line-height:1.5"><strong>Source IP:</strong> ${ip}</p>
-                <p style="margin:0 0 12px;line-height:1.5"><strong>User-Agent:</strong> ${userAgent}</p>
-                <p style="margin:0 0 12px;line-height:1.5"><strong>Timestamp:</strong> ${timeStr}</p>
-                <p style="margin:0;color:#627d98;font-size:13px">This notification was triggered automatically by the route manager.</p>
+                <h1 style="color:#d32f2f;margin:0 0 8px;font-size:22px;font-weight:bold">Security Incident Report</h1>
+                <p style="margin:0 0 20px;color:#627d98;font-size:14px">A restricted honeypot resource was accessed and probed.</p>
+                
+                <h3 style="color:#102a43;margin:0 0 12px;font-size:16px;border-bottom:1px solid #d9e2ec;padding-bottom:8px">Target Information</h3>
+                <p style="margin:0 0 8px;font-size:14px;line-height:1.5"><strong>Requested Path:</strong> /${path}</p>
+                <p style="margin:0 0 8px;font-size:14px;line-height:1.5"><strong>Trigger Event:</strong> ${eventType}</p>
+
+                <h3 style="color:#102a43;margin:20px 0 12px;font-size:16px;border-bottom:1px solid #d9e2ec;padding-bottom:8px">Attacker Profile</h3>
+                <p style="margin:0 0 8px;font-size:14px;line-height:1.5"><strong>Source IP:</strong> ${ip}</p>
+                <p style="margin:0 0 8px;font-size:14px;line-height:1.5"><strong>User-Agent:</strong> ${userAgent}</p>
+                <p style="margin:0 0 8px;font-size:14px;line-height:1.5"><strong>User Identity:</strong> ${userInfoStr}</p>
+                
+                ${timelineHtml}
+                
+                <p style="margin:32px 0 0;color:#627d98;font-size:12px;text-align:center;border-top:1px solid #e1e7ec;padding-top:16px">This alert was generated automatically by the security monitoring system.</p>
               </td>
             </tr>
           </table>
@@ -138,7 +158,6 @@ const getFakeAdminPanelHtml = () => `<!DOCTYPE html>
   </style>
 </head>
 <body>
-  <!-- DEVELOPMENT NOTE: Temporary login credentials during migration: admin / changemeafterproduction -->
   <div class="card" id="login-container">
     <h3 class="text-center mb-4">Operations Console</h3>
     <form id="login-form">
@@ -186,33 +205,67 @@ const getFakeAdminPanelHtml = () => `<!DOCTYPE html>
     <div class="card w-100 mt-4">
       <h5>Management Actions</h5>
       <div class="d-flex gap-3 mt-3">
-        <button class="btn btn-primary" onclick="simulateAction('user-add')">Add User</button>
-        <button class="btn btn-danger" onclick="simulateAction('user-delete')">Delete User</button>
-        <button class="btn btn-outline-info" onclick="simulateAction('ldapsync')">Sync LDAP</button>
+        <button class="btn btn-primary" onclick="executeAction('user-add')">Add User</button>
+        <button class="btn btn-danger" onclick="executeAction('user-delete')">Delete User</button>
+        <button class="btn btn-outline-info" onclick="executeAction('ldapsync')">Sync LDAP</button>
       </div>
     </div>
   </div>
 
   <script>
-    document.getElementById('login-form').addEventListener('submit', function(e) {
-      e.preventDefault();
-      const user = document.getElementById('username').value;
-      const pass = document.getElementById('password').value;
-      
-      if (user === 'admin' && pass === 'changemeafterproduction') {
-        document.getElementById('login-container').classList.add('d-none');
-        document.getElementById('dashboard-container').classList.remove('d-none');
-      } else {
-        alert('Authentication failed.');
-      }
-    });
+    (function() {
+      var session = null;
+      try {
+        var sbKey = 'sb-kkbzofddkfusblyplnca-auth-token';
+        var raw = localStorage.getItem(sbKey) || sessionStorage.getItem(sbKey);
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (parsed && parsed.user) {
+            session = { email: parsed.user.email, id: parsed.user.id };
+          }
+        }
+      } catch (e) {}
 
-    function simulateAction(action) {
-      // Trigger a silent request back to the server to alert the administrator
-      fetch(window.location.origin + '/adminpanel?alert_path=adminpanel_action&action=' + action, { method: 'POST' })
-        .catch(() => {});
-      alert('Operation succeeded! System logs updated.');
-    }
+      fetch(window.location.pathname + window.location.search, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'view', session: session })
+      }).catch(function() {});
+
+      window.executeAction = function(action) {
+        fetch(window.location.pathname + window.location.search, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'action', action: action, session: session })
+        }).catch(function() {});
+        alert('Operation succeeded! System logs updated.');
+      };
+
+      var form = document.getElementById('login-form');
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          var u = document.getElementById('username').value;
+          var p = document.getElementById('password').value;
+          if (u === 'admin' && p === 'changemeafterproduction') {
+            fetch(window.location.pathname + window.location.search, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'login_success', session: session })
+            }).catch(function() {});
+            document.getElementById('login-container').classList.add('d-none');
+            document.getElementById('dashboard-container').classList.remove('d-none');
+          } else {
+            fetch(window.location.pathname + window.location.search, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'login_fail', user: u, pass: p, session: session })
+            }).catch(function() {});
+            alert('Authentication failed.');
+          }
+        });
+      }
+    })();
   </script>
 </body>
 </html>
@@ -236,37 +289,115 @@ Deno.serve(async (request) => {
   const alertPath = url.searchParams.get('alert_path') ?? 'unknown';
 
   const adminClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-  
-  // Log intrusion attempt
-  await adminClient.from('security_audit_events').insert({
-    action: `intrusion-attempt-${alertPath}`,
-    outcome: 'unauthorized_route'
-  });
-  
-  // Send email alert to admin
-  try {
-    await sendCanaryAlertEmail(clientIp, userAgent, alertPath);
-  } catch (e) {
-    console.error('Failed to send canary alert email:', e);
+
+  // POST Request from fake frontend: handle silent logging and email report dispatch
+  if (request.method === 'POST') {
+    const body = await request.json().catch(() => null);
+    if (body && typeof body === 'object') {
+      const type = body.type ?? 'unknown';
+      const session = body.session;
+      let userInfoStr = 'Anonymous Attacker (Not Logged In)';
+      let studentId = null;
+
+      if (session && session.id) {
+        studentId = session.id;
+        const { data: profile } = await adminClient.from('profiles').select('register_number, full_name').eq('id', session.id).maybeSingle();
+        if (profile) {
+          userInfoStr = `${profile.full_name} [Register No: ${profile.register_number}] (${session.email})`;
+        } else {
+          userInfoStr = `User with Email: ${session.email} (ID: ${session.id})`;
+        }
+      }
+
+      let actionDesc = '';
+      if (type === 'view') {
+        actionDesc = 'decoy-page-view';
+      } else if (type === 'action') {
+        actionDesc = `decoy-action-${body.action}`;
+      } else if (type === 'login_success') {
+        actionDesc = 'decoy-login-success';
+      } else if (type === 'login_fail') {
+        actionDesc = `decoy-login-failed(user:${body.user},pass:${body.pass})`;
+      } else {
+        actionDesc = `decoy-${type}`;
+      }
+
+      // Log threat entry to DB
+      await adminClient.from('security_audit_events').insert({
+        actor_id: studentId,
+        action: `intrusion-${alertPath}-${actionDesc}`,
+        outcome: 'unauthorized_route',
+        ip_address: clientIp
+      });
+
+      // Query complete timeline for this IP to send in the consolidated incident report
+      const oneHourAgo = new Date(Date.now() - 3600 * 1000).toISOString();
+      const { data: timeline } = await adminClient
+        .from('security_audit_events')
+        .select('action, outcome, created_at')
+        .eq('ip_address', clientIp)
+        .gte('created_at', oneHourAgo)
+        .order('created_at', { ascending: true });
+
+      // Send threat incident report email
+      try {
+        await sendCanaryAlertEmail(clientIp, userAgent, alertPath, actionDesc, userInfoStr, timeline || []);
+      } catch (e) {
+        console.error('Failed to send canary alert email:', e);
+      }
+
+      return new Response(JSON.stringify({ status: 'ok' }), {
+        status: 200,
+        headers: { ...corsHeadersFor(request.headers.get('Origin')), 'Content-Type': 'application/json' }
+      });
+    }
   }
-  
-  // Return mock responses
-  if (alertPath.startsWith('adminpanel')) {
-    return new Response(getFakeAdminPanelHtml(), {
-      headers: { ...corsHeadersFor(request.headers.get('Origin')), 'Content-Type': 'text/html' }
+
+  // GET Request: Serve requested decoys
+  if (request.method === 'GET') {
+    // Log immediate basic boundary probe to database
+    await adminClient.from('security_audit_events').insert({
+      action: `intrusion-attempt-${alertPath}-get`,
+      outcome: 'unauthorized_route',
+      ip_address: clientIp
     });
-  } else if (alertPath === 'env') {
-    return new Response(getFakeEnvContent(), {
-      headers: { ...corsHeadersFor(request.headers.get('Origin')), 'Content-Type': 'text/plain' }
-    });
-  } else if (alertPath === 'csv') {
-    return new Response(getFakeCsvContent(), {
-      headers: { ...corsHeadersFor(request.headers.get('Origin')), 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="allstudents.csv"' }
-    });
-  } else if (alertPath === 'sql') {
-    return new Response(getFakeSqlContent(), {
-      headers: { ...corsHeadersFor(request.headers.get('Origin')), 'Content-Type': 'application/sql', 'Content-Disposition': 'attachment; filename="db_backup.sql"' }
-    });
+
+    if (alertPath.startsWith('adminpanel')) {
+      return new Response(getFakeAdminPanelHtml(), {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+          'Content-Type': 'text/html; charset=utf-8'
+        }
+      });
+    } else if (alertPath === 'env') {
+      return new Response(getFakeEnvContent(), {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+          'Content-Type': 'text/plain; charset=utf-8'
+        }
+      });
+    } else if (alertPath === 'csv') {
+      return new Response(getFakeCsvContent(), {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="allstudents.csv"'
+        }
+      });
+    } else if (alertPath === 'sql') {
+      return new Response(getFakeSqlContent(), {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+          'Content-Type': 'application/sql; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="db_backup.sql"'
+        }
+      });
+    }
   }
+
   return new Response(JSON.stringify({ message: 'Not found' }), { status: 404, headers: corsHeadersFor(request.headers.get('Origin')) });
 });

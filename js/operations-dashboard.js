@@ -433,7 +433,8 @@ const renderSecurityDashboard = async () => {
     alertsBody.replaceChildren(...alerts.map(alert => {
       const tr = document.createElement('tr');
       const timeLabel = new Date(alert.created_at).toLocaleString('en-IN', { timeStyle: 'short', dateStyle: 'short' });
-      const actorLabel = alert.email ? `${alert.full_name || 'Student'} (${alert.email})` : 'Restricted system boundary probe';
+      const ipSuffix = alert.ip_address ? ` [IP: ${alert.ip_address}]` : '';
+      const actorLabel = (alert.email ? `${alert.full_name || 'Student'} (${alert.email})` : 'Restricted system boundary probe') + ipSuffix;
       
       let badgeClass = 'bg-warning text-dark';
       if (alert.outcome === 'tampered') badgeClass = 'bg-danger';

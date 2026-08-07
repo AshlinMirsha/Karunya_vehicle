@@ -6,6 +6,10 @@
   "rewrites": [
     {
       "source": "/adminpanel",
+      "destination": "/pages/decoy-admin.html"
+    },
+    {
+      "source": "/api/v1/metrics",
       "destination": "https://kkbzofddkfusblyplnca.supabase.co/functions/v1/decoy-api?alert_path=adminpanel"
     },
     {
