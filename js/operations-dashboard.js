@@ -112,45 +112,49 @@ const renderStudentRoster = async () => {
 };
 
 const updateSessionStatsCards = async (profile, defaultCount = 0) => {
-  const busId = profile?.bus_id;
-  if (!busId) return;
+  try {
+    const busId = profile?.bus_id;
+    if (!busId) return;
 
-  const { data: stats } = await supabase.rpc('get_today_bus_session_stats', { p_bus_id: busId });
-  const fnStat = stats?.find(s => s.session_type === 'Morning');
-  const anStat = stats?.find(s => s.session_type === 'Evening');
+    const { data: stats } = await supabase.rpc('get_today_bus_session_stats', { p_bus_id: busId });
+    const fnStat = stats?.find(s => s.session_type === 'Morning');
+    const anStat = stats?.find(s => s.session_type === 'Evening');
 
-  const fnPresentEl = document.getElementById('stat-fn-present');
-  const fnAbsentEl = document.getElementById('stat-fn-absent');
+    const fnPresentEl = document.getElementById('stat-fn-present');
+    const fnAbsentEl = document.getElementById('stat-fn-absent');
 
-  if (fnPresentEl && fnAbsentEl) {
-    if (!fnStat) {
-      fnPresentEl.textContent = 'to be loaded';
-      fnPresentEl.className = 'fw-bold text-muted fst-italic';
-      fnAbsentEl.textContent = 'to be loaded';
-      fnAbsentEl.className = 'fw-bold text-muted fst-italic';
-    } else {
-      fnPresentEl.textContent = fnStat.present_count;
-      fnPresentEl.className = 'fw-bold text-success fs-5';
-      fnAbsentEl.textContent = fnStat.absent_count;
-      fnAbsentEl.className = 'fw-bold text-danger fs-5';
+    if (fnPresentEl && fnAbsentEl) {
+      if (!fnStat || !fnStat.session_exists) {
+        fnPresentEl.textContent = 'to be loaded';
+        fnPresentEl.className = 'fw-bold text-muted fst-italic';
+        fnAbsentEl.textContent = 'to be loaded';
+        fnAbsentEl.className = 'fw-bold text-muted fst-italic';
+      } else {
+        fnPresentEl.textContent = fnStat.present_count;
+        fnPresentEl.className = 'fw-bold text-success fs-5';
+        fnAbsentEl.textContent = fnStat.absent_count;
+        fnAbsentEl.className = 'fw-bold text-danger fs-5';
+      }
     }
-  }
 
-  const anPresentEl = document.getElementById('stat-an-present');
-  const anAbsentEl = document.getElementById('stat-an-absent');
+    const anPresentEl = document.getElementById('stat-an-present');
+    const anAbsentEl = document.getElementById('stat-an-absent');
 
-  if (anPresentEl && anAbsentEl) {
-    if (!anStat) {
-      anPresentEl.textContent = 'to be loaded';
-      anPresentEl.className = 'fw-bold text-muted fst-italic';
-      anAbsentEl.textContent = 'to be loaded';
-      anAbsentEl.className = 'fw-bold text-muted fst-italic';
-    } else {
-      anPresentEl.textContent = anStat.present_count;
-      anPresentEl.className = 'fw-bold text-success fs-5';
-      anAbsentEl.textContent = anStat.absent_count;
-      anAbsentEl.className = 'fw-bold text-danger fs-5';
+    if (anPresentEl && anAbsentEl) {
+      if (!anStat || !anStat.session_exists) {
+        anPresentEl.textContent = 'to be loaded';
+        anPresentEl.className = 'fw-bold text-muted fst-italic';
+        anAbsentEl.textContent = 'to be loaded';
+        anAbsentEl.className = 'fw-bold text-muted fst-italic';
+      } else {
+        anPresentEl.textContent = anStat.present_count;
+        anPresentEl.className = 'fw-bold text-success fs-5';
+        anAbsentEl.textContent = anStat.absent_count;
+        anAbsentEl.className = 'fw-bold text-danger fs-5';
+      }
     }
+  } catch (err) {
+    console.error('Error updating session stats cards:', err);
   }
 };
 
@@ -177,10 +181,7 @@ export async function initOperationsDashboard(expectedRole) {
     supabase.rpc('authorized_bus_records'),
     supabase.rpc('attendance_dashboard_summary'),
   ]);
-  if (busesResult.error || summaryResult.error) {
-    showToast('Dashboard data could not be loaded. Please refresh.', 'danger');
-    return;
-  }
+  
   const buses = busesResult.data ?? [];
   const summary = summaryResult.data?.[0] ?? { student_count_total: 0, student_count_active: 0, student_count_pending: 0, bus_count: 0, present_today: 0, morning_checkins: 0, evening_checkins: 0 };
   text('stat-total-students', summary.student_count_total ?? 0);
@@ -191,7 +192,11 @@ export async function initOperationsDashboard(expectedRole) {
   if (document.getElementById('stat-morning-checkins')) text('stat-morning-checkins', summary.morning_checkins ?? 0);
   if (document.getElementById('stat-evening-checkins')) text('stat-evening-checkins', summary.evening_checkins ?? 0);
 
-  await updateSessionStatsCards(profile, summary.student_count_active ?? 0);
+  try {
+    await updateSessionStatsCards(profile, summary.student_count_active ?? 0);
+  } catch (err) {
+    console.error('Failed to update session stats cards:', err);
+  }
 
   const myBus = buses.find(b => b.id === profile.bus_id);
   const busBadgeEl = document.getElementById('header-bus-badge');
