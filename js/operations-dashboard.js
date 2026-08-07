@@ -68,64 +68,7 @@ const addOption = (select, value, label) => {
   const option = document.createElement('option'); option.value = value; option.textContent = label; select.append(option);
 };
 
-const renderSessionStatus = async (buses) => {
-  const { data: logs, error } = await supabase.rpc('authorized_email_logs');
-  const sessions = logs ?? [];
 
-  const morningCount = sessions.filter(s => s.session_type === 'Morning' && s.email_status === 'sent').length;
-  const eveningCount = sessions.filter(s => s.session_type === 'Evening' && s.email_status === 'sent').length;
-  const totalCount = sessions.filter(s => s.email_status === 'sent').length;
-
-  if (document.getElementById('stat-email-sent-total')) text('stat-email-sent-total', totalCount);
-  if (document.getElementById('stat-email-morning')) text('stat-email-morning', morningCount);
-  if (document.getElementById('stat-email-evening')) text('stat-email-evening', eveningCount);
-
-  const cardToggle = document.getElementById('card-email-log-summary');
-  const emailLogSection = document.getElementById('email-log-section');
-  const closeBtn = document.getElementById('btn-close-email-log');
-  
-  if (cardToggle && emailLogSection) {
-    cardToggle.onclick = () => emailLogSection.classList.toggle('d-none');
-  }
-  if (closeBtn && emailLogSection) {
-    closeBtn.onclick = () => emailLogSection.classList.add('d-none');
-  }
-
-  const body = document.getElementById('session-status-list');
-  if (!body) return;
-
-  if (error || !sessions.length) {
-    const empty = row(['No QR emails sent today yet.']);
-    empty.firstElementChild.colSpan = 5;
-    body.replaceChildren(empty);
-    return;
-  }
-
-  body.replaceChildren(...sessions.map(session => {
-    const busLabel = session.bus_number ? `Bus ${session.bus_number}` : 'Unknown Bus';
-    const timeLabel = new Date(session.created_at).toLocaleTimeString('en-IN', { timeStyle: 'short' });
-    
-    let statusHtml = '';
-    if (session.email_status === 'sent') {
-      statusHtml = '<span class="badge bg-success">Sent</span>';
-    } else if (session.email_status === 'failed') {
-      statusHtml = '<span class="badge bg-danger">Failed</span>';
-    } else {
-      statusHtml = '<span class="badge bg-warning text-dark">Pending</span>';
-    }
-    
-    const tr = document.createElement('tr');
-    tr.append(
-      cell(busLabel),
-      cell(session.session_type),
-      cell(timeLabel),
-      cell(''),
-      cell(session.email_error || '—')
-    );
-    tr.children[3].innerHTML = statusHtml;
-    return tr;
-  }));
-};
 
 const renderAdminDirectory = async (buses) => {
   const { data: people, error } = await supabase.rpc('admin_people_records');
@@ -289,7 +232,6 @@ export async function initOperationsDashboard(expectedRole) {
 
   await renderStudentRoster();
   setupStudentManagementControls(buses);
-  await renderSessionStatus(buses);
   if (expectedRole === 'admin') {
     await renderAdminDirectory(buses);
     await renderSecurityDashboard();
@@ -305,8 +247,10 @@ export async function initOperationsDashboard(expectedRole) {
   qrBus.value = profile.bus_id || '';
   qrBus.disabled = true;
   document.getElementById('btn-generate-qr').onclick = async () => {
-    const emailQr = document.getElementById('check-email-qr')?.checked || false;
-    const { data, error } = await supabase.functions.invoke('attendance-api', { body: { action: 'create-session', busId: qrBus.value, sessionType: document.getElementById('select-session').value, emailQr } });
+    const sessionType = document.getElementById('select-session').value;
+    const { data, error } = await supabase.functions.invoke('attendance-api', {
+      body: { action: 'create-session', busId: qrBus.value, sessionType, emailQr: false }
+    });
     if (error || !data?.token || !data?.expiresAt) {
       let errorMessage = 'QR session could not be created.';
       if (error?.context && typeof error.context.clone === 'function') {
@@ -319,17 +263,8 @@ export async function initOperationsDashboard(expectedRole) {
     }
     const display = document.getElementById('qr-code-display'); display.replaceChildren();
     new window.QRCode(display, { text: `${location.origin}/checkin?token=${encodeURIComponent(data.token)}`, width: 220, height: 220 });
-    text('qr-url-text', `Expires ${new Date(data.expiresAt).toLocaleTimeString('en-IN')}`);
-    
-    if (emailQr) {
-      if (data.emailSent) {
-        showToast('Secure QR session created and emailed successfully.', 'success');
-      } else {
-        showToast('Secure QR session created, but the email could not be sent.', 'warning');
-      }
-    } else {
-      showToast('Secure QR session created.', 'success');
-    }
+    text('qr-url-text', `Active Session: Bus ${myBus ? myBus.bus_number : ''} (${sessionType}) • Expires ${new Date(data.expiresAt).toLocaleTimeString('en-IN')}`);
+    showToast(`Manual QR session generated for ${sessionType}!`, 'success');
   };
 }
 
