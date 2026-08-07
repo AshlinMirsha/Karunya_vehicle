@@ -234,6 +234,20 @@ export async function initOperationsDashboard(expectedRole) {
     if (error) { showToast('Attendance history could not be loaded.', 'danger'); return; }
     const records = data ?? [];
     if (document.getElementById('stat-history-count')) text('stat-history-count', records.length);
+    const printDateEl = document.getElementById('print-date-val');
+    if (printDateEl) {
+      const fromVal = document.getElementById('filter-date-from')?.value;
+      const toVal = document.getElementById('filter-date-to')?.value;
+      if (fromVal && toVal && fromVal.slice(0, 10) === toVal.slice(0, 10)) {
+        printDateEl.textContent = new Date(fromVal).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+      } else if (fromVal || toVal) {
+        const fromStr = fromVal ? new Date(fromVal).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'Beginning';
+        const toStr = toVal ? new Date(toVal).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Today';
+        printDateEl.textContent = `${fromStr} – ${toStr}`;
+      } else {
+        printDateEl.textContent = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+      }
+    }
     renderRows(records);
   };
   const setTodayDefaults = () => {
