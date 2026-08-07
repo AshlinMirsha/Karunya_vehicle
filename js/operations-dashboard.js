@@ -158,7 +158,7 @@ export async function initOperationsDashboard(expectedRole) {
     });
     if (error) { showToast('Attendance history could not be loaded.', 'danger'); return; }
     const records = data ?? [];
-    text('stat-history-count', records.length);
+    if (document.getElementById('stat-history-count')) text('stat-history-count', records.length);
     renderRows(records);
   };
   const setTodayDefaults = () => {
