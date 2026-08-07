@@ -135,6 +135,37 @@ Deno.serve(async (request) => {
           continue;
         }
 
+        // Check for duplicate session to avoid sending duplicate emails
+        const now = new Date();
+        const istOffset = 5.5 * 60 * 60 * 1000;
+        const istTime = new Date(now.getTime() + istOffset);
+        
+        const startOfDay = new Date(istTime);
+        startOfDay.setUTCHours(0, 0, 0, 0);
+        const startUtc = new Date(startOfDay.getTime() - istOffset);
+        
+        const endOfDay = new Date(istTime);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+        const endUtc = new Date(endOfDay.getTime() - istOffset);
+
+        const { data: existingSession } = await database
+          .from('attendance_sessions')
+          .select('id, email_status')
+          .eq('bus_id', bus.id)
+          .eq('session_type', sessionType)
+          .gte('created_at', startUtc.toISOString())
+          .lte('created_at', endUtc.toISOString())
+          .maybeSingle();
+
+        if (existingSession) {
+          if (existingSession.email_status === 'sent') {
+            console.log(`Email already successfully sent today for Bus ${bus.bus_number} ${sessionType}`);
+            continue;
+          }
+          // Delete failed/pending duplicate from database before retrying
+          await database.from('attendance_sessions').delete().eq('id', existingSession.id);
+        }
+
         // Generate signed token to enforce server-side tamper-free check
         const randomPart = crypto.randomUUID().replaceAll('-', '');
         const signaturePart = (await sessionHash(`${randomPart}:${bus.id}:${sessionType}`)).slice(0, 32);
