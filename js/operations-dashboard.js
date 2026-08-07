@@ -192,8 +192,10 @@ export async function initOperationsDashboard(expectedRole) {
     return;
   }
   const buses = busesResult.data ?? [];
-  const summary = summaryResult.data?.[0] ?? { student_count: 0, bus_count: 0, present_today: 0, morning_checkins: 0, evening_checkins: 0 };
-  text('stat-total-students', summary.student_count ?? 0);
+  const summary = summaryResult.data?.[0] ?? { student_count_total: 0, student_count_active: 0, student_count_pending: 0, bus_count: 0, present_today: 0, morning_checkins: 0, evening_checkins: 0 };
+  text('stat-total-students', summary.student_count_total ?? 0);
+  if (document.getElementById('stat-students-active')) text('stat-students-active', summary.student_count_active ?? 0);
+  if (document.getElementById('stat-students-pending')) text('stat-students-pending', summary.student_count_pending ?? 0);
   if (document.getElementById('stat-active-buses')) text('stat-active-buses', summary.bus_count ?? buses.length);
   text('stat-today-attendance', summary.present_today ?? 0);
   if (document.getElementById('stat-morning-checkins')) text('stat-morning-checkins', summary.morning_checkins ?? 0);
