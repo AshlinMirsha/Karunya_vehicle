@@ -376,7 +376,6 @@ export async function initOperationsDashboard(expectedRole) {
   if (!canGenerateQr) return;
   const qrBus = document.getElementById('select-qr-bus');
   qrBus.replaceChildren();
-  const myBus = buses.find(b => b.id === profile.bus_id);
   if (myBus) {
     addOption(qrBus, myBus.id, `Bus ${myBus.bus_number} — ${myBus.route}`);
   }
