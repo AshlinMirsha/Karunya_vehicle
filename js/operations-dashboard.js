@@ -3,597 +3,518 @@ import { renderNavbar } from '../components/navbar.js';
 import { showToast } from '../components/toast.js';
 import { rememberProtectedRedirect } from './auth.js';
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-const text = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = String(value ?? ''); };
-const cell = (value) => { const td = document.createElement('td'); td.textContent = String(value ?? '—'); return td; };
-const row = (values) => { const tr = document.createElement('tr'); values.forEach((v) => tr.append(cell(v))); return tr; };
+const text = (id, value) => { const element = document.getElementById(id); if (element) element.textContent = String(value); };
+const cell = (value) => { const element = document.createElement('td'); element.textContent = String(value ?? '—'); return element; };
+const row = (values) => { const element = document.createElement('tr'); values.forEach((value) => element.append(cell(value))); return element; };
+const dateValue = (value) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
-// ─── Live location tracking ────────────────────────────────────────────────
-let coordinatorLocationWatchId = null;
-let lastReportedCoordinates = null;
-let lastReportedTimestamp = 0;
-
-function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
-  const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-function stopLiveLocationTracking() {
-  if (coordinatorLocationWatchId !== null) {
-    navigator.geolocation.clearWatch(coordinatorLocationWatchId);
-    coordinatorLocationWatchId = null;
-    lastReportedCoordinates = null;
-    lastReportedTimestamp = 0;
-  }
-}
-function startLiveLocationTracking(busId) {
-  stopLiveLocationTracking();
-  if (!navigator.geolocation) { showToast('Geolocation is not supported by your browser.', 'danger'); return; }
-  coordinatorLocationWatchId = navigator.geolocation.watchPosition(
-    async (position) => {
-      const { latitude, longitude } = position.coords;
-      const now = Date.now();
-      if (lastReportedCoordinates) {
-        const dist = calculateDistanceMeters(lastReportedCoordinates.latitude, lastReportedCoordinates.longitude, latitude, longitude);
-        if (dist < 10 && now - lastReportedTimestamp < 15000) return;
-      }
-      try {
-        const { error } = await supabase.functions.invoke('attendance-api', { body: { action: 'update-coordinator-location', busId, latitude, longitude } });
-        if (error) throw error;
-        lastReportedCoordinates = { latitude, longitude };
-        lastReportedTimestamp = now;
-      } catch { showToast('Unable to share live location with server.', 'warning'); }
-    },
-    (error) => {
-      const msgs = { [error.PERMISSION_DENIED]: 'Location permission required.', [error.POSITION_UNAVAILABLE]: 'GPS unavailable.', [error.TIMEOUT]: 'GPS request timed out.' };
-      showToast(msgs[error.code] || 'Error tracking location.', 'danger');
-    },
-    { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
-  );
-}
-window.addEventListener('beforeunload', stopLiveLocationTracking);
-
-// ─── Date helpers ─────────────────────────────────────────────────────────
-const getTodayISTDateStr = () => {
-  // Get current date in IST (UTC+5:30)
+const getTodayDateStr = () => {
   const now = new Date();
-  const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
-  return ist.toISOString().slice(0, 10);
+  const tzOffset = now.getTimezoneOffset() * 60000;
+  return new Date(now - tzOffset).toISOString().slice(0, 10);
 };
-
-// Bug fix: use T23:59:59 not T23:59 to avoid off-by-one excluding late-night sessions
-const setTodayDefaults = () => {
-  const localDate = getTodayISTDateStr();
-  const fromEl = document.getElementById('filter-date-from');
-  const toEl   = document.getElementById('filter-date-to');
-  if (fromEl) fromEl.value = `${localDate}T00:00`;
-  if (toEl)   toEl.value   = `${localDate}T23:59:59`;
-};
-
-const addOption = (select, value, label) => {
-  const opt = document.createElement('option');
-  opt.value = value;
-  opt.textContent = label;
-  select.append(opt);
-};
-
-// ─── Attendance status cell ───────────────────────────────────────────────
-const getTodayDateStr = () => getTodayISTDateStr();
 
 const statusCell = (status, time, lat, lon, sessionDateStr) => {
   const td = document.createElement('td');
   if (status === 'PRESENT') {
     const timeText = time ? new Date(time).toLocaleTimeString('en-IN', { timeStyle: 'short' }) : '';
-    td.innerHTML = `PRESENT <span class="text-muted small">(${timeText})</span>` +
-      (lat && lon ? ` <a href="https://maps.google.com/?q=${lat},${lon}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-info ms-2 py-0 px-2" style="font-size:0.75rem;border-color:rgba(var(--bs-info-rgb),.3)">Map</a>` : '');
+    td.innerHTML = `PRESENT <span class="text-muted small">(${timeText})</span> <a href="https://maps.google.com/?q=${lat},${lon}" target="_blank" class="btn btn-sm btn-outline-info ms-2 py-0 px-2" style="font-size: 0.75rem; border-color: rgba(var(--bs-info-rgb), 0.3);">View map</a>`;
   } else if (status === 'ABSENT') {
     td.innerHTML = `<span class="text-danger">ABSENT</span>`;
   } else {
-    td.innerHTML = sessionDateStr === getTodayDateStr()
-      ? `<span class="text-muted small fst-italic">Coming soon</span>`
-      : '—';
+    if (sessionDateStr === getTodayDateStr()) {
+      td.innerHTML = `<span class="text-muted small fst-italic">Coming soon</span>`;
+    } else {
+      td.textContent = '—';
+    }
   }
   return td;
 };
 
-// ─── Attendance table renderer (Bug fix: colSpan = 7) ────────────────────
 const renderRows = (records) => {
   const body = document.getElementById('attendance-list');
-  if (!body) return;
   if (!records.length) {
     const empty = row(['No attendance records match these filters.']);
-    empty.firstElementChild.colSpan = 7; // ← fixed from 6
+    empty.firstElementChild.colSpan = 6;
     body.replaceChildren(empty);
     return;
   }
-  body.replaceChildren(...records.map((r) => {
+  body.replaceChildren(...records.map((record) => {
     const tr = document.createElement('tr');
     tr.append(
-      cell(r.full_name || 'Unnamed'),
-      cell(r.register_number || '—'),
-      cell(`Bus ${r.bus_number}`),
-      cell(r.session_date ? new Date(r.session_date).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : '—'),
-      statusCell(r.morning_status, r.morning_checked_in_at, r.morning_latitude, r.morning_longitude, r.session_date),
-      statusCell(r.evening_status, r.evening_checked_in_at, r.evening_latitude, r.evening_longitude, r.session_date),
-      statusCell(r.special_status, r.special_checked_in_at, r.special_latitude, r.special_longitude, r.session_date)
+      cell(record.full_name || 'Unnamed student'),
+      cell(record.register_number || '—'),
+      cell(`Bus ${record.bus_number}`),
+      cell(record.session_date ? new Date(record.session_date).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : '—'),
+      statusCell(record.morning_status, record.morning_checked_in_at, record.morning_latitude, record.morning_longitude, record.session_date),
+      statusCell(record.evening_status, record.evening_checked_in_at, record.evening_latitude, record.evening_longitude, record.session_date),
+      statusCell(record.special_status, record.special_checked_in_at, record.special_latitude, record.special_longitude, record.session_date)
     );
     return tr;
   }));
 };
 
-// ─── Email delivery log (for both admin and coordinator) ──────────────────
-const renderSessionStatus = async () => {
-  const body = document.getElementById('session-status-list');
-  const { data: sessions, error } = await supabase.rpc('authorized_session_email_logs');
+const addOption = (select, value, label) => {
+  const option = document.createElement('option'); option.value = value; option.textContent = label; select.append(option);
+};
 
-  if (error) {
-    if (body) body.innerHTML = `<tr><td colspan="5" class="text-muted text-center py-2">Could not load email log.</td></tr>`;
+const renderSessionStatus = async (buses) => {
+  const now = new Date();
+  const tzOffset = now.getTimezoneOffset() * 60000;
+  const localISODate = new Date(now - tzOffset).toISOString().slice(0, 10);
+  
+  const { data: sessions, error } = await supabase
+    .from('attendance_sessions')
+    .select('id, bus_id, session_type, created_at, email_status, email_error')
+    .gte('created_at', `${localISODate}T00:00:00Z`)
+    .order('created_at', { ascending: false });
+    
+  if (error) return;
+
+  const section = document.createElement('section');
+  section.className = 'glass-panel p-4 mt-4';
+  section.innerHTML = `
+    <h2 class="h5 fw-bold mb-1">Today's QR Email Delivery Status</h2>
+    <p class="text-muted small mb-3">Status of QR emails sent to coordinators today.</p>
+    <div class="table-responsive">
+      <table class="table table-dark-custom align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Bus</th>
+            <th>Session</th>
+            <th>Email Status</th>
+            <th>Error Info</th>
+          </tr>
+        </thead>
+        <tbody id="session-status-list"></tbody>
+      </table>
+    </div>
+  `;
+  
+  const main = document.querySelector('main');
+  // insert before the first glass-panel section that is not the main stats row
+  main.insertBefore(section, main.querySelector('section.glass-panel'));
+  
+  const body = section.querySelector('#session-status-list');
+  if (!sessions || sessions.length === 0) {
+    const empty = row(['No QR sessions generated today yet.']);
+    empty.firstElementChild.colSpan = 5;
+    body.replaceChildren(empty);
     return;
   }
-
-  // Calculate today's sent email breakdown for Morning and Evening
-  const todayIST = getTodayISTDateStr();
-  const todaySessions = (sessions ?? []).filter((s) => {
-    const sDateStr = new Date(s.created_at).toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' });
-    return sDateStr === todayIST;
-  });
-
-  const morningSent = todaySessions.filter((s) => s.session_type === 'Morning' && s.email_status === 'sent').length;
-  const eveningSent = todaySessions.filter((s) => s.session_type === 'Evening' && s.email_status === 'sent').length;
-  const totalSent   = todaySessions.filter((s) => s.email_status === 'sent').length;
-
-  text('stat-email-sent-total', `${totalSent}`);
-  text('stat-email-morning',    `${morningSent} sent`);
-  text('stat-email-evening',    `${eveningSent} sent`);
-
-  if (!body) return;
-  if (!sessions?.length) {
-    body.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">No QR sessions generated yet.</td></tr>`;
-    return;
-  }
-
-  body.replaceChildren(...sessions.map((session) => {
-    const busLabel = session.bus_number ? `Bus ${session.bus_number}` : 'Unknown';
-    const coordEmail = session.coordinator_email || '—';
-    const timeLabel = new Date(session.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', timeStyle: 'short', dateStyle: 'short' });
-    const statusBadge =
-      session.email_status === 'sent'    ? `<span class="badge bg-success">Sent</span>` :
-      session.email_status === 'failed'  ? `<span class="badge bg-danger" title="${session.email_error ?? ''}">Failed</span>` :
-                                           `<span class="badge bg-warning text-dark">Pending</span>`;
+  
+  body.replaceChildren(...sessions.map(session => {
+    const bus = buses.find(b => b.id === session.bus_id);
+    const busLabel = bus ? `Bus ${bus.bus_number}` : 'Unknown Bus';
+    const timeLabel = new Date(session.created_at).toLocaleTimeString('en-IN', { timeStyle: 'short' });
+    
+    let statusHtml = '';
+    if (session.email_status === 'sent') {
+      statusHtml = '<span class="badge bg-success">Sent</span>';
+    } else if (session.email_status === 'failed') {
+      statusHtml = '<span class="badge bg-danger">Failed</span>';
+    } else {
+      statusHtml = '<span class="badge bg-warning text-dark">Pending</span>';
+    }
+    
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${busLabel}</td><td>${session.session_type}</td><td>${timeLabel}</td><td class="small">${coordEmail}</td><td>${statusBadge}${session.email_error ? `<br><small class="text-danger">${session.email_error.slice(0, 80)}</small>` : ''}</td>`;
+    tr.append(
+      cell(timeLabel),
+      cell(busLabel),
+      cell(session.session_type),
+      cell(''),
+      cell(session.email_error || '—')
+    );
+    tr.children[3].innerHTML = statusHtml;
     return tr;
   }));
 };
 
-const initEmailLogToggle = () => {
-  const card = document.getElementById('card-email-log-summary');
-  const section = document.getElementById('email-log-section');
-  const closeBtn = document.getElementById('btn-close-email-log');
-
-  if (card && section) {
-    card.addEventListener('click', () => {
-      section.classList.toggle('d-none');
-      if (!section.classList.contains('d-none')) {
-        section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    });
-  }
-  if (closeBtn && section) {
-    closeBtn.addEventListener('click', () => {
-      section.classList.add('d-none');
-    });
-  }
-};
-
-
-// ─── Admin: people directory ──────────────────────────────────────────────
 const renderAdminDirectory = async (buses) => {
   const { data: people, error } = await supabase.rpc('admin_people_records');
-  if (error) return showToast('Directory could not be loaded.', 'danger');
+  if (error) return showToast('Student and coordinator records could not be loaded.', 'danger');
   const section = document.createElement('section');
-  section.className = 'glass-panel p-4 mt-4 mb-4';
-  section.innerHTML = `
-    <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
-      <div><h2 class="h5 fw-bold mb-1">People &amp; bus assignments</h2><p class="text-muted small mb-0">All students, coordinators, and their bus details.</p></div>
-      <div class="d-flex gap-2">
-        <select class="form-select" id="directory-role">
-          <option value="">All roles</option><option value="student">Students</option>
-          <option value="coordinator">Coordinators</option><option value="admin">Admins</option>
-        </select>
-        <select class="form-select" id="directory-bus"><option value="">All buses</option></select>
-      </div>
-    </div>
-    <div class="table-responsive">
-      <table class="table table-dark-custom align-middle mb-0">
-        <thead><tr><th>Role</th><th>Name</th><th>Reg. No.</th><th>Email</th><th>Bus</th><th>Route</th><th>Status</th></tr></thead>
-        <tbody id="directory-list"></tbody>
-      </table>
-    </div>`;
+  section.className = 'glass-panel p-4 mt-4';
+  section.innerHTML = `<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3"><div><h2 class="h5 fw-bold mb-1">People and bus assignments</h2><p class="text-muted small mb-0">Students, coordinators, and their assigned bus details.</p></div><div class="d-flex gap-2"><select class="form-select" id="directory-role"><option value="">All people</option><option value="student">Students</option><option value="coordinator">Coordinators</option><option value="admin">Admins</option></select><select class="form-select" id="directory-bus"><option value="">All buses</option></select></div></div><div class="table-responsive"><table class="table table-dark-custom align-middle mb-0"><thead><tr><th>Role</th><th>Name</th><th>Register number</th><th>Email</th><th>Bus</th><th>Route</th><th>Status</th></tr></thead><tbody id="directory-list"></tbody></table></div>`;
   document.querySelector('main').append(section);
   const roleFilter = section.querySelector('#directory-role');
-  const busFilter  = section.querySelector('#directory-bus');
-  buses.forEach((b) => addOption(busFilter, b.id, `Bus ${b.bus_number}`));
+  const busFilter = section.querySelector('#directory-bus');
+  buses.forEach((bus) => addOption(busFilter, bus.id, `Bus ${bus.bus_number}`));
   const draw = () => {
-    const filtered = (people ?? []).filter((p) =>
-      (!roleFilter.value || p.role === roleFilter.value) &&
-      (!busFilter.value  || p.bus_id === busFilter.value)
-    );
-    const tbody = section.querySelector('#directory-list');
+    const filtered = (people ?? []).filter((person) => (!roleFilter.value || person.role === roleFilter.value) && (!busFilter.value || person.bus_id === busFilter.value));
+    const body = section.querySelector('#directory-list');
     if (!filtered.length) {
-      const e = row(['No people match.']); e.firstElementChild.colSpan = 7; tbody.replaceChildren(e); return;
+      const empty = row(['No people match these filters.']); empty.firstElementChild.colSpan = 7; body.replaceChildren(empty); return;
     }
-    tbody.replaceChildren(...filtered.map((p) => row([
-      p.role, p.full_name || '—', p.register_number || '—', p.email,
-      p.bus_number ? `Bus ${p.bus_number}` : 'Unassigned', p.route || '—', p.status,
+    body.replaceChildren(...filtered.map((person) => row([
+      person.role, person.full_name || '—', person.register_number || '—', person.email, person.bus_number ? `Bus ${person.bus_number}` : 'Unassigned', person.route || '—', person.status,
     ])));
   };
-  roleFilter.addEventListener('change', draw);
-  busFilter.addEventListener('change', draw);
-  draw();
+  roleFilter.addEventListener('change', draw); busFilter.addEventListener('change', draw); draw();
 };
 
-// ─── Coordinator: student roster ──────────────────────────────────────────
 const renderStudentRoster = async () => {
   const { data: students, error } = await supabase.rpc('authorized_student_records');
-  if (error) return showToast('Student roster could not be loaded.', 'danger');
+  if (error) return showToast('Assigned student roster could not be loaded.', 'danger');
   const section = document.createElement('section');
-  section.className = 'glass-panel p-4 mt-4 mb-4';
-  section.innerHTML = `<h2 class="h5 fw-bold mb-1">Assigned students</h2>
-    <p class="text-muted small mb-3">Active students and those awaiting first sign-in.</p>
-    <div class="table-responsive">
-      <table class="table table-dark-custom align-middle mb-0">
-        <thead><tr><th>Name</th><th>Reg. No.</th><th>Email</th><th>Bus</th><th>Status</th></tr></thead>
-        <tbody id="student-roster-list"></tbody>
-      </table>
-    </div>`;
+  section.className = 'glass-panel p-4 mt-4';
+  section.innerHTML = '<h2 class="h5 fw-bold mb-1">Assigned students</h2><p class="text-muted small mb-3">Active students and pre-assigned students awaiting their first sign-in.</p><div class="table-responsive"><table class="table table-dark-custom align-middle mb-0"><thead><tr><th>Name</th><th>Register number</th><th>Email</th><th>Bus</th><th>Status</th></tr></thead><tbody id="student-roster-list"></tbody></table></div>';
   document.querySelector('main').append(section);
-  const tbody = section.querySelector('#student-roster-list');
+  const body = section.querySelector('#student-roster-list');
   if (!(students ?? []).length) {
-    const e = row(['No students assigned.']); e.firstElementChild.colSpan = 5; tbody.replaceChildren(e); return;
+    const empty = row(['No students are assigned to this bus.']); empty.firstElementChild.colSpan = 5; body.replaceChildren(empty); return;
   }
-  tbody.replaceChildren(...students.map((s) => {
-    const statusBadge = s.status === 'active'
-      ? `<span class="badge bg-success">Active</span>`
-      : `<span class="badge bg-warning text-dark">${s.status}</span>`;
-    const tr = row([s.full_name || '—', s.register_number || '—', s.email, `Bus ${s.bus_number}`]);
-    const statusTd = document.createElement('td');
-    statusTd.innerHTML = statusBadge;
-    tr.append(statusTd);
-    return tr;
-  }));
+  body.replaceChildren(...students.map((student) => row([
+    student.full_name || '—', student.register_number || '—', student.email, `Bus ${student.bus_number}`, student.status,
+  ])));
 };
 
-// ─── Admin: student management actions ───────────────────────────────────
-const initAdminStudentManagement = (buses) => {
-  // Populate bus dropdowns in the admin management forms
-  const busSelects = ['add-student-bus', 'move-student-bus', 'add-coord-bus'];
-  busSelects.forEach((id) => {
-    const sel = document.getElementById(id);
-    if (!sel) return;
-    sel.replaceChildren();
-    addOption(sel, '', 'Select bus…');
-    buses.forEach((b) => addOption(sel, b.id, `Bus ${b.bus_number} — ${b.route}`));
-  });
-
-  const setMsg = (id, msg, isError = false) => {
-    const el = document.getElementById(id);
-    if (el) { el.textContent = msg; el.className = `mt-2 small ${isError ? 'text-danger' : 'text-success'}`; }
-  };
-
-  const invokeAdmin = async (action, body, msgId) => {
-    const { data, error } = await supabase.functions.invoke('attendance-api', { body: { action, ...body } });
-    const msg = data?.message || error?.message || (error ? 'An error occurred.' : 'Done.');
-    const isError = !!error || !data?.message?.toLowerCase().includes('success') && !data?.message?.toLowerCase().includes('successfully');
-    setMsg(msgId, msg, isError);
-    if (!isError) showToast(msg, 'success');
-    return !error;
-  };
-
-  document.getElementById('btn-add-student')?.addEventListener('click', async () => {
-    const fullName      = document.getElementById('add-student-name')?.value.trim();
-    const email         = document.getElementById('add-student-email')?.value.trim().toLowerCase();
-    const registerNumber = document.getElementById('add-student-regnumber')?.value.trim().toUpperCase();
-    const busId         = document.getElementById('add-student-bus')?.value;
-    if (!fullName || !email || !registerNumber || !busId) return setMsg('add-student-msg', 'All fields are required.', true);
-    await invokeAdmin('add-student', { fullName, email, registerNumber, busId }, 'add-student-msg');
-  });
-
-  document.getElementById('btn-move-student')?.addEventListener('click', async () => {
-    const studentEmail = document.getElementById('move-student-email')?.value.trim().toLowerCase();
-    const newBusId     = document.getElementById('move-student-bus')?.value;
-    if (!studentEmail || !newBusId) return setMsg('move-student-msg', 'Email and target bus are required.', true);
-    const ok = await invokeAdmin('move-student', { studentEmail, newBusId }, 'move-student-msg');
-    if (ok) document.getElementById('move-student-email').value = '';
-  });
-
-  document.getElementById('btn-remove-student')?.addEventListener('click', async () => {
-    const studentEmail = document.getElementById('remove-student-email')?.value.trim().toLowerCase();
-    if (!studentEmail) return setMsg('remove-student-msg', 'Email is required.', true);
-    if (!confirm(`Remove ${studentEmail} from their bus? This will set them inactive.`)) return;
-    const ok = await invokeAdmin('remove-student', { studentEmail }, 'remove-student-msg');
-    if (ok) document.getElementById('remove-student-email').value = '';
-  });
-
-  document.getElementById('btn-add-coordinator')?.addEventListener('click', async () => {
-    const fullName = document.getElementById('add-coord-name')?.value.trim();
-    const email    = document.getElementById('add-coord-email')?.value.trim().toLowerCase();
-    const busId    = document.getElementById('add-coord-bus')?.value;
-    if (!fullName || !email || !busId) return setMsg('add-coord-msg', 'All fields are required.', true);
-    await invokeAdmin('add-coordinator', { fullName, email, busId }, 'add-coord-msg');
-  });
-};
-
-// ─── PDF export via Isolated Printable Frame (Fixes 8-page duplication) ───
-const initPdfExport = () => {
-  document.getElementById('btn-export-pdf')?.addEventListener('click', () => {
-    const tableElement = document.getElementById('attendance-print-table') || document.querySelector('#attendance-section table');
-    if (!tableElement) return showToast('No table data to export.', 'warning');
-
-    const busFilter = document.getElementById('filter-bus');
-    const selectedBus = busFilter?.options[busFilter.selectedIndex]?.text || 'All Buses';
-    const dateFrom = document.getElementById('filter-date-from')?.value || 'Not set';
-    const dateTo = document.getElementById('filter-date-to')?.value || 'Not set';
-    const status = document.getElementById('filter-status')?.value || 'Present & Absent';
-    const totalCount = document.getElementById('stat-history-count')?.textContent || '0';
-
-    // Clone table and clean up links/buttons for PDF
-    const clonedTable = tableElement.cloneNode(true);
-    clonedTable.querySelectorAll('a, button').forEach((el) => {
-      if (el.tagName === 'A') el.replaceWith(document.createTextNode(el.textContent));
-      else el.remove();
-    });
-
-    const printFrame = document.createElement('iframe');
-    printFrame.style.position = 'fixed';
-    printFrame.style.right = '0';
-    printFrame.style.bottom = '0';
-    printFrame.style.width = '0';
-    printFrame.style.height = '0';
-    printFrame.style.border = '0';
-
-    document.body.appendChild(printFrame);
-
-    const frameDoc = printFrame.contentWindow.document;
-    frameDoc.open();
-    frameDoc.write(`
-      <!doctype html>
-      <html>
-      <head>
-        <title>Karunya Bus Attendance Report</title>
-        <style>
-          @page { size: A4 landscape; margin: 10mm; }
-          body { font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #111111; margin: 0; padding: 0; }
-          .header { border-bottom: 2px solid #0d6efd; padding-bottom: 8px; margin-bottom: 12px; }
-          .header h1 { font-size: 16px; margin: 0 0 2px 0; color: #0d6efd; text-transform: uppercase; font-weight: bold; }
-          .header p { font-size: 11px; margin: 0; color: #444444; }
-          .meta-grid { display: flex; gap: 24px; background: #f8f9fa; padding: 8px 12px; border-radius: 4px; border: 1px solid #e9ecef; margin-bottom: 12px; font-size: 10px; }
-          .meta-item { display: flex; flex-direction: column; }
-          .meta-item span.label { font-weight: bold; color: #6c757d; font-size: 8.5px; text-transform: uppercase; margin-bottom: 2px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-          th, td { border: 1px solid #dee2e6; padding: 5px 8px; text-align: left; font-size: 9.5px; }
-          th { background-color: #f1f3f5; color: #212529; font-weight: bold; text-transform: uppercase; font-size: 9px; }
-          tr:nth-child(even) td { background-color: #f8f9fa; }
-          .footer { margin-top: 14px; font-size: 8.5px; color: #6c757d; border-top: 1px solid #dee2e6; padding-top: 6px; display: flex; justify-content: space-between; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>Karunya Institute of Technology and Sciences</h1>
-          <p>Official Vehicle Attendance Report</p>
-        </div>
-        <div class="meta-grid">
-          <div class="meta-item"><span class="label">Bus / Scope</span><strong>${selectedBus}</strong></div>
-          <div class="meta-item"><span class="label">Date Range</span><strong>${dateFrom} — ${dateTo}</strong></div>
-          <div class="meta-item"><span class="label">Status Filter</span><strong>${status}</strong></div>
-          <div class="meta-item"><span class="label">Total Records</span><strong>${totalCount}</strong></div>
-        </div>
-        ${clonedTable.outerHTML}
-        <div class="footer">
-          <span>Generated on ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</span>
-          <span>Karunya Vehicle Attendance Portal</span>
-        </div>
-      </body>
-      </html>
-    `);
-    frameDoc.close();
-
-    setTimeout(() => {
-      printFrame.contentWindow.focus();
-      printFrame.contentWindow.print();
-      setTimeout(() => {
-        if (document.body.contains(printFrame)) {
-          document.body.removeChild(printFrame);
-        }
-      }, 1000);
-    }, 250);
-  });
-};
-
-
-// ─── Main init ────────────────────────────────────────────────────────────
 export async function initOperationsDashboard(expectedRole) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) { rememberProtectedRedirect(); return location.replace('/'); }
   const { data: { user } } = await supabase.auth.getUser();
   const { data: profile, error: profileError } = await supabase.rpc('current_app_profile').single();
-  if (!user || profileError || !profile?.role) {
-    showToast('Your profile could not be verified. Please sign in again.', 'danger'); return;
-  }
-  if (profile.role !== expectedRole) {
-    return location.replace(profile.role === 'admin' ? '/admin' : profile.role === 'coordinator' ? '/coordinator' : '/student');
-  }
+  if (!user || profileError || !profile?.role) { showToast('Your profile could not be verified. Please sign in again.', 'danger'); return; }
+  if (profile.role !== expectedRole) return location.replace(profile.role === 'admin' ? '/admin' : profile.role === 'coordinator' ? '/coordinator' : '/student');
 
   renderNavbar(user, expectedRole === 'admin' ? 'Admin' : 'Coordinator');
   document.body.classList.add('role-authorized');
-
   const canGenerateQr = expectedRole === 'coordinator';
   document.getElementById('qr-panel')?.toggleAttribute('hidden', !canGenerateQr);
-  // Admin-only management panel
-  document.getElementById('admin-student-mgmt')?.toggleAttribute('hidden', expectedRole !== 'admin');
 
   const [busesResult, summaryResult] = await Promise.all([
     supabase.rpc('authorized_bus_records'),
     supabase.rpc('attendance_dashboard_summary'),
   ]);
   if (busesResult.error || summaryResult.error) {
-    showToast('Dashboard data could not be loaded. Please refresh.', 'danger'); return;
+    showToast('Dashboard data could not be loaded. Please refresh.', 'danger');
+    return;
   }
-
   const buses = busesResult.data ?? [];
-  const summary = summaryResult.data?.[0] ?? {};
-
-  // Updated stats — active, pending, total
-  const active  = summary.student_count_active  ?? summary.student_count ?? 0;
-  const pending = summary.student_count_pending ?? 0;
-  const total   = summary.student_count_total   ?? active;
-
-  text('stat-total-students',   total);
-  text('stat-students-active',  active);
-  text('stat-students-pending', pending);
-  text('stat-active-buses',     summary.bus_count ?? buses.length);
+  const summary = summaryResult.data?.[0] ?? { student_count: 0, bus_count: 0, present_today: 0, morning_checkins: 0, evening_checkins: 0 };
+  text('stat-total-students', summary.student_count ?? 0);
+  if (document.getElementById('stat-active-buses')) text('stat-active-buses', summary.bus_count ?? buses.length);
   text('stat-today-attendance', summary.present_today ?? 0);
-  text('stat-morning-checkins', summary.morning_checkins ?? 0);
-  text('stat-evening-checkins', summary.evening_checkins ?? 0);
+  if (document.getElementById('stat-morning-checkins')) text('stat-morning-checkins', summary.morning_checkins ?? 0);
+  if (document.getElementById('stat-evening-checkins')) text('stat-evening-checkins', summary.evening_checkins ?? 0);
 
-  // Bus filter dropdown
   const busFilter = document.getElementById('filter-bus');
-  if (busFilter) {
-    busFilter.replaceChildren();
-    addOption(busFilter, '', expectedRole === 'admin' ? 'All buses' : 'My assigned bus');
-    buses.forEach((b) => addOption(busFilter, b.id, `Bus ${b.bus_number} — ${b.route}`));
-    if (expectedRole === 'coordinator' && profile.bus_id) busFilter.value = profile.bus_id;
-  }
+  busFilter.replaceChildren();
+  addOption(busFilter, '', expectedRole === 'admin' ? 'All buses' : 'My assigned bus');
+  buses.forEach((bus) => addOption(busFilter, bus.id, `Bus ${bus.bus_number} — ${bus.route}`));
+  if (expectedRole === 'coordinator' && profile.bus_id) busFilter.value = profile.bus_id;
 
-  // Attendance history loader
   const loadHistory = async () => {
     const searchVal = document.getElementById('filter-search')?.value.trim() || null;
-    const dateToRaw = document.getElementById('filter-date-to')?.value || null;
-    // Ensure seconds are included to avoid off-by-one (Bug fix)
-    const dateTo = dateToRaw && !dateToRaw.includes(':') ? `${dateToRaw}T23:59:59` :
-                   dateToRaw && dateToRaw.match(/T\d{2}:\d{2}$/) ? `${dateToRaw}:59` : dateToRaw;
     const { data, error } = await supabase.rpc('authorized_attendance_history', {
-      p_bus_id:    busFilter?.value || null,
-      p_date_from: document.getElementById('filter-date-from')?.value || null,
-      p_date_to:   dateTo,
-      p_status:    document.getElementById('filter-status')?.value || null,
-      p_search:    searchVal,
-      p_day_type:  document.getElementById('filter-day-type')?.value || null,
+      p_bus_id: busFilter.value || null,
+      p_date_from: document.getElementById('filter-date-from').value || null,
+      p_date_to: document.getElementById('filter-date-to').value || null,
+      p_status: document.getElementById('filter-status').value || null,
+      p_search: searchVal,
+      p_day_type: document.getElementById('filter-day-type')?.value || null,
     });
     if (error) { showToast('Attendance history could not be loaded.', 'danger'); return; }
     const records = data ?? [];
     text('stat-history-count', records.length);
     renderRows(records);
   };
+  const setTodayDefaults = () => {
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const localISODate = new Date(now - tzOffset).toISOString().slice(0, 10);
+    document.getElementById('filter-date-from').value = `${localISODate}T00:00`;
+    document.getElementById('filter-date-to').value = `${localISODate}T23:59`;
+  };
 
-  // Search with debounce
   let searchTimeout;
   const searchInput = document.getElementById('filter-search');
   if (searchInput) {
     searchInput.addEventListener('input', () => {
       if (searchInput.value.trim().length > 0) {
         document.getElementById('filter-date-from').value = '';
-        document.getElementById('filter-date-to').value   = '';
+        document.getElementById('filter-date-to').value = '';
       }
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(loadHistory, 300);
     });
   }
 
-  ['filter-bus', 'filter-date-from', 'filter-date-to', 'filter-status', 'filter-day-type']
-    .forEach((id) => document.getElementById(id)?.addEventListener('change', loadHistory));
+  ['filter-bus', 'filter-date-from', 'filter-date-to', 'filter-status', 'filter-day-type'].forEach((id) => document.getElementById(id)?.addEventListener('change', loadHistory));
 
-  // Clear filters button
-  document.getElementById('btn-clear-filters')?.addEventListener('click', () => {
+  document.getElementById('btn-clear-filters').addEventListener('click', () => {
     setTodayDefaults();
-    if (document.getElementById('filter-status')) document.getElementById('filter-status').value = '';
+    document.getElementById('filter-status').value = '';
     if (searchInput) searchInput.value = '';
-    if (busFilter) busFilter.value = expectedRole === 'coordinator' ? (profile.bus_id || '') : '';
+    busFilter.value = expectedRole === 'coordinator' ? profile.bus_id : '';
     const dayType = document.getElementById('filter-day-type');
     if (dayType) dayType.value = '';
     loadHistory();
   });
 
-  // Quick filter buttons
-  document.getElementById('quick-filters')?.addEventListener('click', (e) => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    const filter = btn.dataset.filter;
-    const df = document.getElementById('filter-date-from');
-    const dt = document.getElementById('filter-date-to');
-    const st = document.getElementById('filter-status');
-    const dy = document.getElementById('filter-day-type');
-    if (filter === 'today')    { setTodayDefaults(); if (dy) dy.value = ''; }
-    else if (filter === 'weekdays') { if (df) df.value = ''; if (dt) dt.value = ''; if (dy) dy.value = 'weekday'; }
-    else if (filter === 'weekends') { if (df) df.value = ''; if (dt) dt.value = ''; if (dy) dy.value = 'weekend'; }
-    else if (filter === 'present')  { if (st) st.value = 'PRESENT'; }
-    else if (filter === 'absent')   { if (st) st.value = 'ABSENT'; }
-    loadHistory();
-  });
+  const quickFilters = document.getElementById('quick-filters');
+  if (quickFilters) {
+    quickFilters.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const filter = btn.dataset.filter;
+      
+      const df = document.getElementById('filter-date-from');
+      const dt = document.getElementById('filter-date-to');
+      const st = document.getElementById('filter-status');
+      const dy = document.getElementById('filter-day-type');
+      const search = document.getElementById('filter-search');
+      
+      // Clear specific filters when running a quick filter to ensure it works nicely
+      if (filter === 'today') {
+        setTodayDefaults();
+        if (dy) dy.value = '';
+      } else if (filter === 'weekdays') {
+        df.value = ''; dt.value = '';
+        if (dy) dy.value = 'weekday';
+      } else if (filter === 'weekends') {
+        df.value = ''; dt.value = '';
+        if (dy) dy.value = 'weekend';
+      } else if (filter === 'present') {
+        st.value = 'PRESENT';
+      } else if (filter === 'absent') {
+        st.value = 'ABSENT';
+      }
+      
+      loadHistory();
+    });
+  }
 
-  // PDF export & Email log toggle
-  initPdfExport();
-  initEmailLogToggle();
-
-  // Load data
   setTodayDefaults();
   await loadHistory();
 
-  // Email delivery log (both roles)
-  await renderSessionStatus();
-
-  // Role-specific extras
+  await renderStudentRoster();
   if (expectedRole === 'admin') {
-    initAdminStudentManagement(buses);
+    await renderSessionStatus(buses);
     await renderAdminDirectory(buses);
-  } else {
-    await renderStudentRoster();
+    await renderSecurityDashboard();
   }
 
-  // ─── QR generation (coordinator only) ──────────────────────────────
   if (!canGenerateQr) return;
   const qrBus = document.getElementById('select-qr-bus');
-  if (qrBus) {
-    qrBus.replaceChildren();
-    const myBus = buses.find((b) => b.id === profile.bus_id);
-    if (myBus) addOption(qrBus, myBus.id, `Bus ${myBus.bus_number} — ${myBus.route}`);
-    qrBus.value    = profile.bus_id || '';
-    qrBus.disabled = true;
+  qrBus.replaceChildren();
+  const myBus = buses.find(b => b.id === profile.bus_id);
+  if (myBus) {
+    addOption(qrBus, myBus.id, `Bus ${myBus.bus_number} — ${myBus.route}`);
   }
-
-  document.getElementById('btn-generate-qr')?.addEventListener('click', async () => {
-    const emailQr = document.getElementById('check-email-qr')?.checked ?? false;
-    const { data, error } = await supabase.functions.invoke('attendance-api', {
-      body: {
-        action:      'create-session',
-        busId:       qrBus.value,
-        sessionType: document.getElementById('select-session')?.value,
-        emailQr,
-      },
-    });
+  qrBus.value = profile.bus_id || '';
+  qrBus.disabled = true;
+  document.getElementById('btn-generate-qr').onclick = async () => {
+    const emailQr = document.getElementById('check-email-qr')?.checked || false;
+    const { data, error } = await supabase.functions.invoke('attendance-api', { body: { action: 'create-session', busId: qrBus.value, sessionType: document.getElementById('select-session').value, emailQr } });
     if (error || !data?.token || !data?.expiresAt) {
-      const msg = data?.message || error?.message || 'QR session could not be created.';
-      return showToast(msg, 'danger');
+      const errorMessage = error?.context?.message || data?.message || error?.message || 'QR session could not be created.';
+      return showToast(errorMessage, 'danger');
     }
-    startLiveLocationTracking(qrBus.value);
-    const dur = new Date(data.expiresAt).getTime() - Date.now();
-    if (dur > 0) setTimeout(stopLiveLocationTracking, dur);
-
-    const display = document.getElementById('qr-code-display');
-    if (display) {
-      display.replaceChildren();
-      new window.QRCode(display, { text: `${location.origin}/checkin?token=${encodeURIComponent(data.token)}`, width: 220, height: 220 });
-    }
+    const display = document.getElementById('qr-code-display'); display.replaceChildren();
+    new window.QRCode(display, { text: `${location.origin}/checkin?token=${encodeURIComponent(data.token)}`, width: 220, height: 220 });
     text('qr-url-text', `Expires ${new Date(data.expiresAt).toLocaleTimeString('en-IN')}`);
-
-    showToast(
-      emailQr ? (data.emailSent ? 'QR created and emailed.' : 'QR created, email could not be sent.') : 'Secure QR session created.',
-      emailQr && !data.emailSent ? 'warning' : 'success'
-    );
-
-    // Refresh email log after QR creation
-    await renderSessionStatus();
-  });
+    
+    if (emailQr) {
+      if (data.emailSent) {
+        showToast('Secure QR session created and emailed successfully.', 'success');
+      } else {
+        showToast('Secure QR session created, but the email could not be sent.', 'warning');
+      }
+    } else {
+      showToast('Secure QR session created.', 'success');
+    }
+  };
 }
+
+const renderSecurityDashboard = async () => {
+  const section = document.createElement('section');
+  section.className = 'glass-panel p-4 mt-4';
+  section.innerHTML = `
+    <h2 class="h5 fw-bold mb-1">Security & Storage Operations Center</h2>
+    <p class="text-muted small mb-4">Monitor system alerts, manage IP access bans, and maintain database storage capacity.</p>
+    
+    <!-- Row for Storage Warning & Purge Control -->
+    <div class="row g-4 mb-4">
+      <div class="col-md-6">
+        <div class="card bg-dark-custom text-white border-0 p-3 h-100">
+          <h6 class="fw-bold text-warning mb-2"><i class="fa-solid fa-database me-2"></i>Database Storage Capacity</h6>
+          <p class="small text-white-50 mb-3">Supabase free tier provides <strong>500 MB</strong> of database storage. As check-ins grow, consider purging historic attendance data to maintain free tier eligibility.</p>
+          <div class="progress mb-2" style="height: 10px; background: rgba(255,255,255,0.1);">
+            <div id="db-storage-progress" class="progress-bar bg-info" role="progressbar" style="width: 5%;" aria-valuenow="5" aria-valuemin="0" aria-valuemax="100"></div>
+          </div>
+          <div class="d-flex justify-content-between small text-white-50">
+            <span>Estimated usage: ~15MB</span>
+            <span>Limit: 500MB</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-6">
+        <div class="card bg-dark-custom text-white border-0 p-3 h-100">
+          <h6 class="fw-bold text-danger mb-2"><i class="fa-solid fa-trash-can me-2"></i>Purge Historic Records</h6>
+          <p class="small text-danger-emphasis mb-3"><strong>⚠️ WARNING:</strong> Export database logs via CSV from the history table above before purging. Purged data is permanently deleted.</p>
+          <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+              <input type="datetime-local" id="purge-start" class="form-control form-control-sm" placeholder="Start Date">
+            </div>
+            <div class="col-md-5">
+              <input type="datetime-local" id="purge-end" class="form-control form-control-sm" placeholder="End Date">
+            </div>
+            <div class="col-md-2">
+              <button id="btn-purge-data" class="btn btn-sm btn-danger w-100">Purge</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IP Ban Controls -->
+    <div class="row g-4 mb-4">
+      <div class="col-md-5">
+        <div class="card bg-dark-custom text-white border-0 p-3 h-100">
+          <h6 class="fw-bold text-danger mb-3"><i class="fa-solid fa-ban me-2"></i>Ban IP Address</h6>
+          <div class="input-group input-group-sm mb-3">
+            <input type="text" id="input-ban-ip" class="form-control" placeholder="Enter IP address (e.g. 192.168.1.5)">
+            <button id="btn-ban-ip" class="btn btn-danger">Ban IP</button>
+          </div>
+          <h6 class="fw-bold small text-white-50 mb-2">Banned IP List</h6>
+          <div class="overflow-y-auto" style="max-height: 150px;">
+            <ul id="banned-ip-list" class="list-group list-group-flush small bg-transparent">
+              <li class="list-group-item text-muted bg-transparent border-0 px-0">No active IP bans.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Security Intrusion & Tamper Logs -->
+      <div class="col-md-7">
+        <div class="card bg-dark-custom text-white border-0 p-3 h-100">
+          <h6 class="fw-bold text-warning mb-3"><i class="fa-solid fa-shield-halved me-2"></i>Security Alert Logs</h6>
+          <div class="table-responsive" style="max-height: 220px; overflow-y: auto;">
+            <table class="table table-dark-custom align-middle mb-0 small">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Actor / Info</th>
+                  <th>Incident Type</th>
+                  <th>Outcome</th>
+                </tr>
+              </thead>
+              <tbody id="security-alerts-list">
+                <tr><td colspan="4" class="text-center text-muted">Loading security events…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.querySelector('main').append(section);
+
+  const purgeBtn = section.querySelector('#btn-purge-data');
+  const banBtn = section.querySelector('#btn-ban-ip');
+  const ipInput = section.querySelector('#input-ban-ip');
+  const alertsBody = section.querySelector('#security-alerts-list');
+  const bannedList = section.querySelector('#banned-ip-list');
+
+  // Load Security Alerts
+  const loadAlerts = async () => {
+    const { data: alerts, error } = await supabase.rpc('get_security_alerts');
+    if (error) {
+      alertsBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Failed to load security logs.</td></tr>`;
+      return;
+    }
+    if (!alerts || alerts.length === 0) {
+      alertsBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">No security incidents logged.</td></tr>`;
+      return;
+    }
+    alertsBody.replaceChildren(...alerts.map(alert => {
+      const tr = document.createElement('tr');
+      const timeLabel = new Date(alert.created_at).toLocaleString('en-IN', { timeStyle: 'short', dateStyle: 'short' });
+      const ipSuffix = alert.ip_address ? ` [IP: ${alert.ip_address}]` : '';
+      const actorLabel = (alert.email ? `${alert.full_name || 'Student'} (${alert.email})` : 'Restricted system boundary probe') + ipSuffix;
+      
+      let badgeClass = 'bg-warning text-dark';
+      if (alert.outcome === 'tampered') badgeClass = 'bg-danger';
+      else if (alert.outcome === 'unauthorized_route') badgeClass = 'bg-danger-subtle text-danger border border-danger-subtle';
+      
+      const trContent = [
+        cell(timeLabel),
+        cell(actorLabel),
+        cell(alert.action),
+        cell('')
+      ];
+      trContent[3].innerHTML = `<span class="badge ${badgeClass}">${alert.outcome}</span>`;
+      tr.append(...trContent);
+      return tr;
+    }));
+  };
+
+  // Load Banned IPs
+  const loadBannedIps = async () => {
+    const { data: bans, error } = await supabase.from('ip_bans').select('*').order('banned_at', { ascending: false });
+    if (error || !bans || bans.length === 0) {
+      bannedList.innerHTML = `<li class="list-group-item text-muted bg-transparent border-0 px-0">No active IP bans.</li>`;
+      return;
+    }
+    bannedList.replaceChildren(...bans.map(ban => {
+      const li = document.createElement('li');
+      li.className = 'list-group-item bg-transparent text-white border-0 px-0 d-flex justify-content-between align-items-center';
+      li.innerHTML = `
+        <span><i class="fa-solid fa-circle text-danger me-2" style="font-size:0.5rem;"></i>${ban.ip} <span class="text-muted small">(${new Date(ban.banned_at).toLocaleDateString('en-IN')})</span></span>
+        <button class="btn btn-xs btn-outline-danger py-0 px-2 small-unban" data-ip="${ban.ip}">Unban</button>
+      `;
+      li.querySelector('.small-unban').onclick = async () => {
+        const { error: delErr } = await supabase.from('ip_bans').delete().eq('ip', ban.ip);
+        if (delErr) {
+          showToast('Could not unban IP.', 'danger');
+        } else {
+          showToast(`IP ${ban.ip} unbanned successfully.`, 'success');
+          loadBannedIps();
+        }
+      };
+      return li;
+    }));
+  };
+
+  // Ban IP trigger
+  banBtn.onclick = async () => {
+    const ip = ipInput.value.trim();
+    if (!ip) return showToast('Please enter a valid IP address.', 'warning');
+    const { error } = await supabase.from('ip_bans').insert({ ip });
+    if (error) {
+      showToast('Could not ban IP address (possibly already banned).', 'danger');
+    } else {
+      showToast(`IP ${ip} banned successfully.`, 'success');
+      ipInput.value = '';
+      loadBannedIps();
+    }
+  };
+
+  // Purge historic records trigger
+  purgeBtn.onclick = async () => {
+    const startVal = section.querySelector('#purge-start').value;
+    const endVal = section.querySelector('#purge-end').value;
+    if (!startVal || !endVal) return showToast('Please select both start and end date ranges for purging.', 'warning');
+    
+    if (!confirm('Are you absolutely sure you want to permanently delete all attendance records in this range? Ensure you exported them to CSV first.')) return;
+    
+    purgeBtn.disabled = true;
+    const { data: result, error } = await supabase.rpc('delete_attendance_range', { p_start_date: new Date(startVal).toISOString(), p_end_date: new Date(endVal).toISOString() });
+    
+    purgeBtn.disabled = false;
+    if (error) {
+      showToast('Purging failed: ' + error.message, 'danger');
+    } else {
+      const counts = result?.[0] ?? { deleted_attendance: 0, deleted_sessions: 0 };
+      showToast(`Purged ${counts.deleted_attendance} attendance records and ${counts.deleted_sessions} sessions successfully.`, 'success');
+      section.querySelector('#purge-start').value = '';
+      section.querySelector('#purge-end').value = '';
+    }
+  };
+
+  // Initial runs
+  await Promise.all([loadAlerts(), loadBannedIps()]);
+};
