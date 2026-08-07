@@ -6,19 +6,19 @@
   "rewrites": [
     {
       "source": "/adminpanel",
-      "destination": "https://kkbzofddkfusblyplnca.supabase.co/functions/v1/attendance-api?alert_path=adminpanel"
+      "destination": "https://kkbzofddkfusblyplnca.supabase.co/functions/v1/decoy-api?alert_path=adminpanel"
     },
     {
       "source": "/.env",
-      "destination": "https://kkbzofddkfusblyplnca.supabase.co/functions/v1/attendance-api?alert_path=env"
+      "destination": "https://kkbzofddkfusblyplnca.supabase.co/functions/v1/decoy-api?alert_path=env"
     },
     {
       "source": "/students/allstudents.csv",
-      "destination": "https://kkbzofddkfusblyplnca.supabase.co/functions/v1/attendance-api?alert_path=csv"
+      "destination": "https://kkbzofddkfusblyplnca.supabase.co/functions/v1/decoy-api?alert_path=csv"
     },
     {
       "source": "/db_backup.sql",
-      "destination": "https://kkbzofddkfusblyplnca.supabase.co/functions/v1/attendance-api?alert_path=sql"
+      "destination": "https://kkbzofddkfusblyplnca.supabase.co/functions/v1/decoy-api?alert_path=sql"
     },
     {
       "source": "/",
