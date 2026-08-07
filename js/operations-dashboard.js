@@ -908,3 +908,20 @@ const setupStudentManagementControls = (buses) => {
     };
   }
 };
+
+window.addEventListener('scroll', () => {
+  const btn = document.getElementById('btn-back-to-top');
+  if (btn) {
+    if (window.scrollY > 300) {
+      btn.classList.remove('d-none');
+    } else {
+      btn.classList.add('d-none');
+    }
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('#btn-back-to-top')) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+});

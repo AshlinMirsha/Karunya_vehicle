@@ -39,12 +39,12 @@ export function renderNavbar(user = null, activeRole = null) {
             <ul class="dropdown-menu dropdown-menu-dark glass-dropdown shadow-lg border-secondary rounded-3">
               <li>
                 <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-white-50 text-hover-white" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarAssignedStudents">
-                  <span>👥</span> Students
+                  <span>👥</span> View Students
                 </button>
               </li>
               <li>
                 <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-white-50 text-hover-white" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarStudentMgmt">
-                  <span>👤</span> Coordinators
+                  <span>⚙️</span> Edit Users
                 </button>
               </li>
             </ul>

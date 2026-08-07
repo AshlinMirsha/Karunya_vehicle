@@ -551,3 +551,94 @@ body {
   color: #ffffff !important;
 }
 
+/* Offcanvas Theme & Text Contrast Fixes */
+.offcanvas.text-bg-dark {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.offcanvas-title {
+  color: #38bdf8 !important;
+  font-weight: 700 !important;
+}
+
+.offcanvas-header .text-muted,
+.offcanvas-body .text-muted {
+  color: #94a3b8 !important;
+}
+
+.offcanvas-body table,
+.offcanvas-body .table-dark-custom {
+  color: #f8fafc !important;
+  background: transparent !important;
+}
+
+.offcanvas-body table th {
+  color: #38bdf8 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(30, 41, 59, 0.8) !important;
+}
+
+.offcanvas-body table td {
+  color: #e2e8f0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: transparent !important;
+}
+
+.offcanvas-body .card {
+  background: rgba(30, 41, 59, 0.7) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 12px !important;
+}
+
+.offcanvas-body .card h6 {
+  color: #38bdf8 !important;
+}
+
+.offcanvas-body label {
+  color: #cbd5e1 !important;
+}
+
+.offcanvas-body input.form-control,
+.offcanvas-body select.form-select {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.offcanvas-body input.form-control::placeholder {
+  color: #64748b !important;
+}
+
+/* Floating Back to Top Button */
+#btn-back-to-top {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 1050;
+  transition: all 0.3s ease;
+}
+
+#btn-back-to-top:hover {
+  background: #1d4ed8;
+  transform: translateY(-3px);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+}
+
