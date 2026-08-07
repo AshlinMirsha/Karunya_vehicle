@@ -293,7 +293,7 @@ export async function initOperationsDashboard(expectedRole) {
   buses.forEach((bus) => addOption(busFilter, bus.id, `Bus ${bus.bus_number} — ${bus.route}`));
   if (expectedRole === 'coordinator' && profile.bus_id) busFilter.value = profile.bus_id;
 
-  const loadHistory = async (isRetry = false) => {
+  const loadHistory = async () => {
     const searchVal = document.getElementById('filter-search')?.value.trim() || null;
     const dateFrom = document.getElementById('filter-date-from')?.value || null;
     const dateTo = document.getElementById('filter-date-to')?.value || null;
@@ -309,14 +309,7 @@ export async function initOperationsDashboard(expectedRole) {
     });
     if (error) { showToast('Attendance history could not be loaded.', 'danger'); return; }
 
-    let records = data ?? [];
-
-    // Fallback: If no records match today's date range, clear date filters to display all available historical sessions!
-    if (!records.length && !isRetry && !searchVal && dateFrom && dateTo) {
-      document.getElementById('filter-date-from').value = '';
-      document.getElementById('filter-date-to').value = '';
-      return loadHistory(true);
-    }
+    const records = data ?? [];
 
     if (document.getElementById('stat-history-count')) text('stat-history-count', records.length);
     const printDateEl = document.getElementById('print-date-val');
@@ -330,7 +323,7 @@ export async function initOperationsDashboard(expectedRole) {
         const toStr = toVal ? new Date(toVal).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Today';
         printDateEl.textContent = `${fromStr} – ${toStr}`;
       } else {
-        printDateEl.textContent = 'All Available Sessions';
+        printDateEl.textContent = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
       }
     }
     renderRows(records);
@@ -362,7 +355,7 @@ export async function initOperationsDashboard(expectedRole) {
         document.getElementById('filter-date-to').value = '';
         document.getElementById('filter-status').value = 'ABSENT';
       }
-      loadHistory(true);
+      loadHistory();
     });
   }
 
@@ -375,11 +368,11 @@ export async function initOperationsDashboard(expectedRole) {
         document.getElementById('filter-date-to').value = '';
       }
       clearTimeout(searchTimeout);
-      searchTimeout = setTimeout(() => loadHistory(true), 300);
+      searchTimeout = setTimeout(loadHistory, 300);
     });
   }
 
-  ['filter-bus', 'filter-date-from', 'filter-date-to', 'filter-status'].forEach((id) => document.getElementById(id)?.addEventListener('change', () => loadHistory(true)));
+  ['filter-bus', 'filter-date-from', 'filter-date-to', 'filter-status'].forEach((id) => document.getElementById(id)?.addEventListener('change', loadHistory));
 
   document.getElementById('btn-clear-filters')?.addEventListener('click', () => {
     document.getElementById('filter-date-from').value = '';
@@ -387,7 +380,7 @@ export async function initOperationsDashboard(expectedRole) {
     document.getElementById('filter-status').value = '';
     if (searchInput) searchInput.value = '';
     busFilter.value = expectedRole === 'coordinator' ? profile.bus_id : '';
-    loadHistory(true);
+    loadHistory();
   });
 
   const refreshDashboard = async () => {
