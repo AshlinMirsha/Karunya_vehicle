@@ -293,6 +293,10 @@ const populateOverrideStudentDropdown = async (profile) => {
 export async function initOperationsDashboard(expectedRole) {
   try {
     document.body.classList.add('role-authorized');
+    if (expectedRole === 'coordinator' && location.hash) {
+      history.replaceState(null, '', location.pathname);
+      window.scrollTo(0, 0);
+    }
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { rememberProtectedRedirect(); return location.replace('/'); }
     const { data: { user } } = await supabase.auth.getUser();
@@ -306,27 +310,34 @@ export async function initOperationsDashboard(expectedRole) {
     }
 
     renderNavbar(user, expectedRole === 'admin' ? 'Admin' : 'Coordinator');
-  const canGenerateQr = expectedRole === 'coordinator';
-  document.getElementById('qr-panel')?.toggleAttribute('hidden', !canGenerateQr);
+    const canGenerateQr = expectedRole === 'coordinator';
+    document.getElementById('qr-panel')?.toggleAttribute('hidden', !canGenerateQr);
 
-  const headerDateText = document.getElementById('header-date-text');
-  if (headerDateText) {
-    const today = new Date();
-    headerDateText.textContent = today.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
-  }
+    const headerDateText = document.getElementById('header-date-text');
+    if (headerDateText) {
+      const today = new Date();
+      headerDateText.textContent = today.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
+    }
 
-  const [busesResult, summaryResult] = await Promise.all([
-    supabase.rpc('authorized_bus_records'),
-    supabase.rpc('attendance_dashboard_summary'),
-  ]);
-  
-  const buses = busesResult.data ?? [];
-  const summary = summaryResult.data?.[0] ?? { student_count_total: 0, student_count_active: 0, student_count_pending: 0, bus_count: 0, present_today: 0, morning_checkins: 0, evening_checkins: 0 };
-  text('stat-total-students', summary.student_count_total ?? 0);
-  if (document.getElementById('stat-students-active')) text('stat-students-active', summary.student_count_active ?? 0);
-  if (document.getElementById('stat-students-pending')) text('stat-students-pending', summary.student_count_pending ?? 0);
-  if (document.getElementById('stat-active-buses')) text('stat-active-buses', summary.bus_count ?? buses.length);
-  if (document.getElementById('stat-today-attendance')) text('stat-today-attendance', summary.present_today ?? 0);
+    let buses = [];
+    let summary = { student_count_total: 0, student_count_active: 0, student_count_pending: 0, bus_count: 0, present_today: 0, morning_checkins: 0, evening_checkins: 0 };
+    
+    try {
+      const [busesResult, summaryResult] = await Promise.all([
+        supabase.rpc('authorized_bus_records'),
+        supabase.rpc('attendance_dashboard_summary'),
+      ]);
+      buses = busesResult.data ?? [];
+      if (summaryResult.data?.[0]) summary = summaryResult.data[0];
+    } catch (err) {
+      console.error('Error loading dashboard summary data:', err);
+    }
+
+    text('stat-total-students', summary.student_count_total ?? 0);
+    if (document.getElementById('stat-students-active')) text('stat-students-active', summary.student_count_active ?? 0);
+    if (document.getElementById('stat-students-pending')) text('stat-students-pending', summary.student_count_pending ?? 0);
+    if (document.getElementById('stat-active-buses')) text('stat-active-buses', summary.bus_count ?? buses.length);
+    if (document.getElementById('stat-today-attendance')) text('stat-today-attendance', summary.present_today ?? 0);
 
   try {
     await updateSessionStatsCards(profile, summary.student_count_active ?? 0, summary);
@@ -459,6 +470,12 @@ export async function initOperationsDashboard(expectedRole) {
     busFilter.value = expectedRole === 'coordinator' ? profile.bus_id : '';
     loadHistory();
   });
+
+  try {
+    await loadHistory();
+  } catch (err) {
+    console.error('Failed initial loadHistory call:', err);
+  }
 
   const refreshDashboard = async () => {
     try {
