@@ -1259,7 +1259,16 @@ const setupStudentManagementControls = (buses) => {
       const emailSelect = document.getElementById('override-student-select');
       const emailInput = document.getElementById('override-student-email');
       const selectedOpt = emailSelect?.options?.[emailSelect.selectedIndex];
-      const registerNumber = selectedOpt?.dataset?.reg || '';
+
+      // Extract register number from dataset OR option text (e.g. "URK25CS1225 — Roshan")
+      let registerNumber = selectedOpt?.dataset?.reg || '';
+      if (!registerNumber && selectedOpt?.textContent) {
+        const textParts = selectedOpt.textContent.split('—');
+        if (textParts.length > 1 && textParts[0].trim().toUpperCase().startsWith('URK')) {
+          registerNumber = textParts[0].trim().toUpperCase();
+        }
+      }
+
       const email = (emailInput?.value || emailSelect?.value)?.trim()?.toLowerCase();
       const sessionType = document.getElementById('override-session-type')?.value;
       const status = document.getElementById('override-status')?.value;
@@ -1282,128 +1291,126 @@ const setupStudentManagementControls = (buses) => {
       btnSubmitOverride.disabled = true;
       btnSubmitOverride.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting…';
 
-      const { data, error } = await supabase.functions.invoke('attendance-api', {
-        body: { action: 'manual-override-attendance', studentEmail: email, registerNumber, sessionType, status, remark, overrideDate }
-      });
+      // 1. Resolve student record via SECURITY DEFINER RPCs (bypasses RLS locks)
+      let studentRecord = null;
+
+      if (registerNumber) {
+        try {
+          const { data: rpcSt } = await supabase.rpc('get_student_by_register_number', { p_reg: registerNumber });
+          if (rpcSt && rpcSt.length) studentRecord = rpcSt[0];
+        } catch (e) {
+          console.warn('get_student_by_register_number RPC error:', e);
+        }
+      }
+
+      if (!studentRecord) {
+        try {
+          const { data: hist } = await supabase.rpc('authorized_attendance_history', {
+            p_bus_id: profile?.bus_id || null,
+            p_date_from: null,
+            p_date_to: null,
+            p_status: null,
+            p_search: registerNumber || email
+          });
+          if (hist?.length) {
+            const match = hist.find(r => 
+              (registerNumber && String(r.register_number).toUpperCase() === String(registerNumber).toUpperCase()) ||
+              (email && String(r.register_number).toLowerCase() === email.split('@')[0])
+            ) || hist[0];
+            if (match?.student_id) {
+              studentRecord = { id: match.student_id, bus_id: profile?.bus_id, email: match.email || email };
+            }
+          }
+        } catch (e) {
+          console.warn('authorized_attendance_history lookup error:', e);
+        }
+      }
+
+      if (!studentRecord && registerNumber) {
+        const { data: st } = await supabase.from('profiles').select('id, bus_id, role, email').eq('register_number', registerNumber).maybeSingle();
+        studentRecord = st;
+      }
+      if (!studentRecord && email) {
+        const { data: st } = await supabase.from('profiles').select('id, bus_id, role, email').eq('email', email).maybeSingle();
+        studentRecord = st;
+      }
+
+      // 2. Perform direct attendance record upsert into Supabase DB
+      let overrideRecorded = false;
+      if (studentRecord && studentRecord.id) {
+        try {
+          const targetBusId = studentRecord.bus_id || profile?.bus_id;
+          const todayStr = (overrideDate || new Date().toISOString().slice(0, 10));
+          const startOfDay = `${todayStr}T00:00:00+05:30`;
+          const endOfDay = `${todayStr}T23:59:59+05:30`;
+
+          let { data: session } = await supabase
+            .from('attendance_sessions')
+            .select('id')
+            .eq('bus_id', targetBusId)
+            .eq('session_type', sessionType)
+            .gte('created_at', startOfDay)
+            .lte('created_at', endOfDay)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!session) {
+            const { data: newS } = await supabase.from('attendance_sessions').insert({
+              bus_id: targetBusId,
+              session_type: sessionType,
+              token_hash: `manual_${Date.now()}_${Math.random()}`,
+              expires_at: `${todayStr}T23:59:59+05:30`,
+              created_by: profile?.id || user.id,
+              email_status: 'manual_override'
+            }).select('id').single();
+            session = newS;
+          }
+
+          if (session?.id) {
+            const { error: attErr } = await supabase.from('attendance').upsert({
+              session_id: session.id,
+              student_id: studentRecord.id,
+              status: status,
+              remark: remark || 'Manual Override',
+              latitude: 10.9362,
+              longitude: 76.7437,
+              checked_in_at: new Date().toISOString()
+            }, { onConflict: 'session_id,student_id' });
+
+            if (!attErr) {
+              overrideRecorded = true;
+            }
+          }
+        } catch (dbErr) {
+          console.warn('Direct database attendance override error:', dbErr);
+        }
+      }
+
+      // 3. Invoke Edge Function as secondary logger
+      const targetEmailPayload = studentRecord?.email || email;
+      const { data: apiData, error: apiErr } = await supabase.functions.invoke('attendance-api', {
+        body: { action: 'manual-override-attendance', studentEmail: targetEmailPayload, registerNumber, sessionType, status, remark, overrideDate }
+      }).catch(() => ({ data: null, error: true }));
 
       btnSubmitOverride.disabled = false;
       btnSubmitOverride.innerHTML = 'Submit Override';
 
-      if (error || !data?.message) {
-        let fallbackSuccess = false;
-        try {
-          let studentRecord = null;
-
-          // Step 1: Use SECURITY DEFINER RPC get_student_by_register_number
-          if (registerNumber) {
-            try {
-              const { data: rpcSt } = await supabase.rpc('get_student_by_register_number', { p_reg: registerNumber });
-              if (rpcSt && rpcSt.length) studentRecord = rpcSt[0];
-            } catch (e) {
-              console.warn('get_student_by_register_number RPC error:', e);
-            }
-          }
-
-          // Step 2: Use SECURITY DEFINER RPC authorized_attendance_history
-          if (!studentRecord && registerNumber) {
-            try {
-              const { data: hist } = await supabase.rpc('authorized_attendance_history', {
-                p_bus_id: profile?.bus_id || null,
-                p_date_from: null,
-                p_date_to: null,
-                p_status: null,
-                p_search: registerNumber
-              });
-              if (hist?.length) {
-                const match = hist.find(r => String(r.register_number).toUpperCase() === String(registerNumber).toUpperCase()) || hist[0];
-                if (match?.student_id) {
-                  studentRecord = { id: match.student_id, bus_id: profile?.bus_id };
-                }
-              }
-            } catch (e) {
-              console.warn('authorized_attendance_history lookup fallback error:', e);
-            }
-          }
-
-          // Step 3: Direct profiles query fallback
-          if (!studentRecord && registerNumber) {
-            const { data: st } = await supabase.from('profiles').select('id, bus_id, role, email').eq('register_number', registerNumber).maybeSingle();
-            studentRecord = st;
-          }
-          if (!studentRecord && email) {
-            const { data: st } = await supabase.from('profiles').select('id, bus_id, role, email').eq('email', email).maybeSingle();
-            studentRecord = st;
-          }
-
-          if (studentRecord && studentRecord.id) {
-            const targetBusId = studentRecord.bus_id || profile?.bus_id;
-            const todayStr = (overrideDate || new Date().toISOString().slice(0, 10));
-            const startOfDay = `${todayStr}T00:00:00+05:30`;
-            const endOfDay = `${todayStr}T23:59:59+05:30`;
-
-            let { data: session } = await supabase
-              .from('attendance_sessions')
-              .select('id')
-              .eq('bus_id', targetBusId)
-              .eq('session_type', sessionType)
-              .gte('created_at', startOfDay)
-              .lte('created_at', endOfDay)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-
-            if (!session) {
-              const { data: newS } = await supabase.from('attendance_sessions').insert({
-                bus_id: targetBusId,
-                session_type: sessionType,
-                token_hash: `manual_${Date.now()}_${Math.random()}`,
-                expires_at: `${todayStr}T23:59:59+05:30`,
-                created_by: profile?.id || user.id,
-                email_status: 'manual_override'
-              }).select('id').single();
-              session = newS;
-            }
-
-            if (session?.id) {
-              const { error: attErr } = await supabase.from('attendance').upsert({
-                session_id: session.id,
-                student_id: studentRecord.id,
-                status: status,
-                remark: remark || 'Manual Override',
-                latitude: 10.9362,
-                longitude: 76.7437,
-                checked_in_at: new Date().toISOString()
-              }, { onConflict: 'session_id,student_id' });
-
-              if (!attErr) {
-                fallbackSuccess = true;
-                const successMsg = `Manual attendance override recorded successfully for ${sessionType}!`;
-                if (msg) msg.innerHTML = `<span class="text-success">${successMsg}</span>`;
-                showToast(successMsg, 'success');
-                document.getElementById('override-remark').value = '';
-                await loadHistory();
-              }
-            }
-          }
-        } catch (fbErr) {
-          console.error('Direct fallback attendance override error:', fbErr);
-        }
-
-        if (!fallbackSuccess) {
-          let err = 'Could not record manual attendance.';
-          if (error?.context && typeof error.context.clone === 'function') {
-            const body = await error.context.clone().json().catch(() => null);
-            if (body?.message) err = body.message;
-          }
-          if (err === 'Could not record manual attendance.' && data?.message) err = data.message;
-          if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
-          showToast(err, 'danger');
-        }
-      } else {
-        if (msg) msg.innerHTML = `<span class="text-success">${data.message}</span>`;
-        showToast(data.message, 'success');
+      if (overrideRecorded || (!apiErr && apiData?.message)) {
+        const successMsg = `Manual attendance override recorded successfully for ${sessionType}!`;
+        if (msg) msg.innerHTML = `<span class="text-success">${successMsg}</span>`;
+        showToast(successMsg, 'success');
         document.getElementById('override-remark').value = '';
         await loadHistory();
+      } else {
+        let err = 'Could not record manual attendance.';
+        if (apiErr?.context && typeof apiErr.context.clone === 'function') {
+          const body = await apiErr.context.clone().json().catch(() => null);
+          if (body?.message) err = body.message;
+        }
+        if (err === 'Could not record manual attendance.' && apiData?.message) err = apiData.message;
+        if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
+        showToast(err, 'danger');
       }
     };
   }
