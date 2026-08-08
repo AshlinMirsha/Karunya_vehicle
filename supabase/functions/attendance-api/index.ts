@@ -243,11 +243,12 @@ Deno.serve(async (request) => {
       }
       const b = body as Record<string, unknown>;
       const studentEmail = (b.studentEmail as string)?.toLowerCase()?.trim() ?? '';
+      const regNo = ((b.registerNumber || b.register_number || '') as string).trim().toUpperCase();
       const status = String(b.status ?? '').toUpperCase();
       const sessionType = String(b.sessionType ?? 'Morning');
       const remark = String(b.remark ?? '').trim();
 
-      if (!isValidEmail(studentEmail)) return response(request, { message: 'A valid student email is required.' }, 400);
+      if (!studentEmail && !regNo) return response(request, { message: 'Student email or register number is required.' }, 400);
       if (status !== 'PRESENT' && status !== 'ABSENT') return response(request, { message: 'Status must be PRESENT or ABSENT.' }, 400);
       if (remark.length < 3 || remark.length > 250) {
         return response(request, { message: 'A reason/comment (3–250 characters) is required for manual override.' }, 400);
@@ -256,7 +257,20 @@ Deno.serve(async (request) => {
         return response(request, { message: 'Session type must be Morning, Evening, or Special.' }, 400);
       }
 
-      const { data: targetStudent } = await adminClient.from('profiles').select('id, bus_id, role, full_name, email').eq('email', studentEmail).single();
+      let targetStudent: any = null;
+      if (regNo) {
+        const { data } = await adminClient.from('profiles').select('id, bus_id, role, full_name, email, register_number').eq('register_number', regNo).maybeSingle();
+        targetStudent = data;
+      }
+      if (!targetStudent && studentEmail && !studentEmail.includes('@')) {
+        const { data } = await adminClient.from('profiles').select('id, bus_id, role, full_name, email, register_number').eq('register_number', studentEmail.toUpperCase()).maybeSingle();
+        targetStudent = data;
+      }
+      if (!targetStudent && studentEmail && studentEmail.includes('@')) {
+        const { data } = await adminClient.from('profiles').select('id, bus_id, role, full_name, email, register_number').eq('email', studentEmail).maybeSingle();
+        targetStudent = data;
+      }
+
       if (!targetStudent || targetStudent.role !== 'student') {
         return response(request, { message: 'Student profile not found.' }, 404);
       }

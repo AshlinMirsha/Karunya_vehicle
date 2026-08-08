@@ -332,6 +332,7 @@ const populateOverrideStudentDropdown = async (profile) => {
       studentList.forEach(s => {
         const opt = document.createElement('option');
         opt.value = s.email || `${String(s.register_number || '').toLowerCase()}@karunya.edu.in`;
+        if (s.register_number) opt.dataset.reg = s.register_number;
         const reg = s.register_number ? `${s.register_number}` : 'No Reg';
         opt.textContent = `${reg} — ${s.full_name || s.email}`;
         select.append(opt);
@@ -1226,13 +1227,15 @@ const setupStudentManagementControls = (buses) => {
     btnSubmitOverride.onclick = async () => {
       const emailSelect = document.getElementById('override-student-select');
       const emailInput = document.getElementById('override-student-email');
+      const selectedOpt = emailSelect?.options?.[emailSelect.selectedIndex];
+      const registerNumber = selectedOpt?.dataset?.reg || '';
       const email = (emailSelect?.value || emailInput?.value)?.trim()?.toLowerCase();
       const sessionType = document.getElementById('override-session-type')?.value;
       const status = document.getElementById('override-status')?.value;
       const remark = document.getElementById('override-remark')?.value?.trim();
       const msg = document.getElementById('override-msg');
 
-      if (!email) {
+      if (!email && !registerNumber) {
         showToast('Please select a student from the dropdown.', 'danger');
         if (msg) msg.innerHTML = '<span class="text-danger">Please select a student.</span>';
         return;
@@ -1249,7 +1252,7 @@ const setupStudentManagementControls = (buses) => {
       btnSubmitOverride.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting…';
 
       const { data, error } = await supabase.functions.invoke('attendance-api', {
-        body: { action: 'manual-override-attendance', studentEmail: email, sessionType, status, remark, overrideDate }
+        body: { action: 'manual-override-attendance', studentEmail: email, registerNumber, sessionType, status, remark, overrideDate }
       });
 
       btnSubmitOverride.disabled = false;
