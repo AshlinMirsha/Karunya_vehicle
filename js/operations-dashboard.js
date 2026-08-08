@@ -244,6 +244,9 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
         anAbsentEl.className = 'fw-bold text-danger fs-5';
       }
     }
+  } catch (err) {
+    console.error('Error in updateSessionStatsCards:', err);
+  }
 };
 
 const populateOverrideStudentDropdown = async (profile) => {
