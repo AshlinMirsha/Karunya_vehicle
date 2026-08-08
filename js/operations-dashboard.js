@@ -300,11 +300,35 @@ export async function initOperationsDashboard(expectedRole) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { rememberProtectedRedirect(); return location.replace('/'); }
     const { data: { user } } = await supabase.auth.getUser();
-    const { data: profile, error: profileError } = await supabase.rpc('current_app_profile').single();
-    if (!user || profileError || !profile?.role) { 
-      rememberProtectedRedirect(); 
-      return location.replace('/'); 
+    if (!user) { rememberProtectedRedirect(); return location.replace('/'); }
+
+    let profile = null;
+    try {
+      const { data: rpcProfile } = await supabase.rpc('current_app_profile').maybeSingle();
+      profile = rpcProfile;
+    } catch (e) {
+      console.warn('RPC current_app_profile failed, attempting fallback query', e);
     }
+
+    if (!profile?.role) {
+      try {
+        const { data: dbProfile } = await supabase.from('profiles').select('id, email, role, bus_id, status').eq('id', user.id).maybeSingle();
+        if (dbProfile) profile = dbProfile;
+      } catch (e) {
+        console.warn('Fallback DB profiles query failed', e);
+      }
+    }
+
+    if (!profile?.role) {
+      const metaRole = user.user_metadata?.role;
+      if (metaRole === expectedRole) {
+        profile = { id: user.id, email: user.email, role: expectedRole };
+      } else {
+        rememberProtectedRedirect();
+        return location.replace('/');
+      }
+    }
+
     if (profile.role !== expectedRole) {
       return location.replace(profile.role === 'admin' ? '/admin' : profile.role === 'coordinator' ? '/coordinator' : '/student');
     }

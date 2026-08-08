@@ -351,7 +351,7 @@ body {
 .dashboard-page .nav-tabs .nav-link.active { color: var(--dashboard-navy) !important; background: #ffffff; border: 1px solid var(--dashboard-line); border-bottom-color: #ffffff; font-weight: 700; }
 .dashboard-page .qr-wrapper { background: #f7f9fc !important; border-color: var(--dashboard-line) !important; }
 .protected-page:not(.role-authorized) main,
-.admin-page:not(.role-authorized) main { display: none; }
+.admin-page:not(.role-authorized) main { visibility: hidden; }
 
 /* Student dashboard: quiet, native-feeling surfaces without icon-font glyphs. */
 .student-dashboard { background: #f5f5f7; background-image: none; }
