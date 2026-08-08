@@ -257,90 +257,44 @@ const populateOverrideStudentDropdown = async (profile) => {
   try {
     let studentList = [];
 
-    // Stage 1: Call authorized_attendance_history RPC (SECURITY DEFINER, bypasses RLS blocking)
+    // Stage 1: Call authorized_student_records RPC (SECURITY DEFINER, pre-existing on Supabase Cloud)
     try {
-      const busIdVal = profile?.role === 'coordinator' ? profile.bus_id : null;
-      const { data: historyData } = await supabase.rpc('authorized_attendance_history', {
-        p_bus_id: busIdVal,
-        p_date_from: null,
-        p_date_to: null,
-        p_status: null,
-        p_search: null,
-      });
-
-      if (historyData?.length) {
-        const studentMap = new Map();
-        historyData.forEach(item => {
-          if (item.register_number && !studentMap.has(item.register_number)) {
-            const emailVal = (item.email && item.email.includes('@')) 
-              ? item.email 
-              : `${String(item.register_number).toLowerCase()}@karunya.edu.in`;
-            studentMap.set(item.register_number, {
-              register_number: item.register_number,
-              full_name: item.full_name,
-              email: emailVal,
-            });
-          }
-        });
-        studentList = Array.from(studentMap.values());
+      const { data: records } = await supabase.rpc('authorized_student_records');
+      if (records?.length) {
+        studentList = records.filter(r => r.register_number);
       }
     } catch (e) {
-      console.warn('RPC authorized_attendance_history student extraction error:', e);
+      console.warn('authorized_student_records RPC query error:', e);
     }
 
-    // Stage 2: Direct profiles query (for Admins or if RLS policy permits)
+    // Stage 2: Fallback to authorized_attendance_history RPC (SECURITY DEFINER, pre-existing on Supabase Cloud)
     if (!studentList.length) {
       try {
-        let query = supabase
-          .from('profiles')
-          .select('email, full_name, register_number, bus_id')
-          .eq('role', 'student')
-          .order('register_number');
+        const busIdVal = profile?.role === 'coordinator' ? profile.bus_id : null;
+        const { data: historyData } = await supabase.rpc('authorized_attendance_history', {
+          p_bus_id: busIdVal,
+          p_date_from: null,
+          p_date_to: null,
+          p_status: null,
+          p_search: null,
+        });
 
-        if (profile?.role === 'coordinator' && profile?.bus_id) {
-          query = query.eq('bus_id', profile.bus_id);
-        }
-
-        const { data: dbStudents } = await query;
-        if (dbStudents?.length) studentList = dbStudents;
-      } catch (e) {
-        console.warn('profiles query fallback error:', e);
-      }
-    }
-
-    // Stage 3: Unfiltered profiles query fallback
-    if (!studentList.length) {
-      try {
-        const { data: allStudents } = await supabase
-          .from('profiles')
-          .select('email, full_name, register_number, bus_id')
-          .eq('role', 'student')
-          .order('register_number');
-        if (allStudents?.length) studentList = allStudents;
-      } catch (e) {
-        console.warn('All students fallback query error:', e);
-      }
-    }
-
-    // Stage 4: Map exact real emails from profiles table for every student
-    try {
-      const regNos = studentList.map(s => s.register_number).filter(Boolean);
-      if (regNos.length) {
-        const { data: matchedProfiles } = await supabase
-          .from('profiles')
-          .select('register_number, email')
-          .in('register_number', regNos);
-        if (matchedProfiles?.length) {
-          const emailMap = new Map(matchedProfiles.map(p => [p.register_number, p.email]));
-          studentList.forEach(s => {
-            if (s.register_number && emailMap.has(s.register_number) && emailMap.get(s.register_number)) {
-              s.email = emailMap.get(s.register_number);
+        if (historyData?.length) {
+          const studentMap = new Map();
+          historyData.forEach(item => {
+            if (item.register_number && !studentMap.has(item.register_number)) {
+              studentMap.set(item.register_number, {
+                register_number: item.register_number,
+                full_name: item.full_name,
+                email: item.email || `${String(item.register_number).toLowerCase()}@karunya.edu.in`,
+              });
             }
           });
+          studentList = Array.from(studentMap.values());
         }
+      } catch (e) {
+        console.warn('authorized_attendance_history RPC query error:', e);
       }
-    } catch (e) {
-      console.warn('Real email mapping error:', e);
     }
 
     select.replaceChildren();
@@ -353,8 +307,10 @@ const populateOverrideStudentDropdown = async (profile) => {
     if (studentList.length) {
       studentList.forEach(s => {
         const opt = document.createElement('option');
-        opt.value = s.email || `${String(s.register_number || '').toLowerCase()}@karunya.edu.in`;
+        const realEmail = s.email || `${String(s.register_number || '').toLowerCase()}@karunya.edu.in`;
+        opt.value = realEmail;
         if (s.register_number) opt.dataset.reg = s.register_number;
+        opt.dataset.email = realEmail;
         const reg = s.register_number ? `${s.register_number}` : 'No Reg';
         opt.textContent = `${reg} — ${s.full_name || s.email}`;
         select.append(opt);
@@ -370,7 +326,7 @@ const populateOverrideStudentDropdown = async (profile) => {
     const updateAutoFilledEmail = () => {
       if (!emailInput) return;
       const selectedOpt = select.options[select.selectedIndex];
-      emailInput.value = selectedOpt?.value || '';
+      emailInput.value = selectedOpt?.value || selectedOpt?.dataset?.email || '';
     };
 
     select.onchange = updateAutoFilledEmail;
@@ -1264,7 +1220,6 @@ const setupStudentManagementControls = (buses) => {
       const emailInput = document.getElementById('override-student-email');
       const selectedOpt = emailSelect?.options?.[emailSelect.selectedIndex];
 
-      // Extract register number from dataset OR option text (e.g. "URK25CS1225 — Roshan")
       let registerNumber = selectedOpt?.dataset?.reg || '';
       if (!registerNumber && selectedOpt?.textContent) {
         const textParts = selectedOpt.textContent.split('—');
@@ -1295,118 +1250,22 @@ const setupStudentManagementControls = (buses) => {
       btnSubmitOverride.disabled = true;
       btnSubmitOverride.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting…';
 
-      // 1. Resolve student record via SECURITY DEFINER RPCs (bypasses RLS locks)
-      let studentRecord = null;
-
-      if (registerNumber) {
-        try {
-          const { data: rpcSt } = await supabase.rpc('get_student_by_register_number', { p_reg: registerNumber });
-          if (rpcSt && rpcSt.length) studentRecord = rpcSt[0];
-        } catch (e) {
-          console.warn('get_student_by_register_number RPC error:', e);
-        }
-      }
-
-      if (!studentRecord) {
-        try {
-          const { data: hist } = await supabase.rpc('authorized_attendance_history', {
-            p_bus_id: currentAppProfile?.bus_id || null,
-            p_date_from: null,
-            p_date_to: null,
-            p_status: null,
-            p_search: registerNumber || email
-          });
-          if (hist?.length) {
-            const match = hist.find(r => 
-              (registerNumber && String(r.register_number).toUpperCase() === String(registerNumber).toUpperCase()) ||
-              (email && String(r.register_number).toLowerCase() === email.split('@')[0])
-            ) || hist[0];
-            if (match?.student_id) {
-              studentRecord = { id: match.student_id, bus_id: currentAppProfile?.bus_id, email: match.email || email };
-            }
-          }
-        } catch (e) {
-          console.warn('authorized_attendance_history lookup error:', e);
-        }
-      }
-
-      if (!studentRecord && registerNumber) {
-        const { data: st } = await supabase.from('profiles').select('id, bus_id, role, email').eq('register_number', registerNumber).maybeSingle();
-        studentRecord = st;
-      }
-      if (!studentRecord && email) {
-        const { data: st } = await supabase.from('profiles').select('id, bus_id, role, email').eq('email', email).maybeSingle();
-        studentRecord = st;
-      }
-
-      // 2. Perform direct attendance record upsert into Supabase DB
-      let overrideRecorded = false;
-      if (studentRecord && studentRecord.id) {
-        try {
-          const targetBusId = studentRecord.bus_id || currentAppProfile?.bus_id;
-          const todayStr = (overrideDate || new Date().toISOString().slice(0, 10));
-          const startOfDay = `${todayStr}T00:00:00+05:30`;
-          const endOfDay = `${todayStr}T23:59:59+05:30`;
-
-          let { data: session } = await supabase
-            .from('attendance_sessions')
-            .select('id')
-            .eq('bus_id', targetBusId)
-            .eq('session_type', sessionType)
-            .gte('created_at', startOfDay)
-            .lte('created_at', endOfDay)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (!session) {
-            const { data: newS } = await supabase.from('attendance_sessions').insert({
-              bus_id: targetBusId,
-              session_type: sessionType,
-              token_hash: `manual_${Date.now()}_${Math.random()}`,
-              expires_at: `${todayStr}T23:59:59+05:30`,
-              created_by: currentAppProfile?.id || user.id,
-              email_status: 'manual_override'
-            }).select('id').single();
-            session = newS;
-          }
-
-          if (session?.id) {
-            const { error: attErr } = await supabase.from('attendance').upsert({
-              session_id: session.id,
-              student_id: studentRecord.id,
-              status: status,
-              remark: remark || 'Manual Override',
-              latitude: 10.9362,
-              longitude: 76.7437,
-              checked_in_at: new Date().toISOString()
-            }, { onConflict: 'session_id,student_id' });
-
-            if (!attErr) {
-              overrideRecorded = true;
-            }
-          }
-        } catch (dbErr) {
-          console.warn('Direct database attendance override error:', dbErr);
-        }
-      }
-
-      // 3. Invoke Edge Function as secondary logger
-      const targetEmailPayload = studentRecord?.email || email;
       const { data: apiData, error: apiErr } = await supabase.functions.invoke('attendance-api', {
-        body: { action: 'manual-override-attendance', studentEmail: targetEmailPayload, registerNumber, sessionType, status, remark, overrideDate }
+        body: {
+          action: 'manual-override-attendance',
+          studentEmail: email,
+          registerNumber,
+          sessionType,
+          status,
+          remark,
+          overrideDate
+        }
       }).catch(() => ({ data: null, error: true }));
 
       btnSubmitOverride.disabled = false;
       btnSubmitOverride.innerHTML = 'Submit Override';
 
-      if (overrideRecorded || (!apiErr && apiData?.message)) {
-        const successMsg = `Manual attendance override recorded successfully for ${sessionType}!`;
-        if (msg) msg.innerHTML = `<span class="text-success">${successMsg}</span>`;
-        showToast(successMsg, 'success');
-        document.getElementById('override-remark').value = '';
-        await loadHistory();
-      } else {
+      if (apiErr || !apiData?.message) {
         let err = 'Could not record manual attendance.';
         if (apiErr?.context && typeof apiErr.context.clone === 'function') {
           const body = await apiErr.context.clone().json().catch(() => null);
@@ -1415,6 +1274,11 @@ const setupStudentManagementControls = (buses) => {
         if (err === 'Could not record manual attendance.' && apiData?.message) err = apiData.message;
         if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
         showToast(err, 'danger');
+      } else {
+        if (msg) msg.innerHTML = `<span class="text-success">${apiData.message}</span>`;
+        showToast(apiData.message, 'success');
+        document.getElementById('override-remark').value = '';
+        await loadHistory();
       }
     };
   }
