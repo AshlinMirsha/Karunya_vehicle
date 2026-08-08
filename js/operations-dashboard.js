@@ -256,16 +256,27 @@ const populateOverrideStudentDropdown = async (profile) => {
   try {
     let query = supabase
       .from('profiles')
-      .select('email, full_name, register_number, bus_id, buses(bus_number)')
+      .select('email, full_name, register_number, bus_id')
       .eq('role', 'student')
-      .eq('status', 'active')
       .order('register_number');
 
     if (profile?.role === 'coordinator' && profile?.bus_id) {
       query = query.eq('bus_id', profile.bus_id);
     }
 
-    const { data: students } = await query;
+    let { data: students } = await query;
+
+    if ((!students || !students.length) && profile?.role === 'coordinator') {
+      const { data: fallbackStudents } = await supabase
+        .from('profiles')
+        .select('email, full_name, register_number, bus_id')
+        .eq('role', 'student')
+        .order('register_number');
+      if (fallbackStudents && fallbackStudents.length) {
+        students = fallbackStudents;
+      }
+    }
+
     select.replaceChildren();
 
     const defaultOpt = document.createElement('option');
@@ -278,8 +289,7 @@ const populateOverrideStudentDropdown = async (profile) => {
         const opt = document.createElement('option');
         opt.value = s.email;
         const reg = s.register_number ? `${s.register_number}` : 'No Reg';
-        const busStr = s.buses?.bus_number ? ` [Bus ${s.buses.bus_number}]` : '';
-        opt.textContent = `${reg} — ${s.full_name || s.email}${busStr}`;
+        opt.textContent = `${reg} — ${s.full_name || s.email}`;
         select.append(opt);
       });
     } else {
