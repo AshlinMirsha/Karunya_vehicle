@@ -22,8 +22,9 @@ export function renderNavbar(user = null, activeRole = null) {
        </div>`;
 
   const isStaff = activeRole === 'Admin' || activeRole === 'Coordinator';
-  const navItems = isStaff
-    ? `
+  let navItems = '';
+  if (activeRole === 'Admin') {
+    navItems = `
       <div class="collapse navbar-collapse justify-content-center" id="mainNavbarCollapse">
         <ul class="navbar-nav align-items-center gap-1 my-2 my-lg-0">
           <li class="nav-item">
@@ -71,8 +72,29 @@ export function renderNavbar(user = null, activeRole = null) {
           </li>
         </ul>
       </div>
-    `
-    : '';
+    `;
+  } else if (activeRole === 'Coordinator') {
+    navItems = `
+      <div class="collapse navbar-collapse justify-content-center" id="mainNavbarCollapse">
+        <ul class="navbar-nav align-items-center gap-1 my-2 my-lg-0">
+          <li class="nav-item">
+            <a class="nav-link text-white px-3 py-1 rounded-3 active fw-medium" href="#top">Dashboard</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link text-white-50 px-3 py-1 rounded-3 fw-medium text-hover-white" href="#attendance-section">Attendance</a>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link btn btn-link text-white-50 px-3 py-1 rounded-3 fw-medium text-hover-white text-decoration-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarAssignedStudents">
+              Assigned Students
+            </button>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link text-white-50 px-3 py-1 rounded-3 fw-medium text-hover-white" href="#attendance-section" onclick="document.getElementById('btn-export-excel')?.click()">Reports</a>
+          </li>
+        </ul>
+      </div>
+    `;
+  }
 
   const mobileToggler = isStaff
     ? `<button class="navbar-toggler text-white border-secondary d-lg-none ms-auto me-2 p-1" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbarCollapse" aria-controls="mainNavbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
