@@ -360,6 +360,16 @@ const populateOverrideStudentDropdown = async (profile) => {
       emptyOpt.textContent = 'No active students found';
       select.append(emptyOpt);
     }
+
+    const emailInput = document.getElementById('override-student-email');
+    const updateAutoFilledEmail = () => {
+      if (!emailInput) return;
+      const selectedOpt = select.options[select.selectedIndex];
+      emailInput.value = selectedOpt?.value || '';
+    };
+
+    select.onchange = updateAutoFilledEmail;
+    updateAutoFilledEmail();
   } catch (err) {
     console.error('Error populating override student dropdown:', err);
   }
@@ -1246,7 +1256,7 @@ const setupStudentManagementControls = (buses) => {
       const emailInput = document.getElementById('override-student-email');
       const selectedOpt = emailSelect?.options?.[emailSelect.selectedIndex];
       const registerNumber = selectedOpt?.dataset?.reg || '';
-      const email = (emailSelect?.value || emailInput?.value)?.trim()?.toLowerCase();
+      const email = (emailInput?.value || emailSelect?.value)?.trim()?.toLowerCase();
       const sessionType = document.getElementById('override-session-type')?.value;
       const status = document.getElementById('override-status')?.value;
       const remark = document.getElementById('override-remark')?.value?.trim();
