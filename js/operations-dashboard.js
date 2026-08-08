@@ -1293,7 +1293,40 @@ const setupStudentManagementControls = (buses) => {
         let fallbackSuccess = false;
         try {
           let studentRecord = null;
+
+          // Step 1: Use SECURITY DEFINER RPC get_student_by_register_number
           if (registerNumber) {
+            try {
+              const { data: rpcSt } = await supabase.rpc('get_student_by_register_number', { p_reg: registerNumber });
+              if (rpcSt && rpcSt.length) studentRecord = rpcSt[0];
+            } catch (e) {
+              console.warn('get_student_by_register_number RPC error:', e);
+            }
+          }
+
+          // Step 2: Use SECURITY DEFINER RPC authorized_attendance_history
+          if (!studentRecord && registerNumber) {
+            try {
+              const { data: hist } = await supabase.rpc('authorized_attendance_history', {
+                p_bus_id: profile?.bus_id || null,
+                p_date_from: null,
+                p_date_to: null,
+                p_status: null,
+                p_search: registerNumber
+              });
+              if (hist?.length) {
+                const match = hist.find(r => String(r.register_number).toUpperCase() === String(registerNumber).toUpperCase()) || hist[0];
+                if (match?.student_id) {
+                  studentRecord = { id: match.student_id, bus_id: profile?.bus_id };
+                }
+              }
+            } catch (e) {
+              console.warn('authorized_attendance_history lookup fallback error:', e);
+            }
+          }
+
+          // Step 3: Direct profiles query fallback
+          if (!studentRecord && registerNumber) {
             const { data: st } = await supabase.from('profiles').select('id, bus_id, role, email').eq('register_number', registerNumber).maybeSingle();
             studentRecord = st;
           }
