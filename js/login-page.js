@@ -20,8 +20,28 @@ async function redirectAuthenticatedUser() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
-  const { data: profile, error } = await supabase.rpc('current_app_profile').single();
-  if (error || !profile?.role) return;
+  let profile = null;
+  try {
+    const { data: rpcProfile } = await supabase.rpc('current_app_profile').maybeSingle();
+    profile = rpcProfile;
+  } catch (e) {
+    console.warn('RPC current_app_profile failed on login page:', e);
+  }
+
+  if (!profile?.role) {
+    try {
+      const { data: dbProfile } = await supabase.from('profiles').select('id, email, role, bus_id, status').eq('id', user.id).maybeSingle();
+      if (dbProfile) profile = dbProfile;
+    } catch (e) {
+      console.warn('Fallback DB profiles query failed on login page:', e);
+    }
+  }
+
+  if (!profile?.role) {
+    const metaRole = user.user_metadata?.role;
+    profile = { role: metaRole || 'student' };
+  }
+
   const protectedRedirect = consumeProtectedRedirect();
   const roleHome = profile?.role === 'admin' ? '/admin' : profile?.role === 'coordinator' ? '/coordinator' : '/student';
   const safeRedirect = protectedRedirect && (
