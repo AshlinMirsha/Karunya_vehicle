@@ -174,8 +174,10 @@
           <p class="text-muted small mb-3">Mark a student as Present or Absent manually (e.g. phone dead, medical leave, late permission). A reason/comment is mandatory.</p>
           <div class="row g-2 align-items-end">
             <div class="col-md-12">
-              <label class="form-label small" for="override-student-email">Student Email (@karunya.edu.in)</label>
-              <input id="override-student-email" type="email" class="form-control" placeholder="student@karunya.edu.in">
+              <label class="form-label small" for="override-student-select">Student (Register No. &amp; Name)</label>
+              <select id="override-student-select" class="form-select">
+                <option value="">Loading students…</option>
+              </select>
             </div>
             <div class="col-md-6">
               <label class="form-label small" for="override-session-type">Session</label>

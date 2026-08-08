@@ -244,8 +244,49 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
         anAbsentEl.className = 'fw-bold text-danger fs-5';
       }
     }
+};
+
+const populateOverrideStudentDropdown = async (profile) => {
+  const select = document.getElementById('override-student-select');
+  if (!select) return;
+
+  try {
+    let query = supabase
+      .from('profiles')
+      .select('email, full_name, register_number, bus_id, buses(bus_number)')
+      .eq('role', 'student')
+      .eq('status', 'active')
+      .order('register_number');
+
+    if (profile?.role === 'coordinator' && profile?.bus_id) {
+      query = query.eq('bus_id', profile.bus_id);
+    }
+
+    const { data: students } = await query;
+    select.replaceChildren();
+
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = '-- Select Student (Register No. & Name) --';
+    select.append(defaultOpt);
+
+    if (students?.length) {
+      students.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.email;
+        const reg = s.register_number ? `${s.register_number}` : 'No Reg';
+        const busStr = s.buses?.bus_number ? ` [Bus ${s.buses.bus_number}]` : '';
+        opt.textContent = `${reg} — ${s.full_name || s.email}${busStr}`;
+        select.append(opt);
+      });
+    } else {
+      const emptyOpt = document.createElement('option');
+      emptyOpt.value = '';
+      emptyOpt.textContent = 'No active students found';
+      select.append(emptyOpt);
+    }
   } catch (err) {
-    console.error('Error updating session stats cards:', err);
+    console.error('Error populating override student dropdown:', err);
   }
 };
 
@@ -291,6 +332,12 @@ export async function initOperationsDashboard(expectedRole) {
     await updateSessionStatsCards(profile, summary.student_count_active ?? 0, summary);
   } catch (err) {
     console.error('Failed to update session stats cards:', err);
+  }
+
+  try {
+    await populateOverrideStudentDropdown(profile);
+  } catch (err) {
+    console.error('Failed to populate override student dropdown:', err);
   }
 
   const myBus = buses.find(b => b.id === profile.bus_id);
@@ -1034,14 +1081,17 @@ const setupStudentManagementControls = (buses) => {
   const btnSubmitOverride = document.getElementById('btn-submit-override');
   if (btnSubmitOverride) {
     btnSubmitOverride.onclick = async () => {
-      const email = document.getElementById('override-student-email')?.value?.trim()?.toLowerCase();
+      const emailSelect = document.getElementById('override-student-select');
+      const emailInput = document.getElementById('override-student-email');
+      const email = (emailSelect?.value || emailInput?.value)?.trim()?.toLowerCase();
       const sessionType = document.getElementById('override-session-type')?.value;
       const status = document.getElementById('override-status')?.value;
       const remark = document.getElementById('override-remark')?.value?.trim();
       const msg = document.getElementById('override-msg');
 
       if (!email) {
-        showToast('Student email is required.', 'danger');
+        showToast('Please select a student from the dropdown.', 'danger');
+        if (msg) msg.innerHTML = '<span class="text-danger">Please select a student.</span>';
         return;
       }
       if (!remark || remark.length < 3) {
