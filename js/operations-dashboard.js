@@ -3,6 +3,7 @@ import { renderNavbar } from '../components/navbar.js';
 import { showToast } from '../components/toast.js';
 import { rememberProtectedRedirect } from './auth.js';
 
+let currentAppProfile = null;
 const text = (id, value) => { const element = document.getElementById(id); if (element) element.textContent = String(value); };
 const cell = (value) => { const element = document.createElement('td'); element.textContent = String(value ?? '—'); return element; };
 const row = (values) => { const element = document.createElement('tr'); values.forEach((value) => element.append(cell(value))); return element; };
@@ -421,6 +422,9 @@ export async function initOperationsDashboard(expectedRole) {
     if (profile.role !== expectedRole) {
       return location.replace(profile.role === 'admin' ? '/admin' : profile.role === 'coordinator' ? '/coordinator' : '/student');
     }
+
+    currentAppProfile = profile;
+    window.currentAppProfile = profile;
 
     renderNavbar(user, expectedRole === 'admin' ? 'Admin' : 'Coordinator');
     const canGenerateQr = expectedRole === 'coordinator';
@@ -1306,7 +1310,7 @@ const setupStudentManagementControls = (buses) => {
       if (!studentRecord) {
         try {
           const { data: hist } = await supabase.rpc('authorized_attendance_history', {
-            p_bus_id: profile?.bus_id || null,
+            p_bus_id: currentAppProfile?.bus_id || null,
             p_date_from: null,
             p_date_to: null,
             p_status: null,
@@ -1318,7 +1322,7 @@ const setupStudentManagementControls = (buses) => {
               (email && String(r.register_number).toLowerCase() === email.split('@')[0])
             ) || hist[0];
             if (match?.student_id) {
-              studentRecord = { id: match.student_id, bus_id: profile?.bus_id, email: match.email || email };
+              studentRecord = { id: match.student_id, bus_id: currentAppProfile?.bus_id, email: match.email || email };
             }
           }
         } catch (e) {
@@ -1339,7 +1343,7 @@ const setupStudentManagementControls = (buses) => {
       let overrideRecorded = false;
       if (studentRecord && studentRecord.id) {
         try {
-          const targetBusId = studentRecord.bus_id || profile?.bus_id;
+          const targetBusId = studentRecord.bus_id || currentAppProfile?.bus_id;
           const todayStr = (overrideDate || new Date().toISOString().slice(0, 10));
           const startOfDay = `${todayStr}T00:00:00+05:30`;
           const endOfDay = `${todayStr}T23:59:59+05:30`;
@@ -1361,7 +1365,7 @@ const setupStudentManagementControls = (buses) => {
               session_type: sessionType,
               token_hash: `manual_${Date.now()}_${Math.random()}`,
               expires_at: `${todayStr}T23:59:59+05:30`,
-              created_by: profile?.id || user.id,
+              created_by: currentAppProfile?.id || user.id,
               email_status: 'manual_override'
             }).select('id').single();
             session = newS;
