@@ -317,6 +317,10 @@ const populateOverrideStudentDropdown = async (profile) => {
           .order('register_number');
         if (allStudents?.length) studentList = allStudents;
       } catch (e) {
+        console.warn('All students fallback query error:', e);
+      }
+    }
+
     // Stage 4: Map exact real emails from profiles table for every student
     try {
       const regNos = studentList.map(s => s.register_number).filter(Boolean);
