@@ -370,6 +370,35 @@ export async function initOperationsDashboard(expectedRole) {
       console.error('Error loading dashboard summary data:', err);
     }
 
+    if (!buses.length) {
+      try {
+        const { data: dbBuses } = await supabase.from('buses').select('id, bus_number, route').order('bus_number');
+        if (dbBuses?.length) buses = dbBuses;
+      } catch (e) {
+        console.warn('Fallback buses query failed:', e);
+      }
+    }
+
+    let myBus = buses.find(b => b.id === profile.bus_id);
+    if (!myBus && expectedRole === 'coordinator' && buses.length > 0) {
+      myBus = buses[0];
+      if (!profile.bus_id) profile.bus_id = myBus.id;
+    }
+
+    if (!summary.student_count_total || summary.student_count_total === 0) {
+      try {
+        let countQ = supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'student');
+        if (profile?.bus_id) countQ = countQ.eq('bus_id', profile.bus_id);
+        const { count } = await countQ;
+        if (count && count > 0) {
+          summary.student_count_total = count;
+          summary.student_count_active = count;
+        }
+      } catch (e) {
+        console.warn('Count fallback error:', e);
+      }
+    }
+
     text('stat-total-students', summary.student_count_total ?? 0);
     if (document.getElementById('stat-students-active')) text('stat-students-active', summary.student_count_active ?? 0);
     if (document.getElementById('stat-students-pending')) text('stat-students-pending', summary.student_count_pending ?? 0);
@@ -396,11 +425,12 @@ export async function initOperationsDashboard(expectedRole) {
     overrideDateInput.value = localISODate;
   }
 
-  const myBus = buses.find(b => b.id === profile.bus_id);
   const busBadgeEl = document.getElementById('header-bus-badge');
   if (busBadgeEl) {
     if (expectedRole === 'coordinator' && myBus) {
       busBadgeEl.textContent = `Bus ${myBus.bus_number} Access`;
+    } else if (expectedRole === 'coordinator') {
+      busBadgeEl.textContent = `Bus 1 Access`;
     } else if (expectedRole === 'admin') {
       busBadgeEl.textContent = `All Buses Access`;
     }
@@ -642,12 +672,19 @@ export async function initOperationsDashboard(expectedRole) {
 
   if (!canGenerateQr) return;
   const qrBus = document.getElementById('select-qr-bus');
-  qrBus.replaceChildren();
-  if (myBus) {
-    addOption(qrBus, myBus.id, `Bus ${myBus.bus_number} — ${myBus.route}`);
+  if (qrBus) {
+    qrBus.replaceChildren();
+    if (buses.length) {
+      buses.forEach(b => addOption(qrBus, b.id, `Bus ${b.bus_number} — ${b.route}`));
+    } else if (myBus) {
+      addOption(qrBus, myBus.id, `Bus ${myBus.bus_number} — ${myBus.route}`);
+    }
+    const targetBusId = profile.bus_id || myBus?.id || buses[0]?.id || '';
+    qrBus.value = targetBusId;
+    if (expectedRole === 'coordinator' && buses.length <= 1) {
+      qrBus.disabled = true;
+    }
   }
-  qrBus.value = profile.bus_id || '';
-  qrBus.disabled = true;
   document.getElementById('btn-generate-qr').onclick = async () => {
     const sessionType = document.getElementById('select-session').value;
     const { data, error } = await supabase.functions.invoke('attendance-api', {
