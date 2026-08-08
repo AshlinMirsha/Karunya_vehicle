@@ -254,26 +254,70 @@ const populateOverrideStudentDropdown = async (profile) => {
   if (!select) return;
 
   try {
-    let query = supabase
-      .from('profiles')
-      .select('email, full_name, register_number, bus_id')
-      .eq('role', 'student')
-      .order('register_number');
+    let studentList = [];
 
-    if (profile?.role === 'coordinator' && profile?.bus_id) {
-      query = query.eq('bus_id', profile.bus_id);
+    // Stage 1: Call authorized_attendance_history RPC (SECURITY DEFINER, bypasses RLS blocking)
+    try {
+      const busIdVal = profile?.role === 'coordinator' ? profile.bus_id : null;
+      const { data: historyData } = await supabase.rpc('authorized_attendance_history', {
+        p_bus_id: busIdVal,
+        p_date_from: null,
+        p_date_to: null,
+        p_status: null,
+        p_search: null,
+      });
+
+      if (historyData?.length) {
+        const studentMap = new Map();
+        historyData.forEach(item => {
+          if (item.register_number && !studentMap.has(item.register_number)) {
+            const emailVal = (item.email && item.email.includes('@')) 
+              ? item.email 
+              : `${String(item.register_number).toLowerCase()}@karunya.edu.in`;
+            studentMap.set(item.register_number, {
+              register_number: item.register_number,
+              full_name: item.full_name,
+              email: emailVal,
+            });
+          }
+        });
+        studentList = Array.from(studentMap.values());
+      }
+    } catch (e) {
+      console.warn('RPC authorized_attendance_history student extraction error:', e);
     }
 
-    let { data: students } = await query;
+    // Stage 2: Direct profiles query (for Admins or if RLS policy permits)
+    if (!studentList.length) {
+      try {
+        let query = supabase
+          .from('profiles')
+          .select('email, full_name, register_number, bus_id')
+          .eq('role', 'student')
+          .order('register_number');
 
-    if ((!students || !students.length) && profile?.role === 'coordinator') {
-      const { data: fallbackStudents } = await supabase
-        .from('profiles')
-        .select('email, full_name, register_number, bus_id')
-        .eq('role', 'student')
-        .order('register_number');
-      if (fallbackStudents && fallbackStudents.length) {
-        students = fallbackStudents;
+        if (profile?.role === 'coordinator' && profile?.bus_id) {
+          query = query.eq('bus_id', profile.bus_id);
+        }
+
+        const { data: dbStudents } = await query;
+        if (dbStudents?.length) studentList = dbStudents;
+      } catch (e) {
+        console.warn('profiles query fallback error:', e);
+      }
+    }
+
+    // Stage 3: Unfiltered profiles query fallback
+    if (!studentList.length) {
+      try {
+        const { data: allStudents } = await supabase
+          .from('profiles')
+          .select('email, full_name, register_number, bus_id')
+          .eq('role', 'student')
+          .order('register_number');
+        if (allStudents?.length) studentList = allStudents;
+      } catch (e) {
+        console.warn('All students fallback query error:', e);
       }
     }
 
@@ -284,10 +328,10 @@ const populateOverrideStudentDropdown = async (profile) => {
     defaultOpt.textContent = '-- Select Student (Register No. & Name) --';
     select.append(defaultOpt);
 
-    if (students?.length) {
-      students.forEach(s => {
+    if (studentList.length) {
+      studentList.forEach(s => {
         const opt = document.createElement('option');
-        opt.value = s.email;
+        opt.value = s.email || `${String(s.register_number || '').toLowerCase()}@karunya.edu.in`;
         const reg = s.register_number ? `${s.register_number}` : 'No Reg';
         opt.textContent = `${reg} — ${s.full_name || s.email}`;
         select.append(opt);
