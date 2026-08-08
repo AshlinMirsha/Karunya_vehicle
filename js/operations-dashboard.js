@@ -340,6 +340,14 @@ export async function initOperationsDashboard(expectedRole) {
     console.error('Failed to populate override student dropdown:', err);
   }
 
+  const overrideDateInput = document.getElementById('override-date');
+  if (overrideDateInput && !overrideDateInput.value) {
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const localISODate = new Date(now - tzOffset).toISOString().slice(0, 10);
+    overrideDateInput.value = localISODate;
+  }
+
   const myBus = buses.find(b => b.id === profile.bus_id);
   const busBadgeEl = document.getElementById('header-bus-badge');
   if (busBadgeEl) {
@@ -1100,11 +1108,13 @@ const setupStudentManagementControls = (buses) => {
         return;
       }
 
+      const overrideDate = document.getElementById('override-date')?.value || null;
+
       btnSubmitOverride.disabled = true;
       btnSubmitOverride.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting…';
 
       const { data, error } = await supabase.functions.invoke('attendance-api', {
-        body: { action: 'manual-override-attendance', studentEmail: email, sessionType, status, remark }
+        body: { action: 'manual-override-attendance', studentEmail: email, sessionType, status, remark, overrideDate }
       });
 
       btnSubmitOverride.disabled = false;

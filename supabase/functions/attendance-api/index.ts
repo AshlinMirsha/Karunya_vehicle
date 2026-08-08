@@ -267,11 +267,21 @@ Deno.serve(async (request) => {
         return response(request, { message: 'Student is not assigned to your bus.' }, 403);
       }
 
-      const now = new Date();
-      const istOffset = 5.5 * 60 * 60 * 1000;
-      const istTime = new Date(now.getTime() + istOffset);
-      istTime.setUTCHours(0, 0, 0, 0);
-      const startOfDay = new Date(istTime.getTime() - istOffset);
+      let startOfDay: Date;
+      let endOfDay: Date;
+      const targetDateStr = String(b.overrideDate || b.sessionDate || '').trim();
+
+      if (/^\d{4}-\d{2}-\d{2}$/.test(targetDateStr)) {
+        startOfDay = new Date(`${targetDateStr}T00:00:00+05:30`);
+        endOfDay = new Date(`${targetDateStr}T23:59:59.999+05:30`);
+      } else {
+        const now = new Date();
+        const istOffset = 5.5 * 60 * 60 * 1000;
+        const istTime = new Date(now.getTime() + istOffset);
+        istTime.setUTCHours(0, 0, 0, 0);
+        startOfDay = new Date(istTime.getTime() - istOffset);
+        endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1);
+      }
 
       let { data: session } = await adminClient
         .from('attendance_sessions')
@@ -279,6 +289,7 @@ Deno.serve(async (request) => {
         .eq('bus_id', targetStudent.bus_id)
         .eq('session_type', sessionType)
         .gte('created_at', startOfDay.toISOString())
+        .lte('created_at', endOfDay.toISOString())
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
