@@ -310,7 +310,8 @@ Deno.serve(async (request) => {
 
       if (!session) {
         const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
-        const expiresAt = new Date(Date.now() + SESSION_DURATION_MS).toISOString();
+        // Manual attendance override sessions have no time limit
+        const expiresAt = new Date('2099-12-31T23:59:59Z').toISOString();
         const sessionCreatedAt = /^\d{4}-\d{2}-\d{2}$/.test(targetDateStr)
           ? new Date(`${targetDateStr}T12:00:00+05:30`).toISOString()
           : new Date().toISOString();
