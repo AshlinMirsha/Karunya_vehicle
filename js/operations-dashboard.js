@@ -1392,12 +1392,20 @@ const setupStudentManagementControls = (buses) => {
       btnSubmitOverride.innerHTML = 'Submit Override';
 
       if (apiErr || !apiData?.message) {
+        console.error('Manual attendance override API error detail:', { apiErr, apiData });
         let err = 'Could not record manual attendance.';
+
         if (apiErr?.context && typeof apiErr.context.clone === 'function') {
           const body = await apiErr.context.clone().json().catch(() => null);
           if (body?.message) err = body.message;
+        } else if (apiErr?.message) {
+          err = apiErr.message;
         }
-        if (err === 'Could not record manual attendance.' && apiData?.message) err = apiData.message;
+
+        if (apiData?.message) {
+          err = apiData.message;
+        }
+
         if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
         showToast(err, 'danger');
       } else {
