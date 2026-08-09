@@ -155,60 +155,14 @@ const renderStudentRoster = async () => {
 
 const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null) => {
   try {
-    if (profile?.role === 'admin' && summary) {
-      const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-      const startOfToday = `${todayIST}T00:00:00`;
+    const busId = profile?.role === 'admin' ? null : profile?.bus_id;
 
-      const { data: todaySessions } = await supabase
-        .from('attendance_sessions')
-        .select('session_type')
-        .gte('created_at', startOfToday);
-
-      const hasMorningSession = (todaySessions ?? []).some(s => s.session_type === 'Morning');
-      const hasEveningSession = (todaySessions ?? []).some(s => s.session_type === 'Evening');
-
-      const fnPresentEl = document.getElementById('stat-morning-checkins');
-      const fnAbsentEl = document.getElementById('stat-morning-absent');
-      if (fnPresentEl && fnAbsentEl) {
-        if (!hasMorningSession) {
-          fnPresentEl.textContent = 'to be loaded';
-          fnPresentEl.className = 'fw-bold text-muted fst-italic';
-          fnAbsentEl.textContent = 'to be loaded';
-          fnAbsentEl.className = 'fw-bold text-muted fst-italic';
-        } else {
-          const mPresent = summary.morning_checkins ?? 0;
-          const mTotal = defaultCount || summary.student_count_active || 0;
-          fnPresentEl.textContent = String(mPresent);
-          fnPresentEl.className = 'fw-bold text-success fs-5';
-          fnAbsentEl.textContent = String(Math.max(0, mTotal - mPresent));
-          fnAbsentEl.className = 'fw-bold text-danger fs-5';
-        }
-      }
-
-      const anPresentEl = document.getElementById('stat-evening-checkins');
-      const anAbsentEl = document.getElementById('stat-evening-absent');
-      if (anPresentEl && anAbsentEl) {
-        if (!hasEveningSession) {
-          anPresentEl.textContent = 'to be loaded';
-          anPresentEl.className = 'fw-bold text-muted fst-italic';
-          anAbsentEl.textContent = 'to be loaded';
-          anAbsentEl.className = 'fw-bold text-muted fst-italic';
-        } else {
-          const ePresent = summary.evening_checkins ?? 0;
-          const eTotal = defaultCount || summary.student_count_active || 0;
-          anPresentEl.textContent = String(ePresent);
-          anPresentEl.className = 'fw-bold text-success fs-5';
-          anAbsentEl.textContent = String(Math.max(0, eTotal - ePresent));
-          anAbsentEl.className = 'fw-bold text-danger fs-5';
-        }
-      }
+    const { data: stats, error } = await supabase.rpc('get_today_bus_session_stats', { p_bus_id: busId });
+    if (error || !stats?.length) {
+      console.warn('get_today_bus_session_stats RPC call error/empty:', error);
       return;
     }
 
-    const busId = profile?.bus_id;
-    if (!busId) return;
-
-    const { data: stats } = await supabase.rpc('get_today_bus_session_stats', { p_bus_id: busId });
     const fnStat = stats?.find(s => s.session_type === 'Morning');
     const anStat = stats?.find(s => s.session_type === 'Evening');
 
@@ -222,9 +176,11 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
         fnAbsentEl.textContent = 'to be loaded';
         fnAbsentEl.className = 'fw-bold text-muted fst-italic';
       } else {
-        fnPresentEl.textContent = fnStat.present_count;
+        const mPresent = fnStat.present_count ?? summary?.morning_checkins ?? 0;
+        const mAbsent = fnStat.absent_count ?? Math.max(0, (defaultCount || summary?.student_count_active || 0) - mPresent);
+        fnPresentEl.textContent = String(mPresent);
         fnPresentEl.className = 'fw-bold text-success fs-5';
-        fnAbsentEl.textContent = fnStat.absent_count;
+        fnAbsentEl.textContent = String(mAbsent);
         fnAbsentEl.className = 'fw-bold text-danger fs-5';
       }
     }
@@ -239,9 +195,11 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
         anAbsentEl.textContent = 'to be loaded';
         anAbsentEl.className = 'fw-bold text-muted fst-italic';
       } else {
-        anPresentEl.textContent = anStat.present_count;
+        const ePresent = anStat.present_count ?? summary?.evening_checkins ?? 0;
+        const eAbsent = anStat.absent_count ?? Math.max(0, (defaultCount || summary?.student_count_active || 0) - ePresent);
+        anPresentEl.textContent = String(ePresent);
         anPresentEl.className = 'fw-bold text-success fs-5';
-        anAbsentEl.textContent = anStat.absent_count;
+        anAbsentEl.textContent = String(eAbsent);
         anAbsentEl.className = 'fw-bold text-danger fs-5';
       }
     }
