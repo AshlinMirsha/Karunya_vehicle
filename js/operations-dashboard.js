@@ -213,13 +213,67 @@ const fetchStudentActualAttendance = async ({ email, registerNumber, studentId, 
 
   const cleanRegNo = (registerNumber || '').trim().toUpperCase();
   const cleanEmail = (email || '').trim().toLowerCase();
+  const startOfDay = `${dateStr}T00:00:00+05:30`;
+  const endOfDay = `${dateStr}T23:59:59.999+05:30`;
 
-  // Primary method: Query authorized_attendance_history RPC (same RPC that powers dashboard table)
+  // Method 1: Direct database lookup on profiles -> attendance_sessions -> attendance
+  try {
+    let targetStudentId = studentId;
+    let targetBusId = busId;
+
+    if (!targetStudentId || !targetBusId) {
+      if (cleanRegNo) {
+        const { data: p } = await supabase.from('profiles').select('id, bus_id').ilike('register_number', cleanRegNo).maybeSingle();
+        if (p) {
+          targetStudentId = targetStudentId || p.id;
+          targetBusId = targetBusId || p.bus_id;
+        }
+      }
+      if ((!targetStudentId || !targetBusId) && cleanEmail) {
+        const { data: p } = await supabase.from('profiles').select('id, bus_id').eq('email', cleanEmail).maybeSingle();
+        if (p) {
+          targetStudentId = targetStudentId || p.id;
+          targetBusId = targetBusId || p.bus_id;
+        }
+      }
+    }
+
+    if (targetStudentId) {
+      let query = supabase.from('attendance_sessions')
+        .select('id, session_type, created_at')
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay);
+
+      if (targetBusId) query = query.eq('bus_id', targetBusId);
+
+      const { data: sessionList } = await query;
+      const matchedSession = sessionList?.find(s => s.session_type === sessionType);
+
+      if (matchedSession) {
+        const { data: attRecord } = await supabase
+          .from('attendance')
+          .select('status')
+          .eq('session_id', matchedSession.id)
+          .eq('student_id', targetStudentId)
+          .maybeSingle();
+
+        if (attRecord) {
+          return attRecord.status || 'PRESENT';
+        } else {
+          return 'ABSENT';
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Direct attendance table query error:', err);
+  }
+
+  // Method 2: RPC authorized_attendance_history with IST timestamp bounds
   try {
     const { data: historyData, error: rpcErr } = await supabase.rpc('authorized_attendance_history', {
       p_bus_id: busId || null,
-      p_date_from: dateStr,
-      p_date_to: dateStr,
+      p_date_from: startOfDay,
+      p_date_to: endOfDay,
       p_status: null,
       p_search: cleanRegNo || cleanEmail || null,
       p_day_type: null
@@ -228,8 +282,7 @@ const fetchStudentActualAttendance = async ({ email, registerNumber, studentId, 
     if (!rpcErr && historyData?.length) {
       const studentHist = historyData.find(h => 
         (cleanRegNo && h.register_number && h.register_number.trim().toUpperCase() === cleanRegNo) ||
-        (studentId && h.student_id === studentId) ||
-        (cleanRegNo && h.register_number && h.register_number.toLowerCase().includes(cleanRegNo.toLowerCase()))
+        (studentId && h.student_id === studentId)
       ) || historyData[0];
 
       if (studentHist) {
@@ -245,58 +298,6 @@ const fetchStudentActualAttendance = async ({ email, registerNumber, studentId, 
     }
   } catch (e) {
     console.warn('authorized_attendance_history query error:', e);
-  }
-
-  // Fallback: Direct query on attendance_sessions and attendance table
-  try {
-    let targetStudentId = studentId;
-    let targetBusId = busId;
-
-    if (!targetStudentId || !targetBusId) {
-      if (cleanRegNo) {
-        const { data } = await supabase.from('profiles').select('id, bus_id').eq('register_number', cleanRegNo).maybeSingle();
-        if (data) {
-          targetStudentId = targetStudentId || data?.id;
-          targetBusId = targetBusId || data?.bus_id;
-        }
-      }
-      if ((!targetStudentId || !targetBusId) && cleanEmail) {
-        const { data } = await supabase.from('profiles').select('id, bus_id').eq('email', cleanEmail).maybeSingle();
-        if (data) {
-          targetStudentId = targetStudentId || data?.id;
-          targetBusId = targetBusId || data?.bus_id;
-        }
-      }
-    }
-
-    if (targetStudentId) {
-      let sessionQuery = supabase.from('attendance_sessions').select('id, session_type, created_at');
-      if (targetBusId) sessionQuery = sessionQuery.eq('bus_id', targetBusId);
-      
-      const { data: sessionList } = await sessionQuery;
-      if (sessionList?.length) {
-        const matchedSession = sessionList.find(s => {
-          if (s.session_type !== sessionType) return false;
-          const sDate = new Date(s.created_at);
-          const tzOffset = sDate.getTimezoneOffset() * 60000;
-          const sLocalDate = new Date(sDate.getTime() - tzOffset).toISOString().slice(0, 10);
-          return sLocalDate === dateStr || s.created_at.startsWith(dateStr);
-        });
-
-        if (matchedSession) {
-          const { data: attRecord } = await supabase
-            .from('attendance')
-            .select('status')
-            .eq('session_id', matchedSession.id)
-            .eq('student_id', targetStudentId)
-            .maybeSingle();
-
-          return attRecord ? (attRecord.status || 'PRESENT') : 'ABSENT';
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('Fallback direct attendance query error:', err);
   }
 
   return 'ABSENT';
