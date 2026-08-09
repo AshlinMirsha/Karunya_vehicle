@@ -311,15 +311,24 @@ Deno.serve(async (request) => {
       if (!session) {
         const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
         const expiresAt = new Date(Date.now() + SESSION_DURATION_MS).toISOString();
+        const sessionCreatedAt = /^\d{4}-\d{2}-\d{2}$/.test(targetDateStr)
+          ? new Date(`${targetDateStr}T12:00:00+05:30`).toISOString()
+          : new Date().toISOString();
+        const creatorId = profile?.id || user.id;
+
         const { data: newSession, error: createErr } = await adminClient.from('attendance_sessions').insert({
           bus_id: targetStudent.bus_id,
           session_type: sessionType,
           token_hash: await hashToken(token, qrSecret),
           expires_at: expiresAt,
-          created_by: user.id,
+          created_by: creatorId,
+          created_at: sessionCreatedAt,
           email_status: 'manual_override',
         }).select('id').single();
-        if (createErr || !newSession) return response(request, { message: 'Could not initialize attendance session.' }, 500);
+        if (createErr || !newSession) {
+          console.error('Session initialization error:', createErr);
+          return response(request, { message: `Could not initialize attendance session: ${createErr?.message || 'Unknown database error'}` }, 500);
+        }
         session = newSession;
       }
 
