@@ -324,7 +324,7 @@ Deno.serve(async (request) => {
           expires_at: expiresAt,
           created_by: creatorId,
           created_at: sessionCreatedAt,
-          email_status: 'manual_override',
+          email_status: 'sent',
         }).select('id').single();
         if (createErr || !newSession) {
           console.error('Session initialization error:', createErr);
