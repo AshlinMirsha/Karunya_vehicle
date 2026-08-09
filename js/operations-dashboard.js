@@ -1376,7 +1376,7 @@ const setupStudentManagementControls = (buses) => {
       btnSubmitOverride.disabled = true;
       btnSubmitOverride.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting…';
 
-      const { data: apiData, error: apiErr } = await supabase.functions.invoke('attendance-api', {
+      let invokeResult = await supabase.functions.invoke('attendance-api', {
         body: {
           action: 'manual-override-attendance',
           studentEmail: email,
@@ -1386,7 +1386,25 @@ const setupStudentManagementControls = (buses) => {
           remark,
           overrideDate
         }
-      }).catch(() => ({ data: null, error: true }));
+      }).catch(err => ({ data: null, error: err }));
+
+      // Retry once automatically on transient network interruptions
+      if (invokeResult.error && (invokeResult.error.name === 'FunctionsFetchError' || String(invokeResult.error.message || '').includes('Failed to send'))) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        invokeResult = await supabase.functions.invoke('attendance-api', {
+          body: {
+            action: 'manual-override-attendance',
+            studentEmail: email,
+            registerNumber,
+            sessionType,
+            status,
+            remark,
+            overrideDate
+          }
+        }).catch(err => ({ data: null, error: err }));
+      }
+
+      const { data: apiData, error: apiErr } = invokeResult;
 
       btnSubmitOverride.disabled = false;
       btnSubmitOverride.innerHTML = 'Submit Override';
