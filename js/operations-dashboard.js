@@ -208,6 +208,147 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
   }
 };
 
+const fetchStudentActualAttendance = async ({ email, registerNumber, studentId, busId, dateStr, sessionType }) => {
+  if (!dateStr) return '--';
+
+  let resolvedStudentId = studentId;
+  let resolvedBusId = busId;
+
+  if (!resolvedStudentId || !resolvedBusId) {
+    if (registerNumber) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, bus_id')
+        .eq('register_number', registerNumber)
+        .maybeSingle();
+      if (data) {
+        resolvedStudentId = resolvedStudentId || data?.id;
+        resolvedBusId = resolvedBusId || data?.bus_id;
+      }
+    }
+    if ((!resolvedStudentId || !resolvedBusId) && email) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, bus_id')
+        .eq('email', email)
+        .maybeSingle();
+      if (data) {
+        resolvedStudentId = resolvedStudentId || data?.id;
+        resolvedBusId = resolvedBusId || data?.bus_id;
+      }
+    }
+  }
+
+  if (!resolvedStudentId || !resolvedBusId) return 'ABSENT';
+
+  const startOfDay = `${dateStr}T00:00:00+05:30`;
+  const endOfDay = `${dateStr}T23:59:59.999+05:30`;
+
+  try {
+    const { data: sessionList } = await supabase
+      .from('attendance_sessions')
+      .select('id, session_type')
+      .eq('bus_id', resolvedBusId)
+      .gte('created_at', startOfDay)
+      .lte('created_at', endOfDay);
+
+    const matchedSession = sessionList?.find(s => s.session_type === sessionType);
+
+    if (matchedSession) {
+      const { data: attRecord } = await supabase
+        .from('attendance')
+        .select('status')
+        .eq('session_id', matchedSession.id)
+        .eq('student_id', resolvedStudentId)
+        .maybeSingle();
+
+      if (attRecord) {
+        return attRecord.status || 'PRESENT';
+      } else {
+        return 'ABSENT';
+      }
+    }
+  } catch (err) {
+    console.warn('Error querying attendance session directly:', err);
+  }
+
+  // Fallback to authorized_attendance_history RPC
+  try {
+    const { data: historyData } = await supabase.rpc('authorized_attendance_history', {
+      p_bus_id: resolvedBusId,
+      p_date_from: startOfDay,
+      p_date_to: endOfDay,
+      p_status: null,
+      p_search: registerNumber || null,
+      p_day_type: null
+    });
+
+    if (historyData?.length) {
+      const studentHist = historyData.find(h => h.student_id === resolvedStudentId || h.register_number === registerNumber);
+      if (studentHist) {
+        if (sessionType === 'Morning') return studentHist.morning_status || 'ABSENT';
+        if (sessionType === 'Evening') return studentHist.evening_status || 'ABSENT';
+        if (sessionType === 'Special') return studentHist.special_status || 'ABSENT';
+      }
+    }
+  } catch (e) {
+    console.warn('Fallback RPC attendance check error:', e);
+  }
+
+  return 'ABSENT';
+};
+
+const updateActualStatusUI = async () => {
+  const actualStatusInput = document.getElementById('override-actual-status');
+  if (!actualStatusInput) return;
+
+  const studentSelect = document.getElementById('override-student-select');
+  const studentEmailInput = document.getElementById('override-student-email');
+  const dateInput = document.getElementById('override-date');
+  const sessionSelect = document.getElementById('override-session-type');
+
+  const selectedOpt = studentSelect?.options?.[studentSelect.selectedIndex];
+  const studentId = selectedOpt?.dataset?.id || '';
+  const busId = selectedOpt?.dataset?.busId || '';
+  let registerNumber = selectedOpt?.dataset?.reg || '';
+  if (!registerNumber && selectedOpt?.textContent) {
+    const textParts = selectedOpt.textContent.split('—');
+    if (textParts.length > 1 && textParts[0].trim().toUpperCase().startsWith('URK')) {
+      registerNumber = textParts[0].trim().toUpperCase();
+    }
+  }
+  const email = (studentEmailInput?.value || studentSelect?.value)?.trim()?.toLowerCase();
+  const dateStr = dateInput?.value;
+  const sessionType = sessionSelect?.value || 'Morning';
+
+  if ((!email && !registerNumber) || !dateStr) {
+    actualStatusInput.value = '--';
+    actualStatusInput.className = 'form-control bg-dark-subtle text-muted fw-bold';
+    return;
+  }
+
+  actualStatusInput.value = 'Fetching…';
+  actualStatusInput.className = 'form-control bg-dark-subtle text-muted fw-bold';
+
+  const status = await fetchStudentActualAttendance({
+    email,
+    registerNumber,
+    studentId,
+    busId,
+    dateStr,
+    sessionType
+  });
+
+  actualStatusInput.value = status;
+  if (status === 'PRESENT') {
+    actualStatusInput.className = 'form-control bg-dark-subtle text-success fw-bold';
+  } else if (status === 'ABSENT') {
+    actualStatusInput.className = 'form-control bg-dark-subtle text-danger fw-bold';
+  } else {
+    actualStatusInput.className = 'form-control bg-dark-subtle text-warning fw-bold';
+  }
+};
+
 const populateOverrideStudentDropdown = async (profile) => {
   const select = document.getElementById('override-student-select');
   if (!select) return;
@@ -242,6 +383,7 @@ const populateOverrideStudentDropdown = async (profile) => {
           historyData.forEach(item => {
             if (item.register_number && !studentMap.has(item.register_number)) {
               studentMap.set(item.register_number, {
+                id: item.student_id,
                 register_number: item.register_number,
                 full_name: item.full_name,
                 email: item.email || `${String(item.register_number).toLowerCase()}@karunya.edu.in`,
@@ -267,6 +409,8 @@ const populateOverrideStudentDropdown = async (profile) => {
         const opt = document.createElement('option');
         const realEmail = s.email || `${String(s.register_number || '').toLowerCase()}@karunya.edu.in`;
         opt.value = realEmail;
+        if (s.id) opt.dataset.id = s.id;
+        if (s.bus_id) opt.dataset.busId = s.bus_id;
         if (s.register_number) opt.dataset.reg = s.register_number;
         opt.dataset.email = realEmail;
         const reg = s.register_number ? `${s.register_number}` : 'No Reg';
@@ -287,8 +431,12 @@ const populateOverrideStudentDropdown = async (profile) => {
       emailInput.value = selectedOpt?.value || selectedOpt?.dataset?.email || '';
     };
 
-    select.onchange = updateAutoFilledEmail;
+    select.onchange = () => {
+      updateAutoFilledEmail();
+      updateActualStatusUI();
+    };
     updateAutoFilledEmail();
+    updateActualStatusUI();
   } catch (err) {
     console.error('Error populating override student dropdown:', err);
   }
@@ -418,6 +566,17 @@ export async function initOperationsDashboard(expectedRole) {
     const localISODate = new Date(now - tzOffset).toISOString().slice(0, 10);
     overrideDateInput.value = localISODate;
   }
+  if (overrideDateInput) {
+    overrideDateInput.onchange = updateActualStatusUI;
+    overrideDateInput.oninput = updateActualStatusUI;
+  }
+
+  const sessionTypeSelect = document.getElementById('override-session-type');
+  if (sessionTypeSelect) {
+    sessionTypeSelect.onchange = updateActualStatusUI;
+  }
+
+  updateActualStatusUI();
 
   const busBadgeEl = document.getElementById('header-bus-badge');
   if (busBadgeEl) {
@@ -1236,6 +1395,7 @@ const setupStudentManagementControls = (buses) => {
         if (msg) msg.innerHTML = `<span class="text-success">${apiData.message}</span>`;
         showToast(apiData.message, 'success');
         document.getElementById('override-remark').value = '';
+        await updateActualStatusUI();
         await loadHistory();
       }
     };
