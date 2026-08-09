@@ -211,88 +211,92 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
 const fetchStudentActualAttendance = async ({ email, registerNumber, studentId, busId, dateStr, sessionType }) => {
   if (!dateStr) return '--';
 
-  let resolvedStudentId = studentId;
-  let resolvedBusId = busId;
+  const cleanRegNo = (registerNumber || '').trim().toUpperCase();
+  const cleanEmail = (email || '').trim().toLowerCase();
 
-  if (!resolvedStudentId || !resolvedBusId) {
-    if (registerNumber) {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, bus_id')
-        .eq('register_number', registerNumber)
-        .maybeSingle();
-      if (data) {
-        resolvedStudentId = resolvedStudentId || data?.id;
-        resolvedBusId = resolvedBusId || data?.bus_id;
-      }
-    }
-    if ((!resolvedStudentId || !resolvedBusId) && email) {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, bus_id')
-        .eq('email', email)
-        .maybeSingle();
-      if (data) {
-        resolvedStudentId = resolvedStudentId || data?.id;
-        resolvedBusId = resolvedBusId || data?.bus_id;
-      }
-    }
-  }
-
-  if (!resolvedStudentId || !resolvedBusId) return 'ABSENT';
-
-  const startOfDay = `${dateStr}T00:00:00+05:30`;
-  const endOfDay = `${dateStr}T23:59:59.999+05:30`;
-
+  // Primary method: Query authorized_attendance_history RPC (same RPC that powers dashboard table)
   try {
-    const { data: sessionList } = await supabase
-      .from('attendance_sessions')
-      .select('id, session_type')
-      .eq('bus_id', resolvedBusId)
-      .gte('created_at', startOfDay)
-      .lte('created_at', endOfDay);
-
-    const matchedSession = sessionList?.find(s => s.session_type === sessionType);
-
-    if (matchedSession) {
-      const { data: attRecord } = await supabase
-        .from('attendance')
-        .select('status')
-        .eq('session_id', matchedSession.id)
-        .eq('student_id', resolvedStudentId)
-        .maybeSingle();
-
-      if (attRecord) {
-        return attRecord.status || 'PRESENT';
-      } else {
-        return 'ABSENT';
-      }
-    }
-  } catch (err) {
-    console.warn('Error querying attendance session directly:', err);
-  }
-
-  // Fallback to authorized_attendance_history RPC
-  try {
-    const { data: historyData } = await supabase.rpc('authorized_attendance_history', {
-      p_bus_id: resolvedBusId,
-      p_date_from: startOfDay,
-      p_date_to: endOfDay,
+    const { data: historyData, error: rpcErr } = await supabase.rpc('authorized_attendance_history', {
+      p_bus_id: busId || null,
+      p_date_from: dateStr,
+      p_date_to: dateStr,
       p_status: null,
-      p_search: registerNumber || null,
+      p_search: cleanRegNo || cleanEmail || null,
       p_day_type: null
     });
 
-    if (historyData?.length) {
-      const studentHist = historyData.find(h => h.student_id === resolvedStudentId || h.register_number === registerNumber);
+    if (!rpcErr && historyData?.length) {
+      const studentHist = historyData.find(h => 
+        (cleanRegNo && h.register_number && h.register_number.trim().toUpperCase() === cleanRegNo) ||
+        (studentId && h.student_id === studentId) ||
+        (cleanRegNo && h.register_number && h.register_number.toLowerCase().includes(cleanRegNo.toLowerCase()))
+      ) || historyData[0];
+
       if (studentHist) {
-        if (sessionType === 'Morning') return studentHist.morning_status || 'ABSENT';
-        if (sessionType === 'Evening') return studentHist.evening_status || 'ABSENT';
-        if (sessionType === 'Special') return studentHist.special_status || 'ABSENT';
+        let statusVal = null;
+        if (sessionType === 'Morning') statusVal = studentHist.morning_status;
+        else if (sessionType === 'Evening') statusVal = studentHist.evening_status;
+        else if (sessionType === 'Special') statusVal = studentHist.special_status;
+
+        if (statusVal === 'PRESENT' || statusVal === 'ABSENT') {
+          return statusVal;
+        }
       }
     }
   } catch (e) {
-    console.warn('Fallback RPC attendance check error:', e);
+    console.warn('authorized_attendance_history query error:', e);
+  }
+
+  // Fallback: Direct query on attendance_sessions and attendance table
+  try {
+    let targetStudentId = studentId;
+    let targetBusId = busId;
+
+    if (!targetStudentId || !targetBusId) {
+      if (cleanRegNo) {
+        const { data } = await supabase.from('profiles').select('id, bus_id').eq('register_number', cleanRegNo).maybeSingle();
+        if (data) {
+          targetStudentId = targetStudentId || data?.id;
+          targetBusId = targetBusId || data?.bus_id;
+        }
+      }
+      if ((!targetStudentId || !targetBusId) && cleanEmail) {
+        const { data } = await supabase.from('profiles').select('id, bus_id').eq('email', cleanEmail).maybeSingle();
+        if (data) {
+          targetStudentId = targetStudentId || data?.id;
+          targetBusId = targetBusId || data?.bus_id;
+        }
+      }
+    }
+
+    if (targetStudentId) {
+      let sessionQuery = supabase.from('attendance_sessions').select('id, session_type, created_at');
+      if (targetBusId) sessionQuery = sessionQuery.eq('bus_id', targetBusId);
+      
+      const { data: sessionList } = await sessionQuery;
+      if (sessionList?.length) {
+        const matchedSession = sessionList.find(s => {
+          if (s.session_type !== sessionType) return false;
+          const sDate = new Date(s.created_at);
+          const tzOffset = sDate.getTimezoneOffset() * 60000;
+          const sLocalDate = new Date(sDate.getTime() - tzOffset).toISOString().slice(0, 10);
+          return sLocalDate === dateStr || s.created_at.startsWith(dateStr);
+        });
+
+        if (matchedSession) {
+          const { data: attRecord } = await supabase
+            .from('attendance')
+            .select('status')
+            .eq('session_id', matchedSession.id)
+            .eq('student_id', targetStudentId)
+            .maybeSingle();
+
+          return attRecord ? (attRecord.status || 'PRESENT') : 'ABSENT';
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Fallback direct attendance query error:', err);
   }
 
   return 'ABSENT';
