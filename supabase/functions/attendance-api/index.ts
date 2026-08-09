@@ -308,6 +308,23 @@ Deno.serve(async (request) => {
         .limit(1)
         .maybeSingle();
 
+      if (!session && /^\d{4}-\d{2}-\d{2}$/.test(targetDateStr)) {
+        const { data: allBusSessions } = await adminClient
+          .from('attendance_sessions')
+          .select('id, created_at')
+          .eq('bus_id', targetStudent.bus_id)
+          .eq('session_type', sessionType);
+
+        if (allBusSessions?.length) {
+          const matched = allBusSessions.find(s => {
+            const d = new Date(s.created_at);
+            const istDate = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+            return istDate.toISOString().slice(0, 10) === targetDateStr;
+          });
+          if (matched) session = { id: matched.id };
+        }
+      }
+
       if (!session) {
         const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
         // Manual attendance override sessions have no time limit
@@ -326,11 +343,26 @@ Deno.serve(async (request) => {
           created_at: sessionCreatedAt,
           email_status: 'sent',
         }).select('id').single();
+
         if (createErr || !newSession) {
           console.error('Session initialization error:', createErr);
-          return response(request, { message: `Could not initialize attendance session: ${createErr?.message || 'Unknown database error'}` }, 500);
+          const { data: fallbackSession } = await adminClient
+            .from('attendance_sessions')
+            .select('id')
+            .eq('bus_id', targetStudent.bus_id)
+            .eq('session_type', sessionType)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (fallbackSession) {
+            session = fallbackSession;
+          } else {
+            return response(request, { message: `Could not initialize attendance session: ${createErr?.message || 'Unknown database error'}` }, 500);
+          }
+        } else {
+          session = newSession;
         }
-        session = newSession;
       }
 
       if (status === 'PRESENT') {
