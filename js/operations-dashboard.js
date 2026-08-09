@@ -610,8 +610,31 @@ export async function initOperationsDashboard(expectedRole) {
     const dateToRaw = document.getElementById('filter-date-to')?.value;
     const statusRaw = document.getElementById('filter-status')?.value;
 
-    const dateFrom = (dateFromRaw && dateFromRaw.trim() !== '') ? dateFromRaw.trim() : null;
-    const dateTo = (dateToRaw && dateToRaw.trim() !== '') ? dateToRaw.trim() : null;
+    let dateFrom = null;
+    let dateTo = null;
+
+    if (dateFromRaw && dateFromRaw.trim() !== '') {
+      const v = dateFromRaw.trim();
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) {
+        dateFrom = new Date(`${v}:00+05:30`).toISOString();
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+        dateFrom = new Date(`${v}T00:00:00+05:30`).toISOString();
+      } else {
+        dateFrom = v;
+      }
+    }
+
+    if (dateToRaw && dateToRaw.trim() !== '') {
+      const v = dateToRaw.trim();
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) {
+        dateTo = new Date(`${v}:59.999+05:30`).toISOString();
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+        dateTo = new Date(`${v}T23:59:59.999+05:30`).toISOString();
+      } else {
+        dateTo = v;
+      }
+    }
+
     const statusVal = (statusRaw && statusRaw.trim() !== '') ? statusRaw.trim() : null;
     const busIdVal = (busFilter?.value && busFilter.value.trim() !== '') ? busFilter.value.trim() : null;
 
