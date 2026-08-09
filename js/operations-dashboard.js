@@ -214,77 +214,30 @@ const fetchStudentActualAttendance = async ({ email, registerNumber, studentId, 
   const cleanRegNo = (registerNumber || '').trim().toUpperCase();
   const cleanEmail = (email || '').trim().toLowerCase();
 
-  // Step 1: Resolve target student ID and bus ID
-  let targetStudentId = studentId;
-  let targetBusId = busId;
-
-  if (!targetStudentId || !targetBusId) {
-    if (cleanRegNo) {
-      const { data: p } = await supabase.from('profiles').select('id, bus_id').ilike('register_number', cleanRegNo).maybeSingle();
-      if (p) {
-        targetStudentId = targetStudentId || p.id;
-        targetBusId = targetBusId || p.bus_id;
-      }
-    }
-    if ((!targetStudentId || !targetBusId) && cleanEmail) {
-      const { data: p } = await supabase.from('profiles').select('id, bus_id').eq('email', cleanEmail).maybeSingle();
-      if (p) {
-        targetStudentId = targetStudentId || p.id;
-        targetBusId = targetBusId || p.bus_id;
-      }
-    }
-  }
-
-  if (!targetStudentId) return '--';
-
-  // Step 2: Query attendance table for this student joined with attendance_sessions
+  // Method 1: Query authorized_attendance_history RPC (the authoritative function powering dashboard table)
   try {
-    const { data: attList } = await supabase
-      .from('attendance')
-      .select('id, status, checked_in_at, session_id, attendance_sessions(id, bus_id, session_type, created_at)')
-      .eq('student_id', targetStudentId);
-
-    if (attList?.length) {
-      const matchedAtt = attList.find(a => {
-        const sess = a.attendance_sessions;
-        if (!sess || sess.session_type !== sessionType) return false;
-        
-        // Convert session created_at to YYYY-MM-DD in IST (+5:30)
-        const sessDate = new Date(sess.created_at);
-        const istOffset = 5.5 * 60 * 60 * 1000;
-        const istDate = new Date(sessDate.getTime() + istOffset);
-        const sessDateStr = istDate.toISOString().slice(0, 10);
-
-        return sessDateStr === dateStr;
-      });
-
-      if (matchedAtt) {
-        return matchedAtt.status || 'PRESENT';
-      }
-    }
-  } catch (err) {
-    console.warn('Error querying student attendance list:', err);
-  }
-
-  // Step 3: Query authorized_attendance_history RPC using proper ISO UTC strings for IST bounds
-  try {
-    const startIso = new Date(`${dateStr}T00:00:00+05:30`).toISOString();
-    const endIso = new Date(`${dateStr}T23:59:59.999+05:30`).toISOString();
-
     const { data: historyData, error: rpcErr } = await supabase.rpc('authorized_attendance_history', {
-      p_bus_id: targetBusId || null,
-      p_date_from: startIso,
-      p_date_to: endIso,
+      p_bus_id: busId || null,
+      p_date_from: null,
+      p_date_to: null,
       p_status: null,
       p_search: cleanRegNo || cleanEmail || null,
       p_day_type: null
     });
 
     if (!rpcErr && historyData?.length) {
-      const studentHist = historyData.find(h => 
-        (cleanRegNo && h.register_number && h.register_number.trim().toUpperCase() === cleanRegNo) ||
-        (targetStudentId && h.student_id === targetStudentId)
-      ) || historyData[0];
+      // Filter records matching the selected session date (YYYY-MM-DD)
+      const dateMatches = historyData.filter(h => h && h.session_date === dateStr);
+      const studentHist = dateMatches.find(h => {
+        const hReg = (h.register_number || '').trim().toUpperCase();
+        const hEmail = (h.email || '').trim().toLowerCase();
+        return (cleanRegNo && hReg === cleanRegNo) ||
+               (studentId && h.student_id === studentId) ||
+               (cleanEmail && hEmail === cleanEmail);
+      }) || historyData.find(h => {
+        const hReg = (h.register_number || '').trim().toUpperCase();
+        return (cleanRegNo && hReg === cleanRegNo);
+      });
 
       if (studentHist) {
         let statusVal = null;
@@ -298,29 +251,57 @@ const fetchStudentActualAttendance = async ({ email, registerNumber, studentId, 
       }
     }
   } catch (e) {
-    console.warn('authorized_attendance_history query error:', e);
+    console.warn('authorized_attendance_history RPC query error:', e);
   }
 
-  // Step 4: Check if an attendance session exists for this bus on dateStr
+  // Method 2: Fallback direct query on profiles -> attendance_sessions -> attendance
   try {
-    const startIso = new Date(`${dateStr}T00:00:00+05:30`).toISOString();
-    const endIso = new Date(`${dateStr}T23:59:59.999+05:30`).toISOString();
+    let targetStudentId = studentId;
+    let targetBusId = busId;
 
-    let sessionQuery = supabase.from('attendance_sessions')
-      .select('id, session_type')
-      .gte('created_at', startIso)
-      .lte('created_at', endIso)
-      .eq('session_type', sessionType);
+    if (!targetStudentId || !targetBusId) {
+      if (cleanRegNo) {
+        const { data: p } = await supabase.from('profiles').select('id, bus_id').ilike('register_number', cleanRegNo).maybeSingle();
+        if (p) {
+          targetStudentId = targetStudentId || p.id;
+          targetBusId = targetBusId || p.bus_id;
+        }
+      }
+      if ((!targetStudentId || !targetBusId) && cleanEmail) {
+        const { data: p } = await supabase.from('profiles').select('id, bus_id').eq('email', cleanEmail).maybeSingle();
+        if (p) {
+          targetStudentId = targetStudentId || p.id;
+          targetBusId = targetBusId || p.bus_id;
+        }
+      }
+    }
 
-    if (targetBusId) sessionQuery = sessionQuery.eq('bus_id', targetBusId);
+    if (targetStudentId) {
+      const { data: attList } = await supabase
+        .from('attendance')
+        .select('id, status, checked_in_at, session_id, attendance_sessions(id, bus_id, session_type, created_at)')
+        .eq('student_id', targetStudentId);
 
-    const { data: sessions } = await sessionQuery;
-    if (sessions?.length) {
-      // Session exists, but student has no attendance record in DB -> ABSENT
-      return 'ABSENT';
+      if (attList?.length) {
+        const matchedAtt = attList.find(a => {
+          const sess = a.attendance_sessions;
+          if (!sess || sess.session_type !== sessionType) return false;
+          
+          const sessDate = new Date(sess.created_at);
+          const istOffset = 5.5 * 60 * 60 * 1000;
+          const istDate = new Date(sessDate.getTime() + istOffset);
+          const sessDateStr = istDate.toISOString().slice(0, 10);
+
+          return sessDateStr === dateStr;
+        });
+
+        if (matchedAtt) {
+          return matchedAtt.status || 'PRESENT';
+        }
+      }
     }
   } catch (err) {
-    console.warn('Error checking session existence:', err);
+    console.warn('Direct attendance table query error:', err);
   }
 
   return 'ABSENT';
