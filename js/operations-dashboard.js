@@ -192,11 +192,11 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
     const domActiveCount = parseInt(document.getElementById('stat-students-active')?.textContent || '0', 10);
     const totalStudents = fnStat?.total_students || summary?.student_count_active || summary?.student_count_total || defaultCount || (domActiveCount > 0 ? domActiveCount : 0);
 
-    const mPresent = Math.max(fnStat?.present_count ?? 0, summary?.morning_checkins ?? 0);
-    const mAbsent = fnStat?.session_exists ? (fnStat.absent_count ?? Math.max(0, totalStudents - mPresent)) : Math.max(0, totalStudents - mPresent);
+    const mPresent = fnStat?.present_count ?? (summary?.morning_checkins ?? 0);
+    const mAbsent = fnStat?.absent_count ?? Math.max(0, totalStudents - mPresent);
 
-    const ePresent = Math.max(anStat?.present_count ?? 0, summary?.evening_checkins ?? 0);
-    const eAbsent = anStat?.session_exists ? (anStat.absent_count ?? Math.max(0, totalStudents - ePresent)) : Math.max(0, totalStudents - ePresent);
+    const ePresent = anStat?.present_count ?? (summary?.evening_checkins ?? 0);
+    const eAbsent = anStat?.absent_count ?? Math.max(0, totalStudents - ePresent);
 
     updateCardElements(
       ['stat-morning-checkins', 'stat-fn-present'],

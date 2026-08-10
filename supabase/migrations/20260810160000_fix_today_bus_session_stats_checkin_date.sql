@@ -1,4 +1,4 @@
--- Migration: Update get_today_bus_session_stats to reliably detect today's sessions created since IST midnight
+-- Migration: Update get_today_bus_session_stats to count today's check-ins using (checked_in_at OR created_at) IST boundary
 DROP FUNCTION IF EXISTS public.get_today_bus_session_stats(uuid);
 
 CREATE OR REPLACE FUNCTION public.get_today_bus_session_stats(p_bus_id uuid DEFAULT NULL)
@@ -26,14 +26,21 @@ BEGIN
   FROM public.profiles
   WHERE (p_bus_id IS NULL OR bus_id = p_bus_id) AND role = 'student' AND status = 'active';
 
-  -- Check if Morning / Evening sessions exist today (created since 00:00:00 IST today)
+  -- Check if Morning / Evening sessions exist today (created today OR has check-ins today)
   SELECT 
     bool_or(s.session_type = 'Morning'),
     bool_or(s.session_type = 'Evening')
   INTO has_morning, has_evening
   FROM public.attendance_sessions s
   WHERE (p_bus_id IS NULL OR s.bus_id = p_bus_id)
-    AND s.created_at >= start_of_today_ist;
+    AND (
+      s.created_at >= start_of_today_ist
+      OR EXISTS (
+        SELECT 1 FROM public.attendance a
+        WHERE a.session_id = s.id
+          AND a.checked_in_at >= start_of_today_ist
+      )
+    );
 
   IF has_morning IS NULL THEN has_morning := false; END IF;
   IF has_evening IS NULL THEN has_evening := false; END IF;
@@ -45,7 +52,7 @@ BEGIN
     JOIN public.attendance_sessions s ON a.session_id = s.id
     WHERE (p_bus_id IS NULL OR s.bus_id = p_bus_id)
       AND s.session_type = 'Morning'
-      AND s.created_at >= start_of_today_ist
+      AND (a.checked_in_at >= start_of_today_ist OR s.created_at >= start_of_today_ist)
       AND a.status = 'PRESENT';
   END IF;
 
@@ -56,7 +63,7 @@ BEGIN
     JOIN public.attendance_sessions s ON a.session_id = s.id
     WHERE (p_bus_id IS NULL OR s.bus_id = p_bus_id)
       AND s.session_type = 'Evening'
-      AND s.created_at >= start_of_today_ist
+      AND (a.checked_in_at >= start_of_today_ist OR s.created_at >= start_of_today_ist)
       AND a.status = 'PRESENT';
   END IF;
 
