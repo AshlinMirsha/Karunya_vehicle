@@ -8,7 +8,7 @@ on conflict (email) do update set
   bus_id = excluded.bus_id, 
   status = excluded.status;
 
--- If LAVANYA.M has already logged in once, update her active profile record directly
+-- If LAVANYA.M has already logged in or has a profile, update her active profile record directly
 update public.profiles
 set 
   full_name = 'LAVANYA.M', 
@@ -17,3 +17,8 @@ set
   bus_id = (select id from public.buses where bus_number = '13'), 
   status = 'active'
 where lower(email) = 'lavanyam26@karunya.edu.in';
+
+-- Delete from pending_student_assignments if profile exists to prevent double-counting
+delete from public.pending_student_assignments
+where lower(email) = 'lavanyam26@karunya.edu.in'
+  and exists (select 1 from public.profiles where lower(email) = 'lavanyam26@karunya.edu.in');
