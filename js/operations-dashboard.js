@@ -19,7 +19,7 @@ const statusCell = (status, time, lat, lon, sessionDateStr, sessionType = null, 
   const td = document.createElement('td');
   if (status === 'PRESENT') {
     const timeText = time ? new Date(time).toLocaleTimeString('en-IN', { timeStyle: 'short' }) : '';
-    const subText = submission || 'Self';
+    const subText = (submission && String(submission).trim().toLowerCase() === 'manual') ? 'Manual' : 'Self';
     const badgeBg = subText === 'Manual' ? 'bg-warning text-dark' : 'bg-info text-dark';
     td.innerHTML = `PRESENT <span class="text-muted small">(${timeText})</span> <span class="badge ${badgeBg} ms-1 py-1 px-2" style="font-size: 0.7rem;">${subText}</span> <a href="https://maps.google.com/?q=${lat},${lon}" target="_blank" class="btn btn-sm btn-outline-info ms-1 py-0 px-2" style="font-size: 0.75rem; border-color: rgba(var(--bs-info-rgb), 0.3);">View map</a>`;
   } else if (status === 'ABSENT') {

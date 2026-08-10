@@ -7,6 +7,11 @@ UPDATE public.attendance
 SET submission = 'Self' 
 WHERE submission IS NULL;
 
+-- Update existing manual override records (which have remarks) to 'Manual'
+UPDATE public.attendance
+SET submission = 'Manual'
+WHERE remark IS NOT NULL AND trim(remark) <> '';
+
 -- Update authorized_attendance_history RPC to return session submission methods
 DROP FUNCTION IF EXISTS public.authorized_attendance_history(uuid, timestamptz, timestamptz, text, text, text);
 
@@ -91,17 +96,17 @@ BEGIN
       (SELECT a.checked_in_at FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.morning_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS m_time,
       (SELECT a.latitude FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.morning_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS m_lat,
       (SELECT a.longitude FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.morning_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS m_lon,
-      (SELECT a.submission FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.morning_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS m_sub,
+      (SELECT CASE WHEN a.submission = 'Manual' OR a.remark IS NOT NULL THEN 'Manual' ELSE COALESCE(a.submission, 'Self') END FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.morning_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS m_sub,
 
       (SELECT a.checked_in_at FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.evening_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS e_time,
       (SELECT a.latitude FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.evening_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS e_lat,
       (SELECT a.longitude FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.evening_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS e_lon,
-      (SELECT a.submission FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.evening_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS e_sub,
+      (SELECT CASE WHEN a.submission = 'Manual' OR a.remark IS NOT NULL THEN 'Manual' ELSE COALESCE(a.submission, 'Self') END FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.evening_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS e_sub,
 
       (SELECT a.checked_in_at FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.special_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS sp_time,
       (SELECT a.latitude FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.special_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS sp_lat,
       (SELECT a.longitude FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.special_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS sp_lon,
-      (SELECT a.submission FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.special_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS sp_sub
+      (SELECT CASE WHEN a.submission = 'Manual' OR a.remark IS NOT NULL THEN 'Manual' ELSE COALESCE(a.submission, 'Self') END FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.special_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS sp_sub
     FROM sessions s
     JOIN public.buses b ON b.id = s.bus_id
     JOIN public.profiles p ON p.bus_id = s.bus_id AND p.role = 'student' AND p.status = 'active'
@@ -124,19 +129,19 @@ BEGIN
     h.m_time AS morning_checked_in_at,
     h.m_lat AS morning_latitude,
     h.m_lon AS morning_longitude,
-    CASE WHEN h.has_morning AND h.m_time IS NOT NULL THEN coalesce(h.m_sub, 'Self') ELSE NULL END AS morning_submission,
+    CASE WHEN h.has_morning AND h.m_time IS NOT NULL THEN h.m_sub ELSE NULL END AS morning_submission,
 
     CASE WHEN h.has_evening THEN (CASE WHEN h.e_time IS NULL THEN 'ABSENT' ELSE 'PRESENT' END) ELSE NULL END AS evening_status,
     h.e_time AS evening_checked_in_at,
     h.e_lat AS evening_latitude,
     h.e_lon AS evening_longitude,
-    CASE WHEN h.has_evening AND h.e_time IS NOT NULL THEN coalesce(h.e_sub, 'Self') ELSE NULL END AS evening_submission,
+    CASE WHEN h.has_evening AND h.e_time IS NOT NULL THEN h.e_sub ELSE NULL END AS evening_submission,
 
-    CASE WHEN h.has_special THEN (CASE WHEN h.sp_time IS NULL THEN 'ABSENT' ELSE 'PRESENT' END) ELSE NULL END AS special_status,
+    CASE WHEN h.has_special THEN (CASE WHEN h.sp_status IS NULL AND h.sp_time IS NULL THEN 'ABSENT' ELSE 'PRESENT' END) ELSE NULL END AS special_status,
     h.sp_time AS special_checked_in_at,
     h.sp_lat AS special_latitude,
     h.sp_lon AS special_longitude,
-    CASE WHEN h.has_special AND h.sp_time IS NOT NULL THEN coalesce(h.sp_sub, 'Self') ELSE NULL END AS special_submission
+    CASE WHEN h.has_special AND h.sp_time IS NOT NULL THEN h.sp_sub ELSE NULL END AS special_submission
   FROM history h
   WHERE p_status IS NULL
      OR (h.has_morning AND (CASE WHEN h.m_time IS NULL THEN 'ABSENT' ELSE 'PRESENT' END) = p_status)
