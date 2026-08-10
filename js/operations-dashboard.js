@@ -164,11 +164,11 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
 
     const totalStudents = fnStat?.total_students ?? defaultCount ?? summary?.student_count_active ?? 0;
 
-    const mPresent = fnStat?.present_count ?? summary?.morning_checkins ?? 0;
-    const mAbsent = fnStat?.absent_count ?? Math.max(0, totalStudents - mPresent);
+    const mPresent = Math.max(fnStat?.present_count ?? 0, summary?.morning_checkins ?? 0);
+    const mAbsent = Math.max(0, totalStudents - mPresent);
 
-    const ePresent = anStat?.present_count ?? summary?.evening_checkins ?? 0;
-    const eAbsent = anStat?.absent_count ?? Math.max(0, totalStudents - ePresent);
+    const ePresent = Math.max(anStat?.present_count ?? 0, summary?.evening_checkins ?? 0);
+    const eAbsent = Math.max(0, totalStudents - ePresent);
 
     const updateCardElements = (presentElementIds, absentElementIds, presentCount, absentCount) => {
       presentElementIds.forEach(id => {
