@@ -378,6 +378,7 @@ Deno.serve(async (request) => {
           longitude,
           status: 'PRESENT',
           remark: remark,
+          submission: 'Manual',
         }, { onConflict: 'session_id,student_id' });
         if (upsertErr) return response(request, { message: 'Could not record manual attendance.' }, 500);
       } else {
@@ -418,7 +419,7 @@ Deno.serve(async (request) => {
         .gte('checked_in_at', startOfDay.toISOString())
         .limit(1);
       if (existingCheckin && existingCheckin.length > 0) return response(request, { message: 'ALREADY MARKED PRESENT !!!' }, 409);
-      const { error } = await adminClient.from('attendance').insert({ session_id: session.id, student_id: user.id, latitude, longitude });
+      const { error } = await adminClient.from('attendance').insert({ session_id: session.id, student_id: user.id, latitude, longitude, submission: 'Self' });
       if (error?.code === '23505') return response(request, { message: 'ALREADY MARKED PRESENT !!!' }, 409);
       if (error) return response(request, { message: 'Attendance could not be recorded.' }, 500);
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
