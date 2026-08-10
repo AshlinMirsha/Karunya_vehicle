@@ -179,13 +179,14 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
     const fnStat = stats?.find(s => s.session_type === 'Morning');
     const anStat = stats?.find(s => s.session_type === 'Evening');
 
-    const totalStudents = fnStat?.total_students ?? defaultCount ?? summary?.student_count_active ?? 0;
+    const domActiveCount = parseInt(document.getElementById('stat-students-active')?.textContent || '0', 10);
+    const totalStudents = fnStat?.total_students || summary?.student_count_active || summary?.student_count_total || defaultCount || (domActiveCount > 0 ? domActiveCount : 0);
 
     const mPresent = Math.max(fnStat?.present_count ?? 0, summary?.morning_checkins ?? 0);
-    const mAbsent = Math.max(0, totalStudents - mPresent);
+    const mAbsent = totalStudents > 0 ? Math.max(0, totalStudents - mPresent) : 0;
 
     const ePresent = Math.max(anStat?.present_count ?? 0, summary?.evening_checkins ?? 0);
-    const eAbsent = Math.max(0, totalStudents - ePresent);
+    const eAbsent = totalStudents > 0 ? Math.max(0, totalStudents - ePresent) : 0;
 
     updateCardElements(
       ['stat-morning-checkins', 'stat-fn-present'],
@@ -648,10 +649,11 @@ export async function initOperationsDashboard(expectedRole) {
     const records = data ?? [];
 
     if (records.length > 0 && (!statusVal || statusVal === '') && (!searchVal || searchVal === '')) {
+      const totalRoster = records.length;
       const mPres = records.filter(r => r.morning_status === 'PRESENT').length;
-      const mAbs = records.filter(r => r.morning_status === 'ABSENT').length;
+      const mAbs = Math.max(0, totalRoster - mPres);
       const ePres = records.filter(r => r.evening_status === 'PRESENT').length;
-      const eAbs = records.filter(r => r.evening_status === 'ABSENT').length;
+      const eAbs = Math.max(0, totalRoster - ePres);
 
       updateCardElements(
         ['stat-morning-checkins', 'stat-fn-present'],
