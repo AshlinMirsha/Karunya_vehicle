@@ -179,6 +179,11 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
       console.warn('Failed RPC get_today_bus_session_stats:', e);
     }
 
+    // Do not render temporary fallback counts while network data is still loading/in-flight
+    if (!stats && (!summary || (!summary.student_count_active && !summary.present_today))) {
+      return;
+    }
+
     const fnStat = stats?.find(s => s.session_type === 'Morning');
     const anStat = stats?.find(s => s.session_type === 'Evening');
 
