@@ -365,12 +365,17 @@ Deno.serve(async (request) => {
         }
       }
 
+      const latVal = typeof b.latitude === 'number' ? b.latitude : parseFloat(String(b.latitude ?? ''));
+      const lngVal = typeof b.longitude === 'number' ? b.longitude : parseFloat(String(b.longitude ?? ''));
+      const latitude = withinCoordinateBounds(latVal, lngVal) ? latVal : 0.0;
+      const longitude = withinCoordinateBounds(latVal, lngVal) ? lngVal : 0.0;
+
       if (status === 'PRESENT') {
         const { error: upsertErr } = await adminClient.from('attendance').upsert({
           session_id: session.id,
           student_id: targetStudent.id,
-          latitude: 0.0,
-          longitude: 0.0,
+          latitude,
+          longitude,
           status: 'PRESENT',
           remark: remark,
         }, { onConflict: 'session_id,student_id' });

@@ -1407,6 +1407,18 @@ const setupStudentManagementControls = (buses) => {
       btnSubmitOverride.disabled = true;
       btnSubmitOverride.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting…';
 
+      // Obtain device GPS location of Admin / BC marking manual attendance
+      const getDeviceCoordinates = () => new Promise(resolve => {
+        if (!navigator.geolocation) return resolve({ latitude: null, longitude: null });
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+          () => resolve({ latitude: null, longitude: null }),
+          { timeout: 4000, enableHighAccuracy: true }
+        );
+      });
+
+      const { latitude, longitude } = await getDeviceCoordinates();
+
       let invokeResult = await supabase.functions.invoke('attendance-api', {
         body: {
           action: 'manual-override-attendance',
@@ -1415,7 +1427,9 @@ const setupStudentManagementControls = (buses) => {
           sessionType,
           status,
           remark,
-          overrideDate
+          overrideDate,
+          latitude,
+          longitude
         }
       }).catch(err => ({ data: null, error: err }));
 
@@ -1430,7 +1444,9 @@ const setupStudentManagementControls = (buses) => {
             sessionType,
             status,
             remark,
-            overrideDate
+            overrideDate,
+            latitude,
+            longitude
           }
         }).catch(err => ({ data: null, error: err }));
       }
