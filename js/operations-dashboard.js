@@ -742,12 +742,6 @@ export async function initOperationsDashboard(expectedRole) {
   const refreshDashboard = async () => {
     try {
       await loadHistory();
-      const summaryResult = await supabase.rpc('attendance_dashboard_summary');
-      const summaryData = summaryResult.data?.[0];
-      if (summaryData) {
-        if (document.getElementById('stat-today-attendance')) text('stat-today-attendance', summaryData.present_today ?? 0);
-        await updateSessionStatsCards(profile, summaryData.student_count_active ?? 0, summaryData);
-      }
     } catch (err) {
       console.error('Error auto-refreshing dashboard:', err);
     }
@@ -764,11 +758,7 @@ export async function initOperationsDashboard(expectedRole) {
     })
     .subscribe();
 
-  // Background auto-poll every 4s to ensure continuous real-time sync on mobile networks
-  const pollInterval = setInterval(refreshDashboard, 4000);
-
   window.addEventListener('beforeunload', () => {
-    clearInterval(pollInterval);
     supabase.removeChannel(attendanceChannel);
   });
 
