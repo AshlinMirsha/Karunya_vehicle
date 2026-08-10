@@ -143,32 +143,20 @@ const renderStudentRoster = async () => {
   ])));
 };
 
-const updateCardElements = (presentElementIds, absentElementIds, stat) => {
-  const sessionExists = Boolean(stat?.session_exists);
-
+const updateCardElements = (presentElementIds, absentElementIds, presentCount, absentCount) => {
   presentElementIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
-      if (!sessionExists) {
-        el.textContent = 'to be loaded';
-        el.className = 'fw-bold text-muted fst-italic';
-      } else {
-        el.textContent = String(stat.present_count ?? 0);
-        el.className = 'fw-bold text-success fs-5';
-      }
+      el.textContent = String(presentCount);
+      el.className = 'fw-bold text-success fs-5';
     }
   });
 
   absentElementIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
-      if (!sessionExists) {
-        el.textContent = 'to be loaded';
-        el.className = 'fw-bold text-muted fst-italic';
-      } else {
-        el.textContent = String(stat.absent_count ?? 0);
-        el.className = 'fw-bold text-danger fs-5';
-      }
+      el.textContent = String(absentCount);
+      el.className = 'fw-bold text-danger fs-5';
     }
   });
 };
@@ -194,16 +182,27 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
     const fnStat = stats?.find(s => s.session_type === 'Morning');
     const anStat = stats?.find(s => s.session_type === 'Evening');
 
+    const domActiveCount = parseInt(document.getElementById('stat-students-active')?.textContent || '0', 10);
+    const totalStudents = fnStat?.total_students || summary?.student_count_active || summary?.student_count_total || defaultCount || (domActiveCount > 0 ? domActiveCount : 0);
+
+    const mPresent = Math.max(fnStat?.present_count ?? 0, summary?.morning_checkins ?? 0);
+    const mAbsent = fnStat?.session_exists ? (fnStat.absent_count ?? Math.max(0, totalStudents - mPresent)) : Math.max(0, totalStudents - mPresent);
+
+    const ePresent = Math.max(anStat?.present_count ?? 0, summary?.evening_checkins ?? 0);
+    const eAbsent = anStat?.session_exists ? (anStat.absent_count ?? Math.max(0, totalStudents - ePresent)) : Math.max(0, totalStudents - ePresent);
+
     updateCardElements(
       ['stat-morning-checkins', 'stat-fn-present'],
       ['stat-morning-absent', 'stat-fn-absent'],
-      fnStat
+      mPresent,
+      mAbsent
     );
 
     updateCardElements(
       ['stat-evening-checkins', 'stat-an-present'],
       ['stat-evening-absent', 'stat-an-absent'],
-      anStat
+      ePresent,
+      eAbsent
     );
   } catch (err) {
     console.error('Error in updateSessionStatsCards:', err);
