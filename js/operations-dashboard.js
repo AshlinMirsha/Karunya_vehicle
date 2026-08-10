@@ -146,53 +146,60 @@ const renderStudentRoster = async () => {
 const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null) => {
   try {
     const busId = profile?.role === 'admin' ? null : profile?.bus_id;
+    let stats = null;
 
-    const { data: stats, error } = await supabase.rpc('get_today_bus_session_stats', { p_bus_id: busId });
-    if (error || !stats?.length) {
-      console.warn('get_today_bus_session_stats RPC call error/empty:', error);
-      return;
+    try {
+      const { data, error } = await supabase.rpc('get_today_bus_session_stats', { p_bus_id: busId });
+      if (!error && data?.length) {
+        stats = data;
+      } else if (error) {
+        console.warn('get_today_bus_session_stats RPC call error:', error);
+      }
+    } catch (e) {
+      console.warn('Failed RPC get_today_bus_session_stats:', e);
     }
 
     const fnStat = stats?.find(s => s.session_type === 'Morning');
     const anStat = stats?.find(s => s.session_type === 'Evening');
 
-    const fnPresentEl = document.getElementById('stat-fn-present') || document.getElementById('stat-morning-checkins');
-    const fnAbsentEl = document.getElementById('stat-fn-absent') || document.getElementById('stat-morning-absent');
+    const totalStudents = fnStat?.total_students ?? defaultCount ?? summary?.student_count_active ?? 0;
 
-    if (fnPresentEl && fnAbsentEl) {
-      if (!fnStat || !fnStat.session_exists) {
-        fnPresentEl.textContent = 'to be loaded';
-        fnPresentEl.className = 'fw-bold text-muted fst-italic';
-        fnAbsentEl.textContent = 'to be loaded';
-        fnAbsentEl.className = 'fw-bold text-muted fst-italic';
-      } else {
-        const mPresent = fnStat.present_count ?? summary?.morning_checkins ?? 0;
-        const mAbsent = fnStat.absent_count ?? Math.max(0, (defaultCount || summary?.student_count_active || 0) - mPresent);
-        fnPresentEl.textContent = String(mPresent);
-        fnPresentEl.className = 'fw-bold text-success fs-5';
-        fnAbsentEl.textContent = String(mAbsent);
-        fnAbsentEl.className = 'fw-bold text-danger fs-5';
-      }
-    }
+    const mPresent = fnStat?.present_count ?? summary?.morning_checkins ?? 0;
+    const mAbsent = fnStat?.absent_count ?? Math.max(0, totalStudents - mPresent);
 
-    const anPresentEl = document.getElementById('stat-an-present') || document.getElementById('stat-evening-checkins');
-    const anAbsentEl = document.getElementById('stat-an-absent') || document.getElementById('stat-evening-absent');
+    const ePresent = anStat?.present_count ?? summary?.evening_checkins ?? 0;
+    const eAbsent = anStat?.absent_count ?? Math.max(0, totalStudents - ePresent);
 
-    if (anPresentEl && anAbsentEl) {
-      if (!anStat || !anStat.session_exists) {
-        anPresentEl.textContent = 'to be loaded';
-        anPresentEl.className = 'fw-bold text-muted fst-italic';
-        anAbsentEl.textContent = 'to be loaded';
-        anAbsentEl.className = 'fw-bold text-muted fst-italic';
-      } else {
-        const ePresent = anStat.present_count ?? summary?.evening_checkins ?? 0;
-        const eAbsent = anStat.absent_count ?? Math.max(0, (defaultCount || summary?.student_count_active || 0) - ePresent);
-        anPresentEl.textContent = String(ePresent);
-        anPresentEl.className = 'fw-bold text-success fs-5';
-        anAbsentEl.textContent = String(eAbsent);
-        anAbsentEl.className = 'fw-bold text-danger fs-5';
-      }
-    }
+    const updateCardElements = (presentElementIds, absentElementIds, presentCount, absentCount) => {
+      presentElementIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.textContent = String(presentCount);
+          el.className = 'fw-bold text-success fs-5';
+        }
+      });
+      absentElementIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.textContent = String(absentCount);
+          el.className = 'fw-bold text-danger fs-5';
+        }
+      });
+    };
+
+    updateCardElements(
+      ['stat-morning-checkins', 'stat-fn-present'],
+      ['stat-morning-absent', 'stat-fn-absent'],
+      mPresent,
+      mAbsent
+    );
+
+    updateCardElements(
+      ['stat-evening-checkins', 'stat-an-present'],
+      ['stat-evening-absent', 'stat-an-absent'],
+      ePresent,
+      eAbsent
+    );
   } catch (err) {
     console.error('Error in updateSessionStatsCards:', err);
   }
