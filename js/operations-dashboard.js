@@ -160,9 +160,9 @@ const updateCardElements = (presentElementIds, absentElementIds, presentCount, a
   });
 };
 
-const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null) => {
+const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null, busIdOverride = null) => {
   try {
-    const busId = profile?.role === 'admin' ? null : profile?.bus_id;
+    const busId = busIdOverride !== undefined && busIdOverride !== null ? busIdOverride : (profile?.role === 'admin' ? null : profile?.bus_id);
     let stats = null;
 
     try {
@@ -182,11 +182,13 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
     const domActiveCount = parseInt(document.getElementById('stat-students-active')?.textContent || '0', 10);
     const totalStudents = fnStat?.total_students || summary?.student_count_active || summary?.student_count_total || defaultCount || (domActiveCount > 0 ? domActiveCount : 0);
 
+    const hasMorningSession = Boolean(fnStat?.session_exists || (summary?.morning_checkins && summary.morning_checkins > 0));
     const mPresent = Math.max(fnStat?.present_count ?? 0, summary?.morning_checkins ?? 0);
-    const mAbsent = totalStudents > 0 ? Math.max(0, totalStudents - mPresent) : 0;
+    const mAbsent = hasMorningSession ? Math.max(0, totalStudents - mPresent) : 0;
 
+    const hasEveningSession = Boolean(anStat?.session_exists || (summary?.evening_checkins && summary.evening_checkins > 0));
     const ePresent = Math.max(anStat?.present_count ?? 0, summary?.evening_checkins ?? 0);
-    const eAbsent = totalStudents > 0 ? Math.max(0, totalStudents - ePresent) : 0;
+    const eAbsent = hasEveningSession ? Math.max(0, totalStudents - ePresent) : 0;
 
     updateCardElements(
       ['stat-morning-checkins', 'stat-fn-present'],
@@ -650,10 +652,13 @@ export async function initOperationsDashboard(expectedRole) {
 
     if (records.length > 0 && (!statusVal || statusVal === '') && (!searchVal || searchVal === '')) {
       const totalRoster = records.length;
+      const hasMorningSession = records.some(r => r.morning_status !== null);
       const mPres = records.filter(r => r.morning_status === 'PRESENT').length;
-      const mAbs = Math.max(0, totalRoster - mPres);
+      const mAbs = hasMorningSession ? Math.max(0, totalRoster - mPres) : 0;
+
+      const hasEveningSession = records.some(r => r.evening_status !== null);
       const ePres = records.filter(r => r.evening_status === 'PRESENT').length;
-      const eAbs = Math.max(0, totalRoster - ePres);
+      const eAbs = hasEveningSession ? Math.max(0, totalRoster - ePres) : 0;
 
       updateCardElements(
         ['stat-morning-checkins', 'stat-fn-present'],

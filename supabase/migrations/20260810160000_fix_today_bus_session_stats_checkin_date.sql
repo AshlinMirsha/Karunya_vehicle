@@ -1,4 +1,4 @@
--- Migration: Fix get_today_bus_session_stats to count today's attendance checkins regardless of session creation time
+-- Migration: Fix get_today_bus_session_stats to count today's attendance checkins and handle non-existent sessions cleanly
 DROP FUNCTION IF EXISTS public.get_today_bus_session_stats(uuid);
 
 CREATE OR REPLACE FUNCTION public.get_today_bus_session_stats(p_bus_id uuid DEFAULT NULL)
@@ -26,7 +26,7 @@ BEGIN
   FROM public.profiles
   WHERE (p_bus_id IS NULL OR bus_id = p_bus_id) AND role = 'student' AND status = 'active';
 
-  -- Check if Morning / Evening sessions exist today (session created today or attendance checked in today)
+  -- Check if Morning / Evening sessions exist today (session created today OR attendance checked in today)
   SELECT 
     bool_or(s.session_type = 'Morning'),
     bool_or(s.session_type = 'Evening')
@@ -46,35 +46,39 @@ BEGIN
   IF has_evening IS NULL THEN has_evening := false; END IF;
 
   -- Count distinct present students for Morning session today
-  SELECT count(distinct a.student_id)::integer INTO m_present
-  FROM public.attendance a
-  JOIN public.attendance_sessions s ON a.session_id = s.id
-  WHERE (p_bus_id IS NULL OR s.bus_id = p_bus_id)
-    AND s.session_type = 'Morning'
-    AND (
-      (s.created_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
-      OR (a.checked_in_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
-    )
-    AND a.status = 'PRESENT';
+  IF has_morning THEN
+    SELECT count(distinct a.student_id)::integer INTO m_present
+    FROM public.attendance a
+    JOIN public.attendance_sessions s ON a.session_id = s.id
+    WHERE (p_bus_id IS NULL OR s.bus_id = p_bus_id)
+      AND s.session_type = 'Morning'
+      AND (
+        (s.created_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
+        OR (a.checked_in_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
+      )
+      AND a.status = 'PRESENT';
+  END IF;
 
   -- Count distinct present students for Evening session today
-  SELECT count(distinct a.student_id)::integer INTO e_present
-  FROM public.attendance a
-  JOIN public.attendance_sessions s ON a.session_id = s.id
-  WHERE (p_bus_id IS NULL OR s.bus_id = p_bus_id)
-    AND s.session_type = 'Evening'
-    AND (
-      (s.created_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
-      OR (a.checked_in_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
-    )
-    AND a.status = 'PRESENT';
+  IF has_evening THEN
+    SELECT count(distinct a.student_id)::integer INTO e_present
+    FROM public.attendance a
+    JOIN public.attendance_sessions s ON a.session_id = s.id
+    WHERE (p_bus_id IS NULL OR s.bus_id = p_bus_id)
+      AND s.session_type = 'Evening'
+      AND (
+        (s.created_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
+        OR (a.checked_in_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
+      )
+      AND a.status = 'PRESENT';
+  END IF;
 
   IF m_present IS NULL THEN m_present := 0; END IF;
   IF e_present IS NULL THEN e_present := 0; END IF;
 
   RETURN QUERY VALUES
-    ('Morning'::text, has_morning, bus_total, m_present, greatest(0, bus_total - m_present)),
-    ('Evening'::text, has_evening, bus_total, e_present, greatest(0, bus_total - e_present));
+    ('Morning'::text, has_morning, bus_total, m_present, CASE WHEN has_morning THEN greatest(0, bus_total - m_present) ELSE 0 END),
+    ('Evening'::text, has_evening, bus_total, e_present, CASE WHEN has_evening THEN greatest(0, bus_total - e_present) ELSE 0 END);
 END;
 $$;
 
