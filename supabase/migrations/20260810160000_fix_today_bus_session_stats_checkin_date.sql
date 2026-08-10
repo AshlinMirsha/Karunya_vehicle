@@ -1,4 +1,4 @@
--- Migration: Update get_today_bus_session_stats to strictly check session creation date in IST
+-- Migration: Update get_today_bus_session_stats to reliably detect today's sessions created since IST midnight
 DROP FUNCTION IF EXISTS public.get_today_bus_session_stats(uuid);
 
 CREATE OR REPLACE FUNCTION public.get_today_bus_session_stats(p_bus_id uuid DEFAULT NULL)
@@ -11,29 +11,29 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
 DECLARE
-  today_ist date;
+  start_of_today_ist timestamptz;
   bus_total integer;
   has_morning boolean := false;
   has_evening boolean := false;
   m_present integer := 0;
   e_present integer := 0;
 BEGIN
-  -- Get today's date in IST
-  today_ist := (now() AT TIME ZONE 'Asia/Kolkata')::date;
+  -- Get start of today (00:00:00 IST) in timestamptz
+  start_of_today_ist := date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata';
 
   -- Count total active students assigned (to specific bus or all buses if p_bus_id is NULL)
   SELECT count(*)::integer INTO bus_total
   FROM public.profiles
   WHERE (p_bus_id IS NULL OR bus_id = p_bus_id) AND role = 'student' AND status = 'active';
 
-  -- Check if Morning / Evening sessions exist today based ONLY on the session's own creation date in IST
+  -- Check if Morning / Evening sessions exist today (created since 00:00:00 IST today)
   SELECT 
     bool_or(s.session_type = 'Morning'),
     bool_or(s.session_type = 'Evening')
   INTO has_morning, has_evening
   FROM public.attendance_sessions s
   WHERE (p_bus_id IS NULL OR s.bus_id = p_bus_id)
-    AND (s.created_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist;
+    AND s.created_at >= start_of_today_ist;
 
   IF has_morning IS NULL THEN has_morning := false; END IF;
   IF has_evening IS NULL THEN has_evening := false; END IF;
@@ -45,7 +45,7 @@ BEGIN
     JOIN public.attendance_sessions s ON a.session_id = s.id
     WHERE (p_bus_id IS NULL OR s.bus_id = p_bus_id)
       AND s.session_type = 'Morning'
-      AND (s.created_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
+      AND s.created_at >= start_of_today_ist
       AND a.status = 'PRESENT';
   END IF;
 
@@ -56,7 +56,7 @@ BEGIN
     JOIN public.attendance_sessions s ON a.session_id = s.id
     WHERE (p_bus_id IS NULL OR s.bus_id = p_bus_id)
       AND s.session_type = 'Evening'
-      AND (s.created_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
+      AND s.created_at >= start_of_today_ist
       AND a.status = 'PRESENT';
   END IF;
 
