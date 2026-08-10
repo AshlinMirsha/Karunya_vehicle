@@ -1,4 +1,4 @@
--- Migration: Fix get_today_bus_session_stats to count today's attendance checkins and handle non-existent sessions cleanly
+-- Migration: Update get_today_bus_session_stats to strictly check session creation date in IST
 DROP FUNCTION IF EXISTS public.get_today_bus_session_stats(uuid);
 
 CREATE OR REPLACE FUNCTION public.get_today_bus_session_stats(p_bus_id uuid DEFAULT NULL)
@@ -26,21 +26,14 @@ BEGIN
   FROM public.profiles
   WHERE (p_bus_id IS NULL OR bus_id = p_bus_id) AND role = 'student' AND status = 'active';
 
-  -- Check if Morning / Evening sessions exist today (session created today OR attendance checked in today)
+  -- Check if Morning / Evening sessions exist today based ONLY on the session's own creation date in IST
   SELECT 
     bool_or(s.session_type = 'Morning'),
     bool_or(s.session_type = 'Evening')
   INTO has_morning, has_evening
   FROM public.attendance_sessions s
   WHERE (p_bus_id IS NULL OR s.bus_id = p_bus_id)
-    AND (
-      (s.created_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
-      OR EXISTS (
-        SELECT 1 FROM public.attendance a
-        WHERE a.session_id = s.id
-          AND (a.checked_in_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
-      )
-    );
+    AND (s.created_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist;
 
   IF has_morning IS NULL THEN has_morning := false; END IF;
   IF has_evening IS NULL THEN has_evening := false; END IF;
@@ -52,10 +45,7 @@ BEGIN
     JOIN public.attendance_sessions s ON a.session_id = s.id
     WHERE (p_bus_id IS NULL OR s.bus_id = p_bus_id)
       AND s.session_type = 'Morning'
-      AND (
-        (s.created_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
-        OR (a.checked_in_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
-      )
+      AND (s.created_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
       AND a.status = 'PRESENT';
   END IF;
 
@@ -66,10 +56,7 @@ BEGIN
     JOIN public.attendance_sessions s ON a.session_id = s.id
     WHERE (p_bus_id IS NULL OR s.bus_id = p_bus_id)
       AND s.session_type = 'Evening'
-      AND (
-        (s.created_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
-        OR (a.checked_in_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
-      )
+      AND (s.created_at AT TIME ZONE 'Asia/Kolkata')::date = today_ist
       AND a.status = 'PRESENT';
   END IF;
 
@@ -77,8 +64,8 @@ BEGIN
   IF e_present IS NULL THEN e_present := 0; END IF;
 
   RETURN QUERY VALUES
-    ('Morning'::text, has_morning, bus_total, m_present, CASE WHEN has_morning THEN greatest(0, bus_total - m_present) ELSE 0 END),
-    ('Evening'::text, has_evening, bus_total, e_present, CASE WHEN has_evening THEN greatest(0, bus_total - e_present) ELSE 0 END);
+    ('Morning'::text, has_morning, bus_total, m_present, greatest(0, bus_total - m_present)),
+    ('Evening'::text, has_evening, bus_total, e_present, greatest(0, bus_total - e_present));
 END;
 $$;
 

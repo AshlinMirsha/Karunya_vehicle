@@ -143,28 +143,43 @@ const renderStudentRoster = async () => {
   ])));
 };
 
-const updateCardElements = (presentElementIds, absentElementIds, presentCount, absentCount) => {
+const updateCardElements = (presentElementIds, absentElementIds, stat) => {
+  const sessionExists = Boolean(stat?.session_exists);
+
   presentElementIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
-      el.textContent = String(presentCount);
-      el.className = 'fw-bold text-success fs-5';
+      if (!sessionExists) {
+        el.textContent = 'to be loaded';
+        el.className = 'fw-bold text-muted fst-italic';
+      } else {
+        el.textContent = String(stat.present_count ?? 0);
+        el.className = 'fw-bold text-success fs-5';
+      }
     }
   });
+
   absentElementIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
-      el.textContent = String(absentCount);
-      el.className = 'fw-bold text-danger fs-5';
+      if (!sessionExists) {
+        el.textContent = 'to be loaded';
+        el.className = 'fw-bold text-muted fst-italic';
+      } else {
+        el.textContent = String(stat.absent_count ?? 0);
+        el.className = 'fw-bold text-danger fs-5';
+      }
     }
   });
 };
 
 const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null, busIdOverride = null) => {
   try {
-    const busId = busIdOverride !== undefined && busIdOverride !== null ? busIdOverride : (profile?.role === 'admin' ? null : profile?.bus_id);
-    let stats = null;
+    const busId = (busIdOverride !== undefined && busIdOverride !== null)
+      ? (busIdOverride || null)
+      : (profile?.role === 'admin' ? null : profile?.bus_id);
 
+    let stats = null;
     try {
       const { data, error } = await supabase.rpc('get_today_bus_session_stats', { p_bus_id: busId });
       if (!error && data?.length) {
@@ -179,29 +194,16 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
     const fnStat = stats?.find(s => s.session_type === 'Morning');
     const anStat = stats?.find(s => s.session_type === 'Evening');
 
-    const domActiveCount = parseInt(document.getElementById('stat-students-active')?.textContent || '0', 10);
-    const totalStudents = fnStat?.total_students || summary?.student_count_active || summary?.student_count_total || defaultCount || (domActiveCount > 0 ? domActiveCount : 0);
-
-    const hasMorningSession = Boolean(fnStat?.session_exists || (summary?.morning_checkins && summary.morning_checkins > 0));
-    const mPresent = Math.max(fnStat?.present_count ?? 0, summary?.morning_checkins ?? 0);
-    const mAbsent = hasMorningSession ? Math.max(0, totalStudents - mPresent) : 0;
-
-    const hasEveningSession = Boolean(anStat?.session_exists || (summary?.evening_checkins && summary.evening_checkins > 0));
-    const ePresent = Math.max(anStat?.present_count ?? 0, summary?.evening_checkins ?? 0);
-    const eAbsent = hasEveningSession ? Math.max(0, totalStudents - ePresent) : 0;
-
     updateCardElements(
       ['stat-morning-checkins', 'stat-fn-present'],
       ['stat-morning-absent', 'stat-fn-absent'],
-      mPresent,
-      mAbsent
+      fnStat
     );
 
     updateCardElements(
       ['stat-evening-checkins', 'stat-an-present'],
       ['stat-evening-absent', 'stat-an-absent'],
-      ePresent,
-      eAbsent
+      anStat
     );
   } catch (err) {
     console.error('Error in updateSessionStatsCards:', err);
@@ -650,29 +652,7 @@ export async function initOperationsDashboard(expectedRole) {
 
     const records = data ?? [];
 
-    if (records.length > 0 && (!statusVal || statusVal === '') && (!searchVal || searchVal === '')) {
-      const totalRoster = records.length;
-      const hasMorningSession = records.some(r => r.morning_status !== null);
-      const mPres = records.filter(r => r.morning_status === 'PRESENT').length;
-      const mAbs = hasMorningSession ? Math.max(0, totalRoster - mPres) : 0;
-
-      const hasEveningSession = records.some(r => r.evening_status !== null);
-      const ePres = records.filter(r => r.evening_status === 'PRESENT').length;
-      const eAbs = hasEveningSession ? Math.max(0, totalRoster - ePres) : 0;
-
-      updateCardElements(
-        ['stat-morning-checkins', 'stat-fn-present'],
-        ['stat-morning-absent', 'stat-fn-absent'],
-        mPres,
-        mAbs
-      );
-      updateCardElements(
-        ['stat-evening-checkins', 'stat-an-present'],
-        ['stat-evening-absent', 'stat-an-absent'],
-        ePres,
-        eAbs
-      );
-    }
+    await updateSessionStatsCards(profile, 0, null, busIdVal);
 
     if (document.getElementById('stat-history-count')) text('stat-history-count', records.length);
     const printDateEl = document.getElementById('print-date-val');
