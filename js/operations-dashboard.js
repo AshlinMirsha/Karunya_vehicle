@@ -143,6 +143,23 @@ const renderStudentRoster = async () => {
   ])));
 };
 
+const updateCardElements = (presentElementIds, absentElementIds, presentCount, absentCount) => {
+  presentElementIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = String(presentCount);
+      el.className = 'fw-bold text-success fs-5';
+    }
+  });
+  absentElementIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = String(absentCount);
+      el.className = 'fw-bold text-danger fs-5';
+    }
+  });
+};
+
 const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null) => {
   try {
     const busId = profile?.role === 'admin' ? null : profile?.bus_id;
@@ -169,23 +186,6 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
 
     const ePresent = Math.max(anStat?.present_count ?? 0, summary?.evening_checkins ?? 0);
     const eAbsent = Math.max(0, totalStudents - ePresent);
-
-    const updateCardElements = (presentElementIds, absentElementIds, presentCount, absentCount) => {
-      presentElementIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          el.textContent = String(presentCount);
-          el.className = 'fw-bold text-success fs-5';
-        }
-      });
-      absentElementIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          el.textContent = String(absentCount);
-          el.className = 'fw-bold text-danger fs-5';
-        }
-      });
-    };
 
     updateCardElements(
       ['stat-morning-checkins', 'stat-fn-present'],
@@ -646,6 +646,26 @@ export async function initOperationsDashboard(expectedRole) {
     if (error) { showToast('Attendance history could not be loaded.', 'danger'); return; }
 
     const records = data ?? [];
+
+    if (records.length > 0 && (!statusVal || statusVal === '') && (!searchVal || searchVal === '')) {
+      const mPres = records.filter(r => r.morning_status === 'PRESENT').length;
+      const mAbs = records.filter(r => r.morning_status === 'ABSENT').length;
+      const ePres = records.filter(r => r.evening_status === 'PRESENT').length;
+      const eAbs = records.filter(r => r.evening_status === 'ABSENT').length;
+
+      updateCardElements(
+        ['stat-morning-checkins', 'stat-fn-present'],
+        ['stat-morning-absent', 'stat-fn-absent'],
+        mPres,
+        mAbs
+      );
+      updateCardElements(
+        ['stat-evening-checkins', 'stat-an-present'],
+        ['stat-evening-absent', 'stat-an-absent'],
+        ePres,
+        eAbs
+      );
+    }
 
     if (document.getElementById('stat-history-count')) text('stat-history-count', records.length);
     const printDateEl = document.getElementById('print-date-val');
