@@ -465,6 +465,22 @@ body {
     display: none !important;
   }
 
+  /* When printing a report: hide EVERYTHING outside main, and hide
+     every sibling inside main that isn't the reports section itself.
+     This removes stat cards, portal header, QR panel, attendance history, etc. */
+  body.printing-report > *:not(main) {
+    display: none !important;
+  }
+  body.printing-report main > *:not(#reports-section) {
+    display: none !important;
+  }
+
+  /* Also hide the section title / description row inside reports-section
+     (the h2 "Attendance Reports" + subtitle — not needed in print) */
+  body.printing-report #reports-section > div:first-child {
+    display: none !important;
+  }
+
   html, body {
     background: #ffffff !important;
     color: #000000 !important;
