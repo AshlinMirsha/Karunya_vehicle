@@ -799,3 +799,157 @@ button#btn-back-to-top svg {
 }
 
 
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Attendance Report Styles (Date Range + Student Wise)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Report section tab strip ── */
+.rpt-tab-strip {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid var(--dashboard-line, #d9e2ec);
+  margin-bottom: 20px;
+}
+
+.rpt-tab-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 8px 20px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: #486581;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.rpt-tab-btn:hover  { color: #102a43; background: #f0f5fa; }
+.rpt-tab-btn.active { color: #102a43; border-bottom-color: #1d72d8; font-weight: 700; }
+
+/* ── Report table base ── */
+.rpt-table {
+  font-size: 0.8rem;
+  border-collapse: collapse;
+  width: 100%;
+  color: #102a43;
+  background: #ffffff;
+}
+
+.rpt-table th, .rpt-table td {
+  border: 1px solid #c8d6e0;
+  padding: 5px 8px;
+  vertical-align: middle;
+}
+
+.rpt-table thead th {
+  background: #eef3f8;
+  font-weight: 700;
+  text-align: left;
+}
+
+.rpt-table-caption {
+  background: #dde8f2 !important;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #486581;
+}
+
+/* ── Date range report specific ── */
+.rpt-date-group {
+  background: #f0f6ff !important;
+  font-size: 0.76rem;
+  font-weight: 700;
+  border-bottom: none !important;
+  white-space: nowrap;
+}
+
+.rpt-sub {
+  background: #e8f0f8 !important;
+  font-size: 0.72rem;
+  color: #486581;
+  font-weight: 600;
+}
+
+.rpt-fixed-col { min-width: 120px; white-space: nowrap; }
+.rpt-name      { min-width: 140px; }
+.rpt-reg       { min-width: 110px; white-space: nowrap; }
+.rpt-bp        { min-width: 110px; color: #888; font-style: italic; }
+
+/* ── P / AB tokens ── */
+.rpt-p  { color: #15803d; font-weight: 700; }
+.rpt-ab { color: #dc2626; font-weight: 600; }
+
+/* ── Student info table ── */
+.rpt-info-table th { width: 110px; color: #486581; background: #f4f7fb; }
+
+/* ── Scrollable wide table ── */
+.rpt-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+  border: 1px solid #c8d6e0;
+}
+
+/* ── Print header (hidden on screen, visible on print) ── */
+.rpt-print-header { display: none; }
+
+/* ── Preview area ── */
+#rpt-dr-preview,
+#rpt-sw-preview {
+  min-height: 60px;
+}
+
+/* ── Action buttons below the report ── */
+.rpt-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Report Print Styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media print {
+  body > *:not(main) { display: none !important; }
+  main > section:not(#reports-section) { display: none !important; }
+  #reports-section .rpt-tab-strip,
+  #reports-section .rpt-actions,
+  #reports-section [data-rpt-pane][hidden],
+  .no-print { display: none !important; }
+
+  [data-rpt-pane] { display: block !important; }
+
+  .rpt-print-header {
+    display: block !important;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #000;
+  }
+  .rpt-print-header h3 { font-size: 14pt; font-weight: bold; margin: 0 0 3px; }
+  .rpt-print-header p  { font-size: 9.5pt; margin: 0; }
+
+  .rpt-table {
+    font-size: 8.5pt;
+    color: #000;
+    background: #fff;
+    border-collapse: collapse;
+    width: 100%;
+  }
+  .rpt-table th, .rpt-table td {
+    border: 1px solid #999 !important;
+    padding: 3px 5px !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .rpt-table thead th  { background: #f0f0f0 !important; font-weight: bold !important; }
+  .rpt-date-group      { background: #e0ecff !important; }
+  .rpt-sub             { background: #e8f0ff !important; }
+  .rpt-table-caption   { background: #dde8f2 !important; }
+  .rpt-p               { color: #005c20 !important; font-weight: 700 !important; }
+  .rpt-ab              { color: #990000 !important; font-weight: 700 !important; }
+  .rpt-scroll          { overflow: visible !important; border: none !important; }
+  tr { page-break-inside: avoid !important; }
+  thead { display: table-header-group; }
+}

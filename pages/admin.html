@@ -222,6 +222,81 @@
     </div>
   </div>
 
+  <!-- ══════════════════════════════════════════════════════════════════════
+       Reports Section — Date Range Report & Student Wise Report
+       ═════════════════════════════════════════════════════════════════════ -->
+  <section id="reports-section" class="glass-panel p-4 mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div>
+        <h2 class="h5 fw-bold mb-1">📋 Attendance Reports</h2>
+        <p class="text-muted small mb-0">Generate date-range or student-wise reports. Download as PDF or Excel.</p>
+      </div>
+    </div>
+
+    <!-- Tab strip -->
+    <div class="rpt-tab-strip" role="tablist">
+      <button class="rpt-tab-btn active" data-rpt-tab="date-range" role="tab" aria-selected="true" id="rpt-tab-dr">📅 Date Range Report</button>
+      <button class="rpt-tab-btn"        data-rpt-tab="student-wise" role="tab" aria-selected="false" id="rpt-tab-sw">👤 Student Wise Report</button>
+    </div>
+
+    <!-- ── Pane 1: Date Range Report ───────────────────────────────────── -->
+    <div data-rpt-pane="date-range" role="tabpanel">
+      <div class="row g-3 align-items-end mb-3">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold" for="rpt-dr-start">Start Date <span class="text-danger">*</span></label>
+          <input id="rpt-dr-start" type="date" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold" for="rpt-dr-end">End Date <span class="text-danger">*</span></label>
+          <input id="rpt-dr-end" type="date" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold" for="rpt-dr-bus">Bus (optional)</label>
+          <select id="rpt-dr-bus" class="form-select"><option value="">All Buses</option></select>
+        </div>
+        <div class="col-md-3">
+          <button id="rpt-dr-generate" class="btn btn-glass-primary w-100">Generate Report</button>
+        </div>
+      </div>
+      <!-- Preview -->
+      <div id="rpt-dr-preview" class="mb-2"></div>
+      <!-- Action buttons (hidden until report generated) -->
+      <div id="rpt-dr-actions" class="rpt-actions no-print" hidden>
+        <button id="rpt-dr-pdf"   class="btn btn-sm btn-outline-info">📄 Download PDF (Landscape)</button>
+        <button id="rpt-dr-excel" class="btn btn-sm btn-outline-success">📊 Download Excel</button>
+      </div>
+    </div>
+
+    <!-- ── Pane 2: Student Wise Report ─────────────────────────────────── -->
+    <div data-rpt-pane="student-wise" role="tabpanel" hidden>
+      <div class="row g-3 align-items-end mb-3">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold" for="rpt-student-select">Student <span class="text-danger">*</span></label>
+          <select id="rpt-student-select" class="form-select"><option value="">Loading…</option></select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold" for="rpt-sw-start">Start Date <span class="text-danger">*</span></label>
+          <input id="rpt-sw-start" type="date" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold" for="rpt-sw-end">End Date <span class="text-danger">*</span></label>
+          <input id="rpt-sw-end" type="date" class="form-control">
+        </div>
+        <div class="col-md-2">
+          <button id="rpt-sw-generate" class="btn btn-glass-primary w-100">Generate</button>
+        </div>
+      </div>
+      <!-- Preview -->
+      <div id="rpt-sw-preview" class="mb-2"></div>
+      <!-- Action buttons (hidden until report generated) -->
+      <div id="rpt-sw-actions" class="rpt-actions no-print" hidden>
+        <button id="rpt-sw-pdf"   class="btn btn-sm btn-outline-info">📄 Download PDF (Portrait)</button>
+        <button id="rpt-sw-excel" class="btn btn-sm btn-outline-success">📊 Download Excel</button>
+      </div>
+    </div>
+
+  </section>
+
 </main>
 <button id="btn-back-to-top" type="button" aria-label="Back to top" title="Back to top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:18px;height:18px;max-width:18px;max-height:18px;"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

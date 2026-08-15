@@ -2,6 +2,7 @@ import { supabase } from '../supabase/client.js';
 import { renderNavbar } from '../components/navbar.js';
 import { showToast } from '../components/toast.js';
 import { rememberProtectedRedirect } from './auth.js';
+import { initReports } from './reports.js';
 
 let currentAppProfile = null;
 const text = (id, value) => { const element = document.getElementById(id); if (element) element.textContent = String(value); };
@@ -878,6 +879,23 @@ export async function initOperationsDashboard(expectedRole) {
 
   await renderStudentRoster();
   setupStudentManagementControls(buses);
+
+  // ── Populate Reports section bus filter & initialise report UI ────────
+  try {
+    const rptBusSel = document.getElementById('rpt-dr-bus');
+    if (rptBusSel && expectedRole === 'admin') {
+      buses.forEach((b) => {
+        const opt = document.createElement('option');
+        opt.value = b.id;
+        opt.textContent = `Bus ${b.bus_number} — ${b.route}`;
+        rptBusSel.appendChild(opt);
+      });
+    }
+    await initReports(profile);
+  } catch (rptErr) {
+    console.error('Failed to initialise reports section:', rptErr);
+  }
+
   if (expectedRole === 'admin') {
     await renderAdminDirectory(buses);
     await renderSecurityDashboard();
