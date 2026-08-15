@@ -44,7 +44,7 @@ const dateRange = (start, end) => {
 
 /** IST-aware ISO strings for the RPC. */
 const istFrom = (dateStr) => new Date(dateStr + 'T00:00:00+05:30').toISOString();
-const istTo   = (dateStr) => new Date(dateStr + 'T23:59:59.999+05:30').toISOString();
+const istTo = (dateStr) => new Date(dateStr + 'T23:59:59.999+05:30').toISOString();
 
 /** Inject or update a <style> tag that controls print orientation. */
 let _orientEl = null;
@@ -64,7 +64,7 @@ const loadXLSX = () =>
     if (window.XLSX) { resolve(window.XLSX); return; }
     const s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
-    s.onload  = () => resolve(window.XLSX);
+    s.onload = () => resolve(window.XLSX);
     s.onerror = () => resolve(null);
     document.head.appendChild(s);
   });
@@ -106,8 +106,8 @@ async function _populateStudentSelect(profile) {
       const opt = document.createElement('option');
       opt.value = s.register_number;
       opt.dataset.name = s.full_name || '';
-      opt.dataset.bus  = s.bus_number || '';
-      opt.textContent  = `${s.register_number} — ${s.full_name || s.email}`;
+      opt.dataset.bus = s.bus_number || '';
+      opt.textContent = `${s.register_number} — ${s.full_name || s.email}`;
       sel.appendChild(opt);
     });
   } catch (err) {
@@ -135,7 +135,7 @@ function _wireTabButtons() {
 // ─── Feature 1: Date Range Report ─────────────────────────────────────────
 
 function _wireDateRangeReport(profile) {
-  const btn    = document.getElementById('rpt-dr-generate');
+  const btn = document.getElementById('rpt-dr-generate');
   const pdfBtn = document.getElementById('rpt-dr-pdf');
   const xlsBtn = document.getElementById('rpt-dr-excel');
   if (!btn) return;
@@ -157,10 +157,10 @@ function _wireDateRangeReport(profile) {
 
 async function _runDateRangeReport(profile) {
   const startDate = document.getElementById('rpt-dr-start')?.value;
-  const endDate   = document.getElementById('rpt-dr-end')?.value;
-  const busSelEl  = document.getElementById('rpt-dr-bus');
-  const busId     = busSelEl?.value || null;
-  const preview   = document.getElementById('rpt-dr-preview');
+  const endDate = document.getElementById('rpt-dr-end')?.value;
+  const busSelEl = document.getElementById('rpt-dr-bus');
+  const busId = busSelEl?.value || null;
+  const preview = document.getElementById('rpt-dr-preview');
 
   // --- Validation ---
   if (!startDate || !endDate) {
@@ -189,18 +189,18 @@ async function _runDateRangeReport(profile) {
     // If a bus filter is selected, narrow to that bus
     if (busId && busSelEl) {
       const busLabel = busSelEl.options[busSelEl.selectedIndex]?.text || '';
-      const busNum   = busLabel.match(/Bus\s+(\S+)/i)?.[1] || '';
+      const busNum = busLabel.match(/Bus\s+(\S+)/i)?.[1] || '';
       if (busNum) active = active.filter((s) => s.bus_number === busNum);
     }
 
     // Fetch history for the date range
     const { data: history, error: histErr } = await supabase.rpc('authorized_attendance_history', {
-      p_bus_id:    busId || null,
+      p_bus_id: busId || null,
       p_date_from: istFrom(startDate),
-      p_date_to:   istTo(endDate),
-      p_status:    null,
-      p_search:    null,
-      p_day_type:  null,
+      p_date_to: istTo(endDate),
+      p_status: null,
+      p_search: null,
+      p_day_type: null,
     });
     if (histErr) throw histErr;
 
@@ -360,7 +360,7 @@ async function _exportDateRangeExcel() {
 // ─── Feature 2: Student Wise Report ───────────────────────────────────────
 
 function _wireStudentWiseReport(profile) {
-  const btn    = document.getElementById('rpt-sw-generate');
+  const btn = document.getElementById('rpt-sw-generate');
   const pdfBtn = document.getElementById('rpt-sw-pdf');
   const xlsBtn = document.getElementById('rpt-sw-excel');
   if (!btn) return;
@@ -387,12 +387,12 @@ function _wireStudentWiseReport(profile) {
 }
 
 async function _runStudentWiseReport(profile) {
-  const selEl      = document.getElementById('rpt-student-select');
+  const selEl = document.getElementById('rpt-student-select');
   const studentReg = selEl?.value?.trim();
   const studentName = selEl?.options[selEl.selectedIndex]?.dataset?.name || studentReg;
-  const startDate  = document.getElementById('rpt-sw-start')?.value;
-  const endDate    = document.getElementById('rpt-sw-end')?.value;
-  const preview    = document.getElementById('rpt-sw-preview');
+  const startDate = document.getElementById('rpt-sw-start')?.value;
+  const endDate = document.getElementById('rpt-sw-end')?.value;
+  const preview = document.getElementById('rpt-sw-preview');
 
   // --- Validation ---
   if (!studentReg) {
@@ -413,12 +413,12 @@ async function _runStudentWiseReport(profile) {
     const busId = profile?.role === 'coordinator' ? profile.bus_id : null;
 
     const { data: history, error } = await supabase.rpc('authorized_attendance_history', {
-      p_bus_id:    busId,
+      p_bus_id: busId,
       p_date_from: istFrom(startDate),
-      p_date_to:   istTo(endDate),
-      p_status:    null,
-      p_search:    studentReg,
-      p_day_type:  null,
+      p_date_to: istTo(endDate),
+      p_status: null,
+      p_search: studentReg,
+      p_day_type: null,
     });
     if (error) throw error;
 
@@ -467,37 +467,37 @@ function _renderStudentWiseTable(container, rows, { studentReg, studentName, sta
   // ── Date-wise rows ────────────────────────────────────────────────────────
   const dateRows = rows.length
     ? rows
-        .map((row) => {
-          const dateStr = String(row.session_date).slice(0, 10);
-          const mor = toToken(row.morning_status);
-          const eve = toToken(row.evening_status);
-          return `<tr>
+      .map((row) => {
+        const dateStr = String(row.session_date).slice(0, 10);
+        const mor = toToken(row.morning_status);
+        const eve = toToken(row.evening_status);
+        return `<tr>
             <td>${fmtLong(dateStr)}</td>
             <td class="text-center fw-bold ${mor === 'P' ? 'rpt-p' : 'rpt-ab'}">${mor}</td>
             <td class="text-center fw-bold ${eve === 'P' ? 'rpt-p' : 'rpt-ab'}">${eve}</td>
           </tr>`;
-        })
-        .join('')
+      })
+      .join('')
     : '<tr><td colspan="3" class="text-center text-muted py-3">No attendance sessions found in this period.</td></tr>';
 
   // ── Monthly summary rows ──────────────────────────────────────────────────
   const monthRows = Object.entries(monthly).length
     ? Object.entries(monthly)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([mk, m]) => {
-          const mPct = m.mTotal > 0 ? ((m.mPres / m.mTotal) * 100).toFixed(2) + '%' : '—';
-          const ePct = m.eTotal > 0 ? ((m.ePres / m.eTotal) * 100).toFixed(2) + '%' : '—';
-          const label = new Date(mk + '-01').toLocaleDateString('en-IN', {
-            month: 'long',
-            year: 'numeric',
-          });
-          return `<tr>
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([mk, m]) => {
+        const mPct = m.mTotal > 0 ? ((m.mPres / m.mTotal) * 100).toFixed(2) + '%' : '—';
+        const ePct = m.eTotal > 0 ? ((m.ePres / m.eTotal) * 100).toFixed(2) + '%' : '—';
+        const label = new Date(mk + '-01').toLocaleDateString('en-IN', {
+          month: 'long',
+          year: 'numeric',
+        });
+        return `<tr>
             <td>${label}</td>
             <td class="text-end fw-bold">${mPct}</td>
             <td class="text-end fw-bold">${ePct}</td>
           </tr>`;
-        })
-        .join('')
+      })
+      .join('')
     : '<tr><td colspan="3" class="text-center text-muted">No sessions in this period.</td></tr>';
 
   container.innerHTML = `
@@ -525,7 +525,7 @@ function _renderStudentWiseTable(container, rows, { studentReg, studentName, sta
       <div class="col-md-7">
         <table class="table table-sm table-bordered rpt-table">
           <thead>
-            <tr><th colspan="3" class="text-center rpt-table-caption">Monthly Attendance %</th></tr>
+            <tr><th colspan="3" class="text-center rpt-table-caption">Attendance %</th></tr>
             <tr>
               <th>Month</th>
               <th class="text-end">Morning %</th>
@@ -611,11 +611,11 @@ async function _exportStudentWiseExcel() {
   ];
 
   const wb = XLSX.utils.book_new();
-  const wsDetail  = XLSX.utils.aoa_to_sheet(detailRows);
+  const wsDetail = XLSX.utils.aoa_to_sheet(detailRows);
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-  wsDetail['!cols']  = [{ wch: 18 }, { wch: 12 }, { wch: 12 }];
+  wsDetail['!cols'] = [{ wch: 18 }, { wch: 12 }, { wch: 12 }];
   wsSummary['!cols'] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }];
-  XLSX.utils.book_append_sheet(wb, wsDetail,  'Attendance');
+  XLSX.utils.book_append_sheet(wb, wsDetail, 'Attendance');
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Monthly Summary');
   XLSX.writeFile(wb, `Karunya_Student_Report_${studentReg}_${startDate}_to_${endDate}.xlsx`);
   showToast('Excel report downloaded.', 'success');
