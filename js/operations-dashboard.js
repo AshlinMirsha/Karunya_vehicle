@@ -163,6 +163,17 @@ const updateCardElements = (presentElementIds, absentElementIds, presentCount, a
   });
 };
 
+// Reset a session card to "to be loaded" — used when the BC has not yet generated a QR for that session.
+const resetCardElementsToLoading = (presentElementIds, absentElementIds) => {
+  [...presentElementIds, ...absentElementIds].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = 'to be loaded';
+      el.className = 'fw-bold text-muted fst-italic';
+    }
+  });
+};
+
 const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null, busIdOverride = null) => {
   try {
     const busId = (busIdOverride !== undefined && busIdOverride !== null)
@@ -192,25 +203,42 @@ const updateSessionStatsCards = async (profile, defaultCount = 0, summary = null
     const domActiveCount = parseInt(document.getElementById('stat-students-active')?.textContent || '0', 10);
     const totalStudents = fnStat?.total_students || summary?.student_count_active || summary?.student_count_total || defaultCount || (domActiveCount > 0 ? domActiveCount : 0);
 
-    const mPresent = fnStat?.present_count ?? (summary?.morning_checkins ?? 0);
-    const mAbsent = fnStat?.absent_count ?? Math.max(0, totalStudents - mPresent);
+    // Morning card: only show numbers if the BC has actually created a QR/session for today morning.
+    // session_exists = false means no QR generated yet → keep card as "to be loaded".
+    if (fnStat?.session_exists === true) {
+      const mPresent = fnStat.present_count ?? 0;
+      const mAbsent = fnStat.absent_count ?? Math.max(0, totalStudents - mPresent);
+      updateCardElements(
+        ['stat-morning-checkins', 'stat-fn-present'],
+        ['stat-morning-absent', 'stat-fn-absent'],
+        mPresent,
+        mAbsent
+      );
+    } else {
+      // No morning QR session yet — reset to "to be loaded"
+      resetCardElementsToLoading(
+        ['stat-morning-checkins', 'stat-fn-present'],
+        ['stat-morning-absent', 'stat-fn-absent']
+      );
+    }
 
-    const ePresent = anStat?.present_count ?? (summary?.evening_checkins ?? 0);
-    const eAbsent = anStat?.absent_count ?? Math.max(0, totalStudents - ePresent);
-
-    updateCardElements(
-      ['stat-morning-checkins', 'stat-fn-present'],
-      ['stat-morning-absent', 'stat-fn-absent'],
-      mPresent,
-      mAbsent
-    );
-
-    updateCardElements(
-      ['stat-evening-checkins', 'stat-an-present'],
-      ['stat-evening-absent', 'stat-an-absent'],
-      ePresent,
-      eAbsent
-    );
+    // Evening card: same logic.
+    if (anStat?.session_exists === true) {
+      const ePresent = anStat.present_count ?? 0;
+      const eAbsent = anStat.absent_count ?? Math.max(0, totalStudents - ePresent);
+      updateCardElements(
+        ['stat-evening-checkins', 'stat-an-present'],
+        ['stat-evening-absent', 'stat-an-absent'],
+        ePresent,
+        eAbsent
+      );
+    } else {
+      // No evening QR session yet — reset to "to be loaded"
+      resetCardElementsToLoading(
+        ['stat-evening-checkins', 'stat-an-present'],
+        ['stat-evening-absent', 'stat-an-absent']
+      );
+    }
   } catch (err) {
     console.error('Error in updateSessionStatsCards:', err);
   }
