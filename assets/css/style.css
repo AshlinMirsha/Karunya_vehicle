@@ -453,10 +453,15 @@ body {
   #admin-student-mgmt,
   .row.g-3,
   #quick-filters,
-  section.glass-panel:not(.printable-section),
+  section.glass-panel:not(.printable-section):not(#reports-section),
   .navbar-wrapper,
   button,
   .badge {
+    display: none !important;
+  }
+
+  /* Also hide the reports section during a normal (non-report) print */
+  body:not(.printing-report) #reports-section {
     display: none !important;
   }
 
