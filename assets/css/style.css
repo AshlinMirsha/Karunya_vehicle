@@ -928,9 +928,8 @@ button#btn-back-to-top svg {
 
 /* ── Action buttons below the report ── */
 /* ── Date-range report pagination ── */
-/* On screen: each chunk is separated by a visible divider */
 .rpt-page-chunk { margin-bottom: 24px; }
-.rpt-page-break { border-top: 2px dashed #9ab0c8; padding-top: 20px; margin-top: 8px; }
+.rpt-page-break { margin-top: 8px; }
 
 /* ── Action buttons below the report ── */
 .rpt-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
