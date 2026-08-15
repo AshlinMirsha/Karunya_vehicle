@@ -914,47 +914,88 @@ button#btn-back-to-top svg {
 .rpt-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   Report Print Styles
+   Report Print Styles  (scoped to body.printing-report set by reports.js)
    ═══════════════════════════════════════════════════════════════════════════ */
 @media print {
-  body > *:not(main) { display: none !important; }
-  main > section:not(#reports-section) { display: none !important; }
-  #reports-section .rpt-tab-strip,
-  #reports-section .rpt-actions,
-  #reports-section [data-rpt-pane][hidden],
-  .no-print { display: none !important; }
 
-  [data-rpt-pane] { display: block !important; }
+  /* ── When printing a report: show ONLY #reports-section ── */
+  body.printing-report #reports-section {
+    display: block !important;
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
 
-  .rpt-print-header {
+  /* Hide the attendance history section while printing a report */
+  body.printing-report .printable-section:not(#reports-section),
+  body.printing-report #print-header {
+    display: none !important;
+  }
+
+  /* Hide chrome inside the reports section that shouldn't print */
+  body.printing-report .rpt-tab-strip,
+  body.printing-report .rpt-actions,
+  body.printing-report .row.g-3 { /* hides the date/student input row */
+    display: none !important;
+  }
+
+  /* Hide inactive tab pane; show active pane */
+  body.printing-report [data-rpt-pane][hidden] {
+    display: none !important;
+  }
+  body.printing-report [data-rpt-pane]:not([hidden]) {
+    display: block !important;
+  }
+
+  /* Show the print-only report header */
+  body.printing-report .rpt-print-header {
     display: block !important;
     margin-bottom: 14px;
     padding-bottom: 8px;
     border-bottom: 2px solid #000;
   }
-  .rpt-print-header h3 { font-size: 14pt; font-weight: bold; margin: 0 0 3px; }
-  .rpt-print-header p  { font-size: 9.5pt; margin: 0; }
-
-  .rpt-table {
-    font-size: 8.5pt;
+  body.printing-report .rpt-print-header h3 {
+    font-size: 14pt;
+    font-weight: bold;
+    margin: 0 0 3px;
     color: #000;
-    background: #fff;
-    border-collapse: collapse;
-    width: 100%;
   }
-  .rpt-table th, .rpt-table td {
+  body.printing-report .rpt-print-header p {
+    font-size: 9.5pt;
+    margin: 0;
+    color: #333;
+  }
+
+  /* Compact, print-ready report table */
+  body.printing-report .rpt-table {
+    font-size: 8.5pt;
+    color: #000 !important;
+    background: #fff !important;
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+  body.printing-report .rpt-table th,
+  body.printing-report .rpt-table td {
     border: 1px solid #999 !important;
     padding: 3px 5px !important;
     background: #fff !important;
     color: #000 !important;
   }
-  .rpt-table thead th  { background: #f0f0f0 !important; font-weight: bold !important; }
-  .rpt-date-group      { background: #e0ecff !important; }
-  .rpt-sub             { background: #e8f0ff !important; }
-  .rpt-table-caption   { background: #dde8f2 !important; }
-  .rpt-p               { color: #005c20 !important; font-weight: 700 !important; }
-  .rpt-ab              { color: #990000 !important; font-weight: 700 !important; }
-  .rpt-scroll          { overflow: visible !important; border: none !important; }
-  tr { page-break-inside: avoid !important; }
-  thead { display: table-header-group; }
+  body.printing-report .rpt-table thead th  { background: #f0f0f0 !important; font-weight: bold !important; }
+  body.printing-report .rpt-date-group      { background: #e0ecff !important; }
+  body.printing-report .rpt-sub             { background: #e8f0ff !important; }
+  body.printing-report .rpt-table-caption   { background: #dde8f2 !important; }
+  body.printing-report .rpt-p               { color: #005c20 !important; font-weight: 700 !important; }
+  body.printing-report .rpt-ab              { color: #990000 !important; font-weight: 700 !important; }
+  body.printing-report .rpt-scroll          { overflow: visible !important; border: none !important; }
+  body.printing-report tr                   { page-break-inside: avoid !important; }
+  body.printing-report thead                { display: table-header-group; }
+
+  /* Student wise: side-by-side info + monthly summary still readable in portrait */
+  body.printing-report .row.g-3.mb-4 { display: flex !important; gap: 12px; }
+  body.printing-report .col-md-5,
+  body.printing-report .col-md-7 { flex: 1; }
 }
+

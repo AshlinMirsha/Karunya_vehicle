@@ -143,10 +143,14 @@ function _wireDateRangeReport(profile) {
   btn.addEventListener('click', () => _runDateRangeReport(profile));
   pdfBtn?.addEventListener('click', () => {
     setPrintOrientation('landscape');
-    // mark which section to print
-    document.querySelectorAll('.printable-section').forEach(s => s.classList.remove('active-print'));
-    document.getElementById('rpt-dr-preview')?.closest('.printable-section')?.classList.add('active-print');
+    document.body.classList.add('printing-report');
+    // Ensure pane is visible (not hidden) so CSS shows it
+    document.querySelector('[data-rpt-pane="date-range"]')?.removeAttribute('hidden');
     window.print();
+    // Remove the class once the print dialog closes
+    window.addEventListener('afterprint', () => {
+      document.body.classList.remove('printing-report');
+    }, { once: true });
   });
   xlsBtn?.addEventListener('click', () => _exportDateRangeExcel());
 }
@@ -364,9 +368,20 @@ function _wireStudentWiseReport(profile) {
   btn.addEventListener('click', () => _runStudentWiseReport(profile));
   pdfBtn?.addEventListener('click', () => {
     setPrintOrientation('portrait');
-    document.querySelectorAll('.printable-section').forEach(s => s.classList.remove('active-print'));
-    document.getElementById('rpt-sw-preview')?.closest('.printable-section')?.classList.add('active-print');
+    document.body.classList.add('printing-report');
+    // Ensure pane is visible
+    document.querySelector('[data-rpt-pane="student-wise"]')?.removeAttribute('hidden');
     window.print();
+    window.addEventListener('afterprint', () => {
+      document.body.classList.remove('printing-report');
+      // Restore hidden state based on which tab is active
+      const activeTab = document.querySelector('.rpt-tab-btn.active');
+      const activePane = activeTab?.dataset?.rptTab;
+      document.querySelectorAll('[data-rpt-pane]').forEach(p => {
+        if (p.dataset.rptPane !== activePane) p.setAttribute('hidden', '');
+        else p.removeAttribute('hidden');
+      });
+    }, { once: true });
   });
   xlsBtn?.addEventListener('click', () => _exportStudentWiseExcel());
 }
