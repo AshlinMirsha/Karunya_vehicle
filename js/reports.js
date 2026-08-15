@@ -367,7 +367,7 @@ function _wireStudentWiseReport(profile) {
 
   btn.addEventListener('click', () => _runStudentWiseReport(profile));
   pdfBtn?.addEventListener('click', () => {
-    setPrintOrientation('portrait');
+    setPrintOrientation('landscape');
     document.body.classList.add('printing-report');
     // Ensure pane is visible
     document.querySelector('[data-rpt-pane="student-wise"]')?.removeAttribute('hidden');
