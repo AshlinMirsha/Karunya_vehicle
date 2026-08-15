@@ -927,7 +927,14 @@ button#btn-back-to-top svg {
 }
 
 /* ── Action buttons below the report ── */
+/* ── Date-range report pagination ── */
+/* On screen: each chunk is separated by a visible divider */
+.rpt-page-chunk { margin-bottom: 24px; }
+.rpt-page-break { border-top: 2px dashed #9ab0c8; padding-top: 20px; margin-top: 8px; }
+
+/* ── Action buttons below the report ── */
 .rpt-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
 
 /* ════════════════════════════════════════════════════════════════════════════
    Report Print Styles  (scoped to body.printing-report set by reports.js)
@@ -1008,6 +1015,19 @@ button#btn-back-to-top svg {
   body.printing-report .rpt-scroll          { overflow: visible !important; border: none !important; }
   body.printing-report tr                   { page-break-inside: avoid !important; }
   body.printing-report thead                { display: table-header-group; }
+
+  /* Pagination: each chunk after the first starts on a new page */
+  body.printing-report .rpt-page-break {
+    border-top: none !important;
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+    page-break-before: always !important;
+  }
+  /* Show the repeated print header on every chunk */
+  body.printing-report .rpt-page-chunk .rpt-print-header {
+    display: block !important;
+  }
+
 
   /* Student wise: side-by-side info + monthly summary still readable in portrait */
   body.printing-report .row.g-3.mb-4 { display: flex !important; gap: 12px; }

@@ -18,25 +18,36 @@ const escHtml = (str) =>
  */
 const toToken = (status) => (status === 'PRESENT' ? 'P' : 'AB');
 
-/** Format YYYY-MM-DD → "01-Aug" */
+/** Format YYYY-MM-DD → "01-Aug" — uses local Date constructor to avoid UTC shift. */
 const fmtShort = (dateStr) => {
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 };
 
-/** Format YYYY-MM-DD → "01-Aug-2026" */
+/** Format YYYY-MM-DD → "01-Aug-2026" — uses local Date constructor to avoid UTC shift. */
 const fmtLong = (dateStr) => {
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-/** Generate every YYYY-MM-DD string from start to end (inclusive). */
+/** Pad a number to 2 digits. */
+const pad2 = (n) => String(n).padStart(2, '0');
+
+/**
+ * Generate every YYYY-MM-DD string from start to end (inclusive).
+ * Uses local Date parts — NOT toISOString() — to avoid UTC/IST timezone shift.
+ * Root-cause note: new Date('YYYY-MM-DDT00:00:00') in IST (UTC+5:30) is
+ * 18:30 of the PREVIOUS UTC day, so toISOString().slice(0,10) would return
+ * yesterday's date. Using getFullYear/getMonth/getDate reads local calendar.
+ */
 const dateRange = (start, end) => {
   const dates = [];
-  const cur = new Date(start + 'T00:00:00');
-  const last = new Date(end + 'T00:00:00');
+  const [sy, sm, sd] = start.split('-').map(Number);
+  const [ey, em, ed] = end.split('-').map(Number);
+  const cur = new Date(sy, sm - 1, sd);   // local midnight — no UTC conversion
+  const last = new Date(ey, em - 1, ed);
   while (cur <= last) {
-    dates.push(cur.toISOString().slice(0, 10));
+    dates.push(`${cur.getFullYear()}-${pad2(cur.getMonth() + 1)}-${pad2(cur.getDate())}`);
     cur.setDate(cur.getDate() + 1);
   }
   return dates;
@@ -232,68 +243,82 @@ function _renderDateRangeTable(container, students, dates, lookup, startDate, en
     return;
   }
 
-  // Build column headers: one pair (Mor / Eve) per date
-  const headerCells = dates
-    .map(
-      (d) =>
-        `<th colspan="2" class="text-center rpt-date-group">${fmtShort(d)}</th>`,
-    )
+  const DATES_PER_PAGE = 15;
+  const periodLabel = `Period: ${fmtLong(startDate)} to ${fmtLong(endDate)}`;
+
+  /**
+   * Build one table block for a slice of dates.
+   * The header is repeated on every chunk so every printed page is self-contained.
+   */
+  const buildChunk = (chunkDates, isFirst) => {
+    const headerCells = chunkDates
+      .map((d) => `<th colspan="2" class="text-center rpt-date-group">${fmtShort(d)}</th>`)
+      .join('');
+
+    const subHeaders = chunkDates
+      .flatMap(() => [
+        '<th class="text-center rpt-sub">Mor</th>',
+        '<th class="text-center rpt-sub">Eve</th>',
+      ])
+      .join('');
+
+    const bodyRows = students
+      .map((st) => {
+        const dateCells = chunkDates
+          .flatMap((d) => {
+            const row = lookup.get(`${st.register_number}|${d}`);
+            const mor = toToken(row?.morning_status ?? null);
+            const eve = toToken(row?.evening_status ?? null);
+            return [
+              `<td class="text-center ${mor === 'P' ? 'rpt-p' : 'rpt-ab'}">${mor}</td>`,
+              `<td class="text-center ${eve === 'P' ? 'rpt-p' : 'rpt-ab'}">${eve}</td>`,
+            ];
+          })
+          .join('');
+
+        return `<tr>
+          <td class="rpt-name">${escHtml(st.full_name || '—')}</td>
+          <td class="rpt-reg">${escHtml(st.register_number || '—')}</td>
+          <td class="rpt-bp">—</td>
+          ${dateCells}
+        </tr>`;
+      })
+      .join('');
+
+    return `
+      <div class="rpt-page-chunk${isFirst ? '' : ' rpt-page-break'}">
+        <div class="rpt-print-header mb-3">
+          <h3 class="mb-0">Karunya Institute of Technology and Sciences</h3>
+          <p class="mb-0 fw-semibold">Official Bus Attendance Report — Date Range</p>
+          <p class="mb-0 text-muted small">${periodLabel}</p>
+        </div>
+        <div class="table-responsive rpt-scroll">
+          <table class="table table-bordered rpt-table">
+            <thead>
+              <tr class="rpt-header-row">
+                <th rowspan="2" class="rpt-fixed-col">Name</th>
+                <th rowspan="2" class="rpt-fixed-col">Reg No</th>
+                <th rowspan="2" class="rpt-fixed-col">Boarding Point</th>
+                ${headerCells}
+              </tr>
+              <tr class="rpt-sub-row">${subHeaders}</tr>
+            </thead>
+            <tbody>${bodyRows}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  };
+
+  // Split dates into chunks of DATES_PER_PAGE
+  const chunks = [];
+  for (let i = 0; i < dates.length; i += DATES_PER_PAGE) {
+    chunks.push(dates.slice(i, i + DATES_PER_PAGE));
+  }
+
+  container.innerHTML = chunks
+    .map((chunk, idx) => buildChunk(chunk, idx === 0))
     .join('');
-
-  const subHeaders = dates
-    .flatMap(() => [
-      '<th class="text-center rpt-sub">Mor</th>',
-      '<th class="text-center rpt-sub">Eve</th>',
-    ])
-    .join('');
-
-  // Build student rows
-  const bodyRows = students
-    .map((st) => {
-      const dateCells = dates
-        .flatMap((d) => {
-          const row = lookup.get(`${st.register_number}|${d}`);
-          const mor = toToken(row?.morning_status ?? null);
-          const eve = toToken(row?.evening_status ?? null);
-          return [
-            `<td class="text-center ${mor === 'P' ? 'rpt-p' : 'rpt-ab'}">${mor}</td>`,
-            `<td class="text-center ${eve === 'P' ? 'rpt-p' : 'rpt-ab'}">${eve}</td>`,
-          ];
-        })
-        .join('');
-
-      return `<tr>
-        <td class="rpt-name">${escHtml(st.full_name || '—')}</td>
-        <td class="rpt-reg">${escHtml(st.register_number || '—')}</td>
-        <td class="rpt-bp">—</td>
-        ${dateCells}
-      </tr>`;
-    })
-    .join('');
-
-  container.innerHTML = `
-    <div class="rpt-print-header mb-3">
-      <h3 class="mb-0">Karunya Institute of Technology and Sciences</h3>
-      <p class="mb-0 fw-semibold">Official Bus Attendance Report — Date Range</p>
-      <p class="mb-0 text-muted small">Period: ${fmtLong(startDate)} to ${fmtLong(endDate)}</p>
-    </div>
-    <div class="table-responsive rpt-scroll">
-      <table class="table table-bordered rpt-table" id="rpt-dr-table">
-        <thead>
-          <tr class="rpt-header-row">
-            <th rowspan="2" class="rpt-fixed-col">Name</th>
-            <th rowspan="2" class="rpt-fixed-col">Reg No</th>
-            <th rowspan="2" class="rpt-fixed-col">Boarding Point</th>
-            ${headerCells}
-          </tr>
-          <tr class="rpt-sub-row">
-            ${subHeaders}
-          </tr>
-        </thead>
-        <tbody>${bodyRows}</tbody>
-      </table>
-    </div>
-  `;
 }
 
 async function _exportDateRangeExcel() {
