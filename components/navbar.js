@@ -68,7 +68,7 @@ export function renderNavbar(user = null, activeRole = null) {
             </ul>
           </li>
           <li class="nav-item">
-            <a class="nav-link text-white-50 px-3 py-1 rounded-3 fw-medium text-hover-white" href="#attendance-section" onclick="document.getElementById('btn-export-excel')?.click()">Reports</a>
+            <a class="nav-link text-white-50 px-3 py-1 rounded-3 fw-medium text-hover-white" href="#reports-section">Reports</a>
           </li>
         </ul>
       </div>
@@ -89,7 +89,7 @@ export function renderNavbar(user = null, activeRole = null) {
             </button>
           </li>
           <li class="nav-item">
-            <a class="nav-link text-white-50 px-3 py-1 rounded-3 fw-medium text-hover-white" href="#attendance-section" onclick="document.getElementById('btn-export-excel')?.click()">Reports</a>
+            <a class="nav-link text-white-50 px-3 py-1 rounded-3 fw-medium text-hover-white" href="#reports-section">Reports</a>
           </li>
         </ul>
       </div>
