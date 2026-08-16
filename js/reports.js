@@ -47,7 +47,10 @@ const dateRange = (start, end) => {
   const cur = new Date(sy, sm - 1, sd);   // local midnight — no UTC conversion
   const last = new Date(ey, em - 1, ed);
   while (cur <= last) {
-    dates.push(`${cur.getFullYear()}-${pad2(cur.getMonth() + 1)}-${pad2(cur.getDate())}`);
+    // Bus does not operate on Sundays (getDay() === 0) — skip them
+    if (cur.getDay() !== 0) {
+      dates.push(`${cur.getFullYear()}-${pad2(cur.getMonth() + 1)}-${pad2(cur.getDate())}`);
+    }
     cur.setDate(cur.getDate() + 1);
   }
   return dates;
@@ -447,10 +450,13 @@ async function _runStudentWiseReport(profile) {
     });
     if (error) throw error;
 
-    // Filter strictly to this student's register number
-    const rows = (history ?? []).filter(
-      (r) => r.register_number?.toUpperCase() === studentReg.toUpperCase(),
-    );
+    // Filter strictly to this student's register number, excluding Sundays
+    const rows = (history ?? []).filter((r) => {
+      if (r.register_number?.toUpperCase() !== studentReg.toUpperCase()) return false;
+      // Bus does not operate on Sundays — exclude any Sunday sessions
+      const [y, mo, d] = String(r.session_date).slice(0, 10).split('-').map(Number);
+      return new Date(y, mo - 1, d).getDay() !== 0;
+    });
 
     // Sort ascending by date
     rows.sort((a, b) => String(a.session_date).localeCompare(String(b.session_date)));
