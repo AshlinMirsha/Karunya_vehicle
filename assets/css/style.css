@@ -445,29 +445,48 @@ body {
 #print-header { display: none; }
 
 @media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  html,
+  body {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-size: 10pt !important;
+  }
+
+  /* Universal non-printable elements */
   #bg-video-container,
   .video-overlay,
   #navbar-container,
+  .navbar-wrapper,
   .no-print,
   #qr-panel,
   #admin-student-mgmt,
+  #manual-override-panel,
+  #boarding-mgmt-section,
+  #btn-back-to-top,
+  button#btn-back-to-top,
   .rpt-filter-row,
   #quick-filters,
-  section.glass-panel:not(.printable-section):not(#reports-section),
-  .navbar-wrapper,
   button,
   .badge {
     display: none !important;
   }
 
-  /* Also hide the reports section during a normal (non-report) print */
-  body:not(.printing-report) #reports-section {
-    display: none !important;
-  }
+  /* ── 1. REPORT PRINT MODE (body.printing-report) ── */
 
-  /* When printing a report: hide EVERYTHING outside main, and hide
-     every sibling inside main that isn't the reports section itself.
-     This removes stat cards, portal header, QR panel, attendance history, etc. */
+  /* Hide all siblings of main and siblings of #reports-section */
   body.printing-report > *:not(main) {
     display: none !important;
   }
@@ -475,30 +494,78 @@ body {
     display: none !important;
   }
 
-  /* Also hide the section title / description row inside reports-section
-     (the h2 "Attendance Reports" + subtitle — not needed in print) */
-  body.printing-report #reports-section > div:first-child {
-    display: none !important;
-  }
-
-  html, body {
-    background: #ffffff !important;
-    color: #000000 !important;
-    font-family: Arial, Helvetica, sans-serif !important;
-    font-size: 10pt !important;
+  /* Make main a zero-margin wrapper */
+  body.printing-report main {
+    position: static !important;
     margin: 0 !important;
-    padding: 8mm !important;
+    padding: 0 !important;
     width: 100% !important;
     height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
     overflow: visible !important;
   }
 
-  main {
-    padding: 0 !important;
+  /* Position #reports-section at exact top-left corner of Page 1 */
+  html body.printing-report #reports-section,
+  body.printing-report #reports-section {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
     margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
   }
 
-  .printable-section {
+  /* Hide inner UI elements inside #reports-section */
+  body.printing-report .rpt-tab-strip,
+  body.printing-report .rpt-actions,
+  body.printing-report .rpt-filter-row,
+  body.printing-report #reports-section > div:first-child,
+  body.printing-report [data-rpt-pane][hidden] {
+    display: none !important;
+  }
+
+  /* Show only the active tab pane */
+  body.printing-report [data-rpt-pane]:not([hidden]) {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  body.printing-report #rpt-dr-preview,
+  body.printing-report #rpt-sw-preview {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* ── 2. NON-REPORT PRINT MODE (body:not(.printing-report)) ── */
+  body:not(.printing-report) #reports-section {
+    display: none !important;
+  }
+  body:not(.printing-report) .printable-section {
     background: none !important;
     border: none !important;
     box-shadow: none !important;
@@ -506,39 +573,35 @@ body {
     margin: 0 !important;
     display: block !important;
   }
-
-  #print-header {
+  body:not(.printing-report) #print-header {
     display: block !important;
     margin-bottom: 16px;
     padding-bottom: 8px;
     border-bottom: 2px solid #000000;
     color: #000000 !important;
   }
-
-  #print-header h3 {
+  body:not(.printing-report) #print-header h3 {
     margin: 0 0 4px 0;
     font-weight: bold;
     font-size: 16pt;
     color: #000000;
   }
-
-  #print-header p {
+  body:not(.printing-report) #print-header p {
     margin: 0;
     font-size: 10pt;
     color: #333333;
   }
 
+  /* General table print rules */
   .table-responsive {
     overflow: visible !important;
   }
-
   table, .table-dark-custom {
     width: 100% !important;
     border-collapse: collapse !important;
     background: #ffffff !important;
     color: #000000 !important;
   }
-
   table th, table td,
   .table-dark-custom th, .table-dark-custom td {
     background: #ffffff !important;
