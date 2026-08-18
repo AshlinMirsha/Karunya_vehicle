@@ -1256,12 +1256,8 @@ const setupStudentManagementControls = (buses) => {
         return;
       }
 
-      // ── Duplicate-email guard ────────────────────────────────────────────
-      const { data: existing, error: lookupErr } = await supabase
-        .from('profiles')
-        .select('id, full_name, status')
-        .eq('email', email)
-        .maybeSingle();
+      // ── Duplicate-email guard (uses RPC to avoid RLS recursion on profiles) ──
+      const { data: allStudents, error: lookupErr } = await supabase.rpc('authorized_student_records');
 
       if (lookupErr) {
         const errMsg = lookupErr.message || 'Could not verify email uniqueness.';
@@ -1270,6 +1266,7 @@ const setupStudentManagementControls = (buses) => {
         return;
       }
 
+      const existing = (allStudents || []).find(s => s.email?.toLowerCase() === email);
       if (existing) {
         const statusLabel = existing.status ? ` (status: ${existing.status})` : '';
         const warnMsg = `⚠️ A student with this email already exists: <strong>${existing.full_name || email}</strong>${statusLabel}. Please use a different email or update the existing record.`;
