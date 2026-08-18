@@ -948,35 +948,199 @@ const renderBoardingManagement = () => {
   const section = document.getElementById('boarding-mgmt-section');
   if (!section) return; // Only exists in admin.html
 
-  const searchInput  = section.querySelector('#boarding-search-input');
-  const searchBtn    = section.querySelector('#boarding-search-btn');
-  const searchMsg    = section.querySelector('#boarding-search-msg');
-  const resultsDiv   = section.querySelector('#boarding-search-results');
-  const searchBody   = section.querySelector('#boarding-search-body');
-  const detailPanel  = section.querySelector('#boarding-detail-panel');
-  const detailName   = section.querySelector('#boarding-detail-name');
-  const detailEmail  = section.querySelector('#boarding-detail-email');
-  const curPoint     = section.querySelector('#boarding-cur-point');
-  const curActual    = section.querySelector('#boarding-cur-actual');
-  const curStop      = section.querySelector('#boarding-cur-stop');
-  const curFrom      = section.querySelector('#boarding-cur-from');
-  const historyBody  = section.querySelector('#boarding-history-body');
-  const formPoint    = section.querySelector('#boarding-form-point');
-  const formStop     = section.querySelector('#boarding-form-stop');
-  const formFrom     = section.querySelector('#boarding-form-from');
-  const formComment  = section.querySelector('#boarding-form-comment');
-  const formSaveBtn  = section.querySelector('#boarding-form-save');
-  const formMsg      = section.querySelector('#boarding-form-msg');
-  const closeBtn     = section.querySelector('#boarding-close-detail');
+  // Tab 1: Student Assignment Elements
+  const searchInput      = section.querySelector('#boarding-search-input');
+  const searchBtn        = section.querySelector('#boarding-search-btn');
+  const searchMsg        = section.querySelector('#boarding-search-msg');
+  const resultsDiv       = section.querySelector('#boarding-search-results');
+  const searchBody       = section.querySelector('#boarding-search-body');
+  const detailPanel      = section.querySelector('#boarding-detail-panel');
+  const detailName       = section.querySelector('#boarding-detail-name');
+  const detailEmail      = section.querySelector('#boarding-detail-email');
+  const curPoint         = section.querySelector('#boarding-cur-point');
+  const curStop          = section.querySelector('#boarding-cur-stop');
+  const curFrom          = section.querySelector('#boarding-cur-from');
+  const historyBody      = section.querySelector('#boarding-history-body');
+  const selectDropdown   = section.querySelector('#boarding-select-dropdown');
+  const customNameCol    = section.querySelector('#boarding-custom-name-col');
+  const formPoint        = section.querySelector('#boarding-form-point');
+  const formStop         = section.querySelector('#boarding-form-stop');
+  const formFrom         = section.querySelector('#boarding-form-from');
+  const formComment      = section.querySelector('#boarding-form-comment');
+  const formSaveBtn      = section.querySelector('#boarding-form-save');
+  const formMsg          = section.querySelector('#boarding-form-msg');
+  const closeBtn         = section.querySelector('#boarding-close-detail');
 
-  // Set default effective_from to today
-  const todayStr = (() => { const n = new Date(); return new Date(n - n.getTimezoneOffset() * 60000).toISOString().slice(0, 10); })();
-  if (formFrom) formFrom.value = todayStr;
+  // Tab 2: Master Boarding Points Elements
+  const masterNameInput   = section.querySelector('#master-point-name');
+  const masterStopInput   = section.querySelector('#master-point-stop');
+  const masterIdInput     = section.querySelector('#master-point-id');
+  const masterSaveBtn     = section.querySelector('#btn-save-master-point');
+  const masterCancelBtn   = section.querySelector('#btn-cancel-master-point');
+  const masterMsg         = section.querySelector('#master-point-msg');
+  const masterListBody    = section.querySelector('#master-points-list-body');
+  const masterFormTitle   = section.querySelector('#master-form-title');
 
+  let masterPointsList    = [];
   let selectedStudentId   = null;
   let selectedStudentName = '';
 
+  const todayStr = (() => { const n = new Date(); return new Date(n - n.getTimezoneOffset() * 60000).toISOString().slice(0, 10); })();
+  if (formFrom) formFrom.value = todayStr;
+
   const fmtDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+  // ── Load Master Boarding Points List ───────────────────────────────────────
+  const loadMasterBoardingPoints = async () => {
+    if (!masterListBody) return;
+    masterListBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Loading master list…</td></tr>';
+
+    try {
+      const { data: points, error } = await supabase.rpc('get_boarding_points');
+      if (error) {
+        masterListBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Failed to load boarding points: ${error.message}</td></tr>`;
+        return;
+      }
+
+      masterPointsList = points || [];
+
+      // Populate Assignment Dropdown
+      if (selectDropdown) {
+        selectDropdown.innerHTML = '<option value="">-- Choose Boarding Point --</option>';
+        masterPointsList.forEach(pt => {
+          const opt = document.createElement('option');
+          opt.value = pt.id;
+          opt.dataset.name = pt.name;
+          opt.dataset.stop = pt.stop_no != null ? pt.stop_no : '';
+          opt.textContent = `${pt.stop_no != null ? 'Stop ' + pt.stop_no + ': ' : ''}${pt.name}`;
+          selectDropdown.appendChild(opt);
+        });
+        const customOpt = document.createElement('option');
+        customOpt.value = 'custom';
+        customOpt.textContent = '-- Custom / Other --';
+        selectDropdown.appendChild(customOpt);
+      }
+
+      // Populate Master Table
+      if (masterPointsList.length === 0) {
+        masterListBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No boarding points created yet. Add one above!</td></tr>';
+        return;
+      }
+
+      masterListBody.replaceChildren(...masterPointsList.map(pt => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${pt.stop_no != null ? pt.stop_no : '—'}</td>
+          <td><strong>${pt.name}</strong></td>
+          <td><span class="badge bg-success">Active</span></td>
+          <td class="text-center">
+            <button class="btn btn-xs btn-outline-info py-0 px-2 me-1 btn-edit-master" data-id="${pt.id}" data-name="${pt.name}" data-stop="${pt.stop_no != null ? pt.stop_no : ''}">
+              Edit
+            </button>
+            <button class="btn btn-xs btn-outline-danger py-0 px-2 btn-del-master" data-id="${pt.id}">
+              Delete
+            </button>
+          </td>
+        `;
+
+        tr.querySelector('.btn-edit-master').onclick = () => {
+          masterIdInput.value = pt.id;
+          masterNameInput.value = pt.name;
+          masterStopInput.value = pt.stop_no != null ? pt.stop_no : '';
+          masterSaveBtn.textContent = 'Update Point';
+          masterCancelBtn.removeAttribute('hidden');
+          masterFormTitle.textContent = '✏️ Edit Master Boarding Point';
+          masterNameInput.focus();
+        };
+
+        tr.querySelector('.btn-del-master').onclick = async () => {
+          if (!confirm(`Are you sure you want to remove boarding point "${pt.name}"?`)) return;
+          const { error: delErr } = await supabase.rpc('delete_boarding_point', { p_id: pt.id });
+          if (delErr) {
+            showToast('Could not delete boarding point.', 'danger');
+          } else {
+            showToast(`Boarding point "${pt.name}" removed.`, 'success');
+            loadMasterBoardingPoints();
+          }
+        };
+
+        return tr;
+      }));
+
+    } catch (err) {
+      console.error('loadMasterBoardingPoints error:', err);
+      masterListBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading master points.</td></tr>';
+    }
+  };
+
+  // Reset Master Form
+  const resetMasterForm = () => {
+    masterIdInput.value = '';
+    masterNameInput.value = '';
+    masterStopInput.value = '';
+    masterSaveBtn.textContent = 'Add Point';
+    masterCancelBtn.setAttribute('hidden', '');
+    masterFormTitle.textContent = '➕ Add New Master Boarding Point';
+    masterMsg.innerHTML = '';
+  };
+
+  if (masterCancelBtn) masterCancelBtn.onclick = resetMasterForm;
+
+  // Save Master Boarding Point
+  if (masterSaveBtn) {
+    masterSaveBtn.onclick = async () => {
+      const id = masterIdInput.value || null;
+      const name = masterNameInput.value.trim();
+      const stopNo = masterStopInput.value ? parseInt(masterStopInput.value, 10) : null;
+
+      if (!name) {
+        masterMsg.innerHTML = '<span class="text-danger">Boarding point name is required.</span>';
+        return;
+      }
+
+      masterSaveBtn.disabled = true;
+      masterMsg.innerHTML = '<span class="text-muted">Saving…</span>';
+
+      const { data: newId, error } = await supabase.rpc('upsert_boarding_point', {
+        p_id: id,
+        p_name: name,
+        p_stop_no: stopNo
+      });
+
+      masterSaveBtn.disabled = false;
+
+      if (error) {
+        masterMsg.innerHTML = `<span class="text-danger">⚠️ ${error.message || 'Could not save boarding point.'}</span>`;
+        return;
+      }
+
+      masterMsg.innerHTML = '<span class="text-success">✅ Boarding point saved!</span>';
+      showToast(`Master boarding point "${name}" saved!`, 'success');
+      resetMasterForm();
+      loadMasterBoardingPoints();
+    };
+  }
+
+  // Handle dropdown selection logic for student assignment
+  if (selectDropdown) {
+    selectDropdown.onchange = () => {
+      const selectedVal = selectDropdown.value;
+      if (selectedVal === 'custom') {
+        customNameCol.removeAttribute('hidden');
+        formPoint.value = '';
+        formStop.value = '';
+      } else if (selectedVal) {
+        customNameCol.setAttribute('hidden', '');
+        const selectedOpt = selectDropdown.options[selectDropdown.selectedIndex];
+        formPoint.value = selectedOpt.dataset.name || '';
+        formStop.value = selectedOpt.dataset.stop || '';
+      } else {
+        customNameCol.setAttribute('hidden', '');
+        formPoint.value = '';
+        formStop.value = '';
+      }
+    };
+  }
 
   // ── Load and render boarding history for a student ─────────────────────────
   const loadBoardingDetail = async (studentId, studentFullName, studentEmail) => {
@@ -987,6 +1151,8 @@ const renderBoardingManagement = () => {
     detailEmail.textContent = studentEmail;
 
     // Reset form
+    if (selectDropdown) selectDropdown.value = '';
+    customNameCol.setAttribute('hidden', '');
     formPoint.value   = '';
     formStop.value    = '';
     formFrom.value    = todayStr;
@@ -1009,9 +1175,20 @@ const renderBoardingManagement = () => {
       curPoint.textContent = current.boarding_point || '—';
       curStop.textContent  = current.bus_stop_no != null ? `Stop ${current.bus_stop_no}` : '—';
       curFrom.textContent  = fmtDate(current.effective_from);
-      // Pre-fill form with current values for quick editing
-      formPoint.value = current.boarding_point || '';
-      formStop.value  = current.bus_stop_no != null ? current.bus_stop_no : '';
+
+      // Pre-fill dropdown or custom form with current values
+      const curPtName = current.boarding_point || '';
+      let matchedOpt = Array.from(selectDropdown.options).find(opt => opt.dataset.name === curPtName);
+      if (matchedOpt) {
+        selectDropdown.value = matchedOpt.value;
+        formPoint.value = curPtName;
+        formStop.value  = current.bus_stop_no != null ? current.bus_stop_no : matchedOpt.dataset.stop || '';
+      } else if (curPtName) {
+        selectDropdown.value = 'custom';
+        customNameCol.removeAttribute('hidden');
+        formPoint.value = curPtName;
+        formStop.value  = current.bus_stop_no != null ? current.bus_stop_no : '';
+      }
     } else {
       curPoint.textContent = curStop.textContent = curFrom.textContent = 'No active record';
     }
@@ -1104,19 +1281,27 @@ const renderBoardingManagement = () => {
     selectedStudentId = null;
   };
 
-  // ── Save boarding (upsert) ─────────────────────────────────────────────────
+  // ── Save student boarding assignment (upsert) ──────────────────────────────
   formSaveBtn.onclick = async () => {
     if (!selectedStudentId) {
       showToast('No student selected.', 'warning');
       return;
     }
-    const boardingPoint = formPoint.value.trim();
+
+    let boardingPoint = formPoint.value.trim();
+    if (selectDropdown && selectDropdown.value && selectDropdown.value !== 'custom') {
+      const selectedOpt = selectDropdown.options[selectDropdown.selectedIndex];
+      if (selectedOpt && selectedOpt.dataset.name) {
+        boardingPoint = selectedOpt.dataset.name;
+      }
+    }
+
     const stopNo = formStop.value ? parseInt(formStop.value, 10) : null;
     const effectiveFrom = formFrom.value || todayStr;
     const comment = formComment.value.trim() || null;
 
     if (!boardingPoint) {
-      formMsg.innerHTML = '<span class="text-danger">Boarding point is required.</span>';
+      formMsg.innerHTML = '<span class="text-danger">Please select or enter a boarding point.</span>';
       return;
     }
     if (!effectiveFrom) {
@@ -1150,6 +1335,9 @@ const renderBoardingManagement = () => {
     // Refresh search results to reflect new boarding point
     if (searchInput.value.trim().length >= 2) doSearch();
   };
+
+  // Initial Load of Master Points
+  loadMasterBoardingPoints();
 };
 
 const renderSecurityDashboard = async () => {
