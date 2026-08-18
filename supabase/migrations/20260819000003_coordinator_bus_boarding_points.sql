@@ -1,6 +1,16 @@
 -- Migration: Add bus_id to boarding_points and enable Bus Coordinator management
 
 -- ── 1. Table structure ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.boarding_points (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  bus_id      UUID        REFERENCES public.buses(id) ON DELETE CASCADE,
+  name        TEXT        NOT NULL CHECK (trim(name) <> ''),
+  stop_no     INTEGER,
+  is_active   BOOLEAN     NOT NULL DEFAULT true,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 ALTER TABLE public.boarding_points
   ADD COLUMN IF NOT EXISTS bus_id UUID REFERENCES public.buses(id) ON DELETE CASCADE;
 
@@ -16,6 +26,8 @@ CREATE UNIQUE INDEX idx_boarding_points_bus_name
   WHERE is_active = true;
 
 -- ── 2. RLS policies ───────────────────────────────────────────────────────────
+ALTER TABLE public.boarding_points ENABLE ROW LEVEL SECURITY;
+
 DROP POLICY IF EXISTS "admins manage boarding points" ON public.boarding_points;
 DROP POLICY IF EXISTS "staff and students read active boarding points" ON public.boarding_points;
 DROP POLICY IF EXISTS "coordinators manage bus boarding points" ON public.boarding_points;
