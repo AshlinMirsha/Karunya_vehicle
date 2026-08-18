@@ -42,9 +42,12 @@ BEGIN
 
   -- Insert each boarding point for Bus 13 with NULL (default '-') stop_no
   FOREACH v_name IN ARRAY v_names LOOP
-    INSERT INTO public.boarding_points (bus_id, name, stop_no, is_active)
-    VALUES (v_bus_id, v_name, NULL, true)
-    ON CONFLICT (COALESCE(bus_id, '00000000-0000-0000-0000-000000000000'::uuid), lower(trim(name))) 
-    DO NOTHING;
+    IF NOT EXISTS (
+      SELECT 1 FROM public.boarding_points 
+      WHERE bus_id = v_bus_id AND lower(trim(name)) = lower(trim(v_name))
+    ) THEN
+      INSERT INTO public.boarding_points (bus_id, name, stop_no, is_active)
+      VALUES (v_bus_id, v_name, NULL, true);
+    END IF;
   END LOOP;
 END $$;
