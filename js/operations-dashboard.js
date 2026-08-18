@@ -896,9 +896,10 @@ export async function initOperationsDashboard(expectedRole) {
     console.error('Failed to initialise reports section:', rptErr);
   }
 
+  renderBoardingManagement(expectedRole, profile, buses);
+
   if (expectedRole === 'admin') {
     await renderAdminDirectory(buses);
-    renderBoardingManagement();
     await renderSecurityDashboard();
   }
 
@@ -944,9 +945,9 @@ export async function initOperationsDashboard(expectedRole) {
 }
 
 // ── Boarding Point Management ────────────────────────────────────────────────
-const renderBoardingManagement = () => {
+const renderBoardingManagement = (expectedRole = 'admin', profile = null, buses = []) => {
   const section = document.getElementById('boarding-mgmt-section');
-  if (!section) return; // Only exists in admin.html
+  if (!section) return;
 
   // Tab 1: Student Assignment Elements
   const searchInput      = section.querySelector('#boarding-search-input');
@@ -972,6 +973,8 @@ const renderBoardingManagement = () => {
   const closeBtn         = section.querySelector('#boarding-close-detail');
 
   // Tab 2: Master Boarding Points Elements
+  const masterBusCol      = section.querySelector('#master-bus-col');
+  const masterBusSelect   = section.querySelector('#master-point-bus');
   const masterNameInput   = section.querySelector('#master-point-name');
   const masterStopInput   = section.querySelector('#master-point-stop');
   const masterIdInput     = section.querySelector('#master-point-id');
@@ -985,10 +988,34 @@ const renderBoardingManagement = () => {
   let selectedStudentId   = null;
   let selectedStudentName = '';
 
+  const userBusId = profile?.bus_id || null;
+
+  // Setup Bus Selector in Tab 2
+  if (masterBusSelect && masterBusCol) {
+    if (expectedRole === 'coordinator') {
+      masterBusCol.setAttribute('hidden', '');
+    } else {
+      masterBusCol.removeAttribute('hidden');
+      masterBusSelect.innerHTML = '<option value="">-- All Buses --</option>';
+      (buses || []).forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.id;
+        opt.textContent = `Bus ${b.bus_number} — ${b.route}`;
+        masterBusSelect.appendChild(opt);
+      });
+      masterBusSelect.onchange = () => loadMasterBoardingPoints();
+    }
+  }
+
   const todayStr = (() => { const n = new Date(); return new Date(n - n.getTimezoneOffset() * 60000).toISOString().slice(0, 10); })();
   if (formFrom) formFrom.value = todayStr;
 
   const fmtDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+  const getActiveBusIdFilter = () => {
+    if (expectedRole === 'coordinator') return userBusId;
+    return masterBusSelect?.value || null;
+  };
 
   // ── Load Master Boarding Points List ───────────────────────────────────────
   const loadMasterBoardingPoints = async () => {
@@ -996,7 +1023,8 @@ const renderBoardingManagement = () => {
     masterListBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Loading master list…</td></tr>';
 
     try {
-      const { data: points, error } = await supabase.rpc('get_boarding_points');
+      const busIdFilter = getActiveBusIdFilter();
+      const { data: points, error } = await supabase.rpc('get_boarding_points', { p_bus_id: busIdFilter });
       if (error) {
         masterListBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Failed to load boarding points: ${error.message}</td></tr>`;
         return;
@@ -1023,7 +1051,7 @@ const renderBoardingManagement = () => {
 
       // Populate Master Table
       if (masterPointsList.length === 0) {
-        masterListBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No boarding points created yet. Add one above!</td></tr>';
+        masterListBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No boarding points created yet for this bus. Add one above!</td></tr>';
         return;
       }
 
@@ -1047,6 +1075,7 @@ const renderBoardingManagement = () => {
           masterIdInput.value = pt.id;
           masterNameInput.value = pt.name;
           masterStopInput.value = pt.stop_no != null ? pt.stop_no : '';
+          if (masterBusSelect && pt.bus_id) masterBusSelect.value = pt.bus_id;
           masterSaveBtn.textContent = 'Update Point';
           masterCancelBtn.removeAttribute('hidden');
           masterFormTitle.textContent = '✏️ Edit Master Boarding Point';
@@ -1092,6 +1121,7 @@ const renderBoardingManagement = () => {
       const id = masterIdInput.value || null;
       const name = masterNameInput.value.trim();
       const stopNo = masterStopInput.value ? parseInt(masterStopInput.value, 10) : null;
+      const targetBusId = getActiveBusIdFilter();
 
       if (!name) {
         masterMsg.innerHTML = '<span class="text-danger">Boarding point name is required.</span>';
@@ -1104,7 +1134,8 @@ const renderBoardingManagement = () => {
       const { data: newId, error } = await supabase.rpc('upsert_boarding_point', {
         p_id: id,
         p_name: name,
-        p_stop_no: stopNo
+        p_stop_no: stopNo,
+        p_bus_id: targetBusId
       });
 
       masterSaveBtn.disabled = false;
@@ -1228,7 +1259,8 @@ const renderBoardingManagement = () => {
     detailPanel.setAttribute('hidden', '');
     selectedStudentId = null;
 
-    const { data: students, error } = await supabase.rpc('search_students_for_boarding', { p_query: query });
+    const busIdFilter = getActiveBusIdFilter();
+    const { data: students, error } = await supabase.rpc('search_students_for_boarding', { p_query: query, p_bus_id: busIdFilter });
     if (error) {
       searchMsg.innerHTML = `<span class="text-danger">Search failed: ${error.message}</span>`;
       return;

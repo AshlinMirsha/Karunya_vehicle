@@ -169,7 +169,203 @@
         <tbody id="attendance-list"><tr><td colspan="7" class="text-center text-muted py-4">Loading attendance history…</td></tr></tbody>
       </table>
     </div>
+  <!-- ══════════════════════════════════════════════════════════════════════
+       Boarding Point Management Section
+       ═════════════════════════════════════════════════════════════════════ -->
+  <section id="boarding-mgmt-section" class="glass-panel p-4 mb-4 mt-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div>
+        <h2 class="h5 fw-bold mb-1">🚏 Boarding Point Management</h2>
+        <p class="text-muted small mb-0">Create master boarding points for your bus and assign students to designated bus stops.</p>
+      </div>
+    </div>
+
+    <!-- Nav tabs for Boarding Management -->
+    <ul class="nav nav-tabs border-secondary mb-3" id="boarding-tabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active text-white" id="tab-btn-assign-student" data-bs-toggle="tab" data-bs-target="#tab-assign-student" type="button" role="tab">
+          👤 Assign Student Boarding
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link text-white-50" id="tab-btn-master-points" data-bs-toggle="tab" data-bs-target="#tab-master-points" type="button" role="tab">
+          ⚙️ Manage Master Boarding Points
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content" id="boarding-tab-content">
+      <!-- TAB 1: Assign Student Boarding -->
+      <div class="tab-pane fade show active" id="tab-assign-student" role="tabpanel">
+        <!-- Search bar -->
+        <div class="row g-2 mb-3">
+          <div class="col-md-8">
+            <input id="boarding-search-input" type="text" class="form-control"
+              placeholder="Search student by name, email, or register number…" autocomplete="off" maxlength="100">
+          </div>
+          <div class="col-md-4">
+            <button id="boarding-search-btn" class="btn btn-glass-primary w-100">🔍 Search Student</button>
+          </div>
+        </div>
+        <div id="boarding-search-msg" class="small mb-2"></div>
+
+        <!-- Search results table -->
+        <div id="boarding-search-results" class="table-responsive mb-3" hidden>
+          <table class="table table-dark-custom align-middle mb-0 small">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Register No.</th>
+                <th>Email</th>
+                <th>Bus</th>
+                <th>Current Boarding</th>
+                <th>Stop No.</th>
+                <th class="text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="boarding-search-body"></tbody>
+          </table>
+        </div>
+
+        <!-- Boarding detail panel (shown when a student is selected) -->
+        <div id="boarding-detail-panel" hidden>
+          <div class="card bg-transparent border border-secondary p-3 mb-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+              <div>
+                <h6 class="fw-bold mb-0" id="boarding-detail-name">—</h6>
+                <small class="text-muted" id="boarding-detail-email">—</small>
+              </div>
+              <button class="btn btn-sm btn-outline-secondary" id="boarding-close-detail">✕ Close</button>
+            </div>
+
+            <!-- Current boarding info -->
+            <div class="row g-2 mb-3" id="boarding-current-card">
+              <div class="col-md-4">
+                <div class="glass-panel p-2 text-center">
+                  <div class="text-muted small text-uppercase mb-1">Boarding Point</div>
+                  <div class="fw-bold" id="boarding-cur-point">—</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="glass-panel p-2 text-center">
+                  <div class="text-muted small text-uppercase mb-1">Stop No.</div>
+                  <div class="fw-bold" id="boarding-cur-stop">—</div>
+                </div>
+              </div>
+              <div class="col-md-5">
+                <div class="glass-panel p-2 text-center">
+                  <div class="text-muted small text-uppercase mb-1">Effective From</div>
+                  <div class="fw-bold" id="boarding-cur-from">—</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- History table -->
+            <h6 class="fw-semibold mb-2">📋 Boarding History</h6>
+            <div class="table-responsive mb-3" style="max-height: 220px; overflow-y: auto;">
+              <table class="table table-dark-custom align-middle mb-0 small">
+                <thead>
+                  <tr>
+                    <th>Boarding Point</th>
+                    <th>Stop No.</th>
+                    <th>Effective From</th>
+                    <th>Effective To</th>
+                    <th>Comment</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="boarding-history-body">
+                  <tr><td colspan="6" class="text-center text-muted py-3">No history yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Add / Change form with Dropdown -->
+            <h6 class="fw-semibold mb-2">➕ Assign / Update Boarding Point</h6>
+            <p class="text-muted small mb-2">
+              Select a boarding point from the master list. Changing a student's boarding point will <strong>close the current record</strong> and log a new entry.
+            </p>
+            <div class="row g-2 align-items-end">
+              <div class="col-md-5" id="boarding-dropdown-col">
+                <label class="form-label small" for="boarding-select-dropdown">Select Boarding Point <span class="text-danger">*</span></label>
+                <select id="boarding-select-dropdown" class="form-select">
+                  <option value="">-- Choose Boarding Point --</option>
+                  <option value="custom">-- Custom / Other --</option>
+                </select>
+              </div>
+              <div class="col-md-4" id="boarding-custom-name-col" hidden>
+                <label class="form-label small" for="boarding-form-point">Custom Point Name <span class="text-danger">*</span></label>
+                <input id="boarding-form-point" type="text" class="form-control" placeholder="e.g. Karunya Gate" maxlength="150">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small" for="boarding-form-stop">Stop No.</label>
+                <input id="boarding-form-stop" type="number" class="form-control" placeholder="1" min="1" max="999">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small" for="boarding-form-from">Effective From <span class="text-danger">*</span></label>
+                <input id="boarding-form-from" type="date" class="form-control">
+              </div>
+              <div class="col-md-9">
+                <label class="form-label small" for="boarding-form-comment">Comment / Notes</label>
+                <input id="boarding-form-comment" type="text" class="form-control" placeholder="e.g. Assigned for Karunya academic term" maxlength="300">
+              </div>
+              <div class="col-md-3">
+                <button id="boarding-form-save" class="btn btn-glass-primary w-100">Save Boarding</button>
+              </div>
+            </div>
+            <div id="boarding-form-msg" class="mt-2 small"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: Master Boarding Points -->
+      <div class="tab-pane fade" id="tab-master-points" role="tabpanel">
+        <div class="card bg-transparent border border-secondary p-3 mb-3">
+          <h6 class="fw-semibold mb-2" id="master-form-title">➕ Add New Master Boarding Point</h6>
+          <div class="row g-2 align-items-end mb-3">
+            <div class="col-md-3" id="master-bus-col">
+              <label class="form-label small" for="master-point-bus">Bus</label>
+              <select id="master-point-bus" class="form-select">
+                <option value="">-- All Buses --</option>
+              </select>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label small" for="master-point-name">Boarding Point Name <span class="text-danger">*</span></label>
+              <input id="master-point-name" type="text" class="form-control" placeholder="e.g. Karunya Main Gate" maxlength="150">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small" for="master-point-stop">Stop Number</label>
+              <input id="master-point-stop" type="number" class="form-control" placeholder="1" min="1" max="999">
+            </div>
+            <div class="col-md-2 d-flex gap-1">
+              <input type="hidden" id="master-point-id" value="">
+              <button id="btn-save-master-point" class="btn btn-glass-primary w-100">Add Point</button>
+              <button id="btn-cancel-master-point" class="btn btn-outline-secondary btn-sm" hidden>Cancel</button>
+            </div>
+          </div>
+          <div id="master-point-msg" class="small mb-3"></div>
+
+          <h6 class="fw-semibold mb-2">📋 Configured Boarding Points</h6>
+          <div class="table-responsive">
+            <table class="table table-dark-custom align-middle mb-0 small">
+              <thead>
+                <tr>
+                  <th>Stop No.</th>
+                  <th>Boarding Point Name</th>
+                  <th>Status</th>
+                  <th class="text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody id="master-points-list-body">
+                <tr><td colspan="4" class="text-center text-muted py-3">Loading master list…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
+
   <!-- ══════════════════════════════════════════════════════════════════════
        Reports Section — Date Range Report & Student Wise Report
        ═════════════════════════════════════════════════════════════════════ -->
