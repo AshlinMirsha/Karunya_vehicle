@@ -441,8 +441,9 @@ body {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
 }
 
-/* ── Clean PDF / Print Report Styles ── */
-#print-header { display: none; }
+#print-mount-point {
+  display: none;
+}
 
 @media print {
   @page {
@@ -486,31 +487,13 @@ body {
 
   /* ── 1. REPORT PRINT MODE (body.printing-report) ── */
 
-  /* Hide all siblings of main and siblings of #reports-section */
-  body.printing-report > *:not(main) {
-    display: none !important;
-  }
-  body.printing-report main > *:not(#reports-section) {
+  /* Hide all root children of body except #print-mount-point */
+  body.printing-report > *:not(#print-mount-point) {
     display: none !important;
   }
 
-  /* Make main a zero-margin wrapper */
-  body.printing-report main {
-    display: block !important;
-    visibility: visible !important;
-    position: static !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    width: 100% !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    overflow: visible !important;
-  }
-
-  /* #reports-section remains in document flow at top of page 1 */
-  html body.printing-report #reports-section,
-  body.printing-report #reports-section {
+  /* Show ONLY #print-mount-point at top (0,0) of page 1 */
+  body.printing-report #print-mount-point {
     display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
@@ -523,90 +506,56 @@ body {
     padding: 0 !important;
     overflow: visible !important;
     transform: none !important;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
   }
 
-  /* Hide inner UI elements inside #reports-section */
-  body.printing-report .rpt-tab-strip,
-  body.printing-report .rpt-actions,
-  body.printing-report .rpt-filter-row,
-  body.printing-report #reports-section > div:first-child,
-  body.printing-report [data-rpt-pane][hidden] {
-    display: none !important;
-  }
-
-  /* Show only the active tab pane */
-  body.printing-report [data-rpt-pane]:not([hidden]) {
-    display: block !important;
-    visibility: visible !important;
-    position: static !important;
-    width: 100% !important;
-    height: auto !important;
-    min-height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: visible !important;
-  }
-
-  body.printing-report #rpt-dr-preview,
-  body.printing-report #rpt-sw-preview {
-    display: block !important;
-    visibility: visible !important;
-    position: static !important;
-    width: 100% !important;
-    height: auto !important;
-    min-height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: visible !important;
-  }
-
-  /* Force solid black text for all report contents */
-  body.printing-report #reports-section,
-  body.printing-report #reports-section h1,
-  body.printing-report #reports-section h2,
-  body.printing-report #reports-section h3,
-  body.printing-report #reports-section h4,
-  body.printing-report #reports-section h5,
-  body.printing-report #reports-section p,
-  body.printing-report #reports-section span,
-  body.printing-report #reports-section div,
-  body.printing-report #reports-section td,
-  body.printing-report #reports-section th {
+  /* Force solid black text for all report contents inside #print-mount-point */
+  #print-mount-point,
+  #print-mount-point * {
     color: #000000 !important;
     visibility: visible !important;
     opacity: 1 !important;
     text-shadow: none !important;
+    box-shadow: none !important;
   }
 
-  body.printing-report .rpt-print-header {
+  #print-mount-point .rpt-print-header {
     display: block !important;
     visibility: visible !important;
     margin-top: 0 !important;
     margin-bottom: 10px !important;
     padding-bottom: 6px !important;
-    border-bottom: 2px solid #000 !important;
+    border-bottom: 2px solid #000000 !important;
     page-break-after: avoid !important;
     break-after: avoid !important;
   }
 
-  body.printing-report .rpt-print-header h3 {
+  #print-mount-point .rpt-print-header h3 {
     font-size: 14pt !important;
     font-weight: bold !important;
     margin: 0 0 3px !important;
     color: #000000 !important;
   }
 
-  body.printing-report .rpt-print-header p {
+  #print-mount-point .rpt-print-header p {
     font-size: 9.5pt !important;
     margin: 0 !important;
     color: #333333 !important;
   }
 
-  body.printing-report .rpt-table,
-  body.printing-report table {
+  #print-mount-point .table-responsive,
+  #print-mount-point .rpt-scroll {
+    display: block !important;
+    width: 100% !important;
+    overflow: visible !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #print-mount-point table,
+  #print-mount-point .rpt-table {
     font-size: 8.5pt !important;
     color: #000000 !important;
     background: #ffffff !important;
@@ -619,8 +568,8 @@ body {
     visibility: visible !important;
   }
 
-  body.printing-report .rpt-table th,
-  body.printing-report .rpt-table td {
+  #print-mount-point th,
+  #print-mount-point td {
     border: 1px solid #555555 !important;
     padding: 4px 6px !important;
     background-color: #ffffff !important;
@@ -628,24 +577,24 @@ body {
     visibility: visible !important;
   }
 
-  body.printing-report .rpt-table thead th  { background-color: #f0f0f0 !important; font-weight: bold !important; color: #000000 !important; }
-  body.printing-report .rpt-date-group      { background-color: #e0ecff !important; color: #000000 !important; }
-  body.printing-report .rpt-sub             { background-color: #e8f0ff !important; color: #000000 !important; }
-  body.printing-report .rpt-table-caption   { background-color: #dde8f2 !important; color: #000000 !important; }
-  body.printing-report .rpt-p               { color: #005c20 !important; font-weight: 700 !important; }
-  body.printing-report .rpt-ab              { color: #990000 !important; font-weight: 700 !important; }
+  #print-mount-point thead th { background-color: #f0f0f0 !important; font-weight: bold !important; color: #000000 !important; }
+  #print-mount-point .rpt-date-group      { background-color: #e0ecff !important; color: #000000 !important; }
+  #print-mount-point .rpt-sub             { background-color: #e8f0ff !important; color: #000000 !important; }
+  #print-mount-point .rpt-table-caption   { background-color: #dde8f2 !important; color: #000000 !important; }
+  #print-mount-point .rpt-p               { color: #005c20 !important; font-weight: 700 !important; }
+  #print-mount-point .rpt-ab              { color: #990000 !important; font-weight: 700 !important; }
 
-  body.printing-report tr {
+  #print-mount-point tr {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
 
-  body.printing-report thead {
+  #print-mount-point thead {
     display: table-header-group !important;
     break-after: avoid !important;
   }
 
-  body.printing-report .rpt-page-chunk {
+  #print-mount-point .rpt-page-chunk {
     position: relative !important;
     width: 100% !important;
     height: auto !important;
@@ -655,7 +604,7 @@ body {
     visibility: visible !important;
   }
 
-  body.printing-report .rpt-page-break {
+  #print-mount-point .rpt-page-break {
     page-break-before: always !important;
     break-before: page !important;
     border-top: none !important;
@@ -663,7 +612,7 @@ body {
     padding-top: 0 !important;
   }
 
-  body.printing-report .rpt-page-chunk:last-child {
+  #print-mount-point .rpt-page-chunk:last-child {
     page-break-after: auto !important;
     break-after: auto !important;
   }

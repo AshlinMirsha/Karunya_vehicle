@@ -148,6 +148,47 @@ function _wireTabButtons() {
 
 // ─── Feature 1: Date Range Report ─────────────────────────────────────────
 
+function _triggerPrintReport(previewElement) {
+  if (!previewElement || !previewElement.innerHTML.trim()) {
+    showToast('No report content available to print.', 'warning');
+    return;
+  }
+
+  let mount = document.getElementById('print-mount-point');
+  if (!mount) {
+    mount = document.createElement('div');
+    mount.id = 'print-mount-point';
+    document.body.appendChild(mount);
+  }
+
+  setPrintOrientation('landscape');
+  const savedY = window.scrollY;
+
+  // Mount the report HTML into root element
+  mount.innerHTML = previewElement.innerHTML;
+
+  document.documentElement.classList.add('printing-report');
+  document.body.classList.add('printing-report');
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        window.print();
+      }, 150);
+    });
+  });
+
+  const cleanup = () => {
+    document.body.classList.remove('printing-report');
+    document.documentElement.classList.remove('printing-report');
+    if (mount) mount.innerHTML = '';
+    window.scrollTo(0, savedY);
+  };
+
+  window.addEventListener('afterprint', cleanup, { once: true });
+  setTimeout(cleanup, 4000);
+}
+
 function _wireDateRangeReport(profile) {
   const btn = document.getElementById('rpt-dr-generate');
   const pdfBtn = document.getElementById('rpt-dr-pdf');
@@ -156,29 +197,8 @@ function _wireDateRangeReport(profile) {
 
   btn.addEventListener('click', () => _runDateRangeReport(profile));
   pdfBtn?.addEventListener('click', () => {
-    setPrintOrientation('landscape');
-    const savedY = window.scrollY;
-    window.scrollTo(0, 0);
-
-    document.documentElement.classList.add('printing-report');
-    document.body.classList.add('printing-report');
-    document.querySelector('[data-rpt-pane="date-range"]')?.removeAttribute('hidden');
-    
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          window.print();
-        }, 150);
-      });
-    });
-
-    const cleanup = () => {
-      document.body.classList.remove('printing-report');
-      document.documentElement.classList.remove('printing-report');
-      window.scrollTo(0, savedY);
-    };
-    window.addEventListener('afterprint', cleanup, { once: true });
-    setTimeout(cleanup, 4000);
+    const preview = document.getElementById('rpt-dr-preview');
+    _triggerPrintReport(preview);
   });
   xlsBtn?.addEventListener('click', () => _exportDateRangeExcel());
 }
@@ -409,37 +429,8 @@ function _wireStudentWiseReport(profile) {
 
   btn.addEventListener('click', () => _runStudentWiseReport(profile));
   pdfBtn?.addEventListener('click', () => {
-    setPrintOrientation('landscape');
-    const savedY = window.scrollY;
-    window.scrollTo(0, 0);
-
-    document.documentElement.classList.add('printing-report');
-    document.body.classList.add('printing-report');
-    document.querySelector('[data-rpt-pane="student-wise"]')?.removeAttribute('hidden');
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          window.print();
-        }, 150);
-      });
-    });
-
-    const cleanup = () => {
-      document.body.classList.remove('printing-report');
-      document.documentElement.classList.remove('printing-report');
-      window.scrollTo(0, savedY);
-
-      // Restore hidden state based on which tab is active
-      const activeTab = document.querySelector('.rpt-tab-btn.active');
-      const activePane = activeTab?.dataset?.rptTab;
-      document.querySelectorAll('[data-rpt-pane]').forEach(p => {
-        if (p.dataset.rptPane !== activePane) p.setAttribute('hidden', '');
-        else p.removeAttribute('hidden');
-      });
-    };
-    window.addEventListener('afterprint', cleanup, { once: true });
-    setTimeout(cleanup, 4000);
+    const preview = document.getElementById('rpt-sw-preview');
+    _triggerPrintReport(preview);
   });
   xlsBtn?.addEventListener('click', () => _exportStudentWiseExcel());
 }
