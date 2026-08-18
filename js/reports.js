@@ -316,7 +316,7 @@ function _renderDateRangeTable(container, students, dates, lookup, startDate, en
         return `<tr>
           <td class="rpt-name">${escHtml(st.full_name || '—')}</td>
           <td class="rpt-reg">${escHtml(st.register_number || '—')}</td>
-          <td class="rpt-bp">—</td>
+          <td class="rpt-bp">${escHtml(st.boarding_point || '—')}</td>
           ${dateCells}
         </tr>`;
       })
@@ -388,7 +388,7 @@ async function _exportDateRangeExcel() {
   ];
 
   students.forEach((st) => {
-    const row = [st.full_name || '—', st.register_number || '—', '—'];
+    const row = [st.full_name || '—', st.register_number || '—', st.boarding_point || '—'];
     dates.forEach((d) => {
       const hist = lookup.get(`${st.register_number}|${d}`);
       row.push(toToken(hist?.morning_status ?? null));
@@ -482,10 +482,12 @@ async function _runStudentWiseReport(profile) {
     // Sort ascending by date
     rows.sort((a, b) => String(a.session_date).localeCompare(String(b.session_date)));
 
-    // Store for Excel export
-    preview._reportData = { rows, studentReg, studentName, startDate, endDate };
+    const boardingPoint = rows.find((r) => r.boarding_point)?.boarding_point || 'Not assigned';
 
-    _renderStudentWiseTable(preview, rows, { studentReg, studentName, startDate, endDate });
+    // Store for Excel export
+    preview._reportData = { rows, studentReg, studentName, boardingPoint, startDate, endDate };
+
+    _renderStudentWiseTable(preview, rows, { studentReg, studentName, boardingPoint, startDate, endDate });
     document.getElementById('rpt-sw-actions')?.removeAttribute('hidden');
 
   } catch (err) {
@@ -496,7 +498,7 @@ async function _runStudentWiseReport(profile) {
   }
 }
 
-function _renderStudentWiseTable(container, rows, { studentReg, studentName, startDate, endDate }) {
+function _renderStudentWiseTable(container, rows, { studentReg, studentName, boardingPoint, startDate, endDate }) {
 
   // ── Monthly percentage calculation ───────────────────────────────────────
   // Only count dates where a session actually existed (status !== null).
@@ -568,6 +570,7 @@ function _renderStudentWiseTable(container, rows, { studentReg, studentName, sta
           <tbody>
             <tr><th>Name</th><td>${escHtml(studentName || studentReg)}</td></tr>
             <tr><th>Register No.</th><td>${escHtml(studentReg)}</td></tr>
+            <tr><th>Boarding Point</th><td>${escHtml(boardingPoint || 'Not assigned')}</td></tr>
             <tr><th>Period</th><td>${fmtLong(startDate)} – ${fmtLong(endDate)}</td></tr>
           </tbody>
         </table>
@@ -610,7 +613,7 @@ async function _exportStudentWiseExcel() {
   if (!reportData) {
     return showToast('Please generate the report first.', 'warning');
   }
-  const { rows, studentReg, studentName, startDate, endDate } = reportData;
+  const { rows, studentReg, studentName, boardingPoint, startDate, endDate } = reportData;
 
   const XLSX = await loadXLSX();
   if (!XLSX) return showToast('Excel library could not be loaded.', 'danger');
@@ -618,6 +621,7 @@ async function _exportStudentWiseExcel() {
   // ── Sheet 1: Date-wise attendance ─────────────────────────────────────────
   const detailRows = [
     [`Student Attendance Report — ${studentName || studentReg} (${studentReg})`],
+    [`Boarding Point: ${boardingPoint || 'Not assigned'}`],
     [`Period: ${fmtLong(startDate)} to ${fmtLong(endDate)}`],
     [],
     ['Date', 'Morning', 'Evening'],
