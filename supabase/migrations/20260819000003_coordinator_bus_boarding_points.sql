@@ -304,8 +304,7 @@ BEGIN
   LEFT JOIN public.buses b ON b.id = p.bus_id
   LEFT JOIN public.student_boarding_details bd
     ON bd.student_id = p.id
-    AND bd.effective_from <= CURRENT_DATE
-    AND (bd.effective_to IS NULL OR bd.effective_to >= CURRENT_DATE)
+    AND bd.effective_to IS NULL
   WHERE p.role = 'student'
     AND (v_target_bus_id IS NULL OR p.bus_id = v_target_bus_id)
     AND (
