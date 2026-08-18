@@ -496,6 +496,8 @@ body {
 
   /* Make main a zero-margin wrapper */
   body.printing-report main {
+    display: block !important;
+    visibility: visible !important;
     position: static !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -538,6 +540,7 @@ body {
   /* Show only the active tab pane */
   body.printing-report [data-rpt-pane]:not([hidden]) {
     display: block !important;
+    visibility: visible !important;
     position: static !important;
     width: 100% !important;
     height: auto !important;
@@ -550,6 +553,7 @@ body {
   body.printing-report #rpt-dr-preview,
   body.printing-report #rpt-sw-preview {
     display: block !important;
+    visibility: visible !important;
     position: static !important;
     width: 100% !important;
     height: auto !important;
@@ -557,6 +561,111 @@ body {
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
+  }
+
+  /* Force solid black text for all report contents */
+  body.printing-report #reports-section,
+  body.printing-report #reports-section h1,
+  body.printing-report #reports-section h2,
+  body.printing-report #reports-section h3,
+  body.printing-report #reports-section h4,
+  body.printing-report #reports-section h5,
+  body.printing-report #reports-section p,
+  body.printing-report #reports-section span,
+  body.printing-report #reports-section div,
+  body.printing-report #reports-section td,
+  body.printing-report #reports-section th {
+    color: #000000 !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+  }
+
+  body.printing-report .rpt-print-header {
+    display: block !important;
+    visibility: visible !important;
+    margin-top: 0 !important;
+    margin-bottom: 10px !important;
+    padding-bottom: 6px !important;
+    border-bottom: 2px solid #000 !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  body.printing-report .rpt-print-header h3 {
+    font-size: 14pt !important;
+    font-weight: bold !important;
+    margin: 0 0 3px !important;
+    color: #000000 !important;
+  }
+
+  body.printing-report .rpt-print-header p {
+    font-size: 9.5pt !important;
+    margin: 0 !important;
+    color: #333333 !important;
+  }
+
+  body.printing-report .rpt-table,
+  body.printing-report table {
+    font-size: 8.5pt !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+    border-collapse: collapse !important;
+    width: 100% !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    visibility: visible !important;
+  }
+
+  body.printing-report .rpt-table th,
+  body.printing-report .rpt-table td {
+    border: 1px solid #555555 !important;
+    padding: 4px 6px !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    visibility: visible !important;
+  }
+
+  body.printing-report .rpt-table thead th  { background-color: #f0f0f0 !important; font-weight: bold !important; color: #000000 !important; }
+  body.printing-report .rpt-date-group      { background-color: #e0ecff !important; color: #000000 !important; }
+  body.printing-report .rpt-sub             { background-color: #e8f0ff !important; color: #000000 !important; }
+  body.printing-report .rpt-table-caption   { background-color: #dde8f2 !important; color: #000000 !important; }
+  body.printing-report .rpt-p               { color: #005c20 !important; font-weight: 700 !important; }
+  body.printing-report .rpt-ab              { color: #990000 !important; font-weight: 700 !important; }
+
+  body.printing-report tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  body.printing-report thead {
+    display: table-header-group !important;
+    break-after: avoid !important;
+  }
+
+  body.printing-report .rpt-page-chunk {
+    position: relative !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    visibility: visible !important;
+  }
+
+  body.printing-report .rpt-page-break {
+    page-break-before: always !important;
+    break-before: page !important;
+    border-top: none !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  body.printing-report .rpt-page-chunk:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
 
   /* ── 2. NON-REPORT PRINT MODE (body:not(.printing-report)) ── */
