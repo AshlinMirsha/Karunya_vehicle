@@ -898,6 +898,7 @@ export async function initOperationsDashboard(expectedRole) {
 
   if (expectedRole === 'admin') {
     await renderAdminDirectory(buses);
+    renderBoardingManagement();
     await renderSecurityDashboard();
   }
 
@@ -941,6 +942,222 @@ export async function initOperationsDashboard(expectedRole) {
     console.error('initOperationsDashboard error:', err);
   }
 }
+
+// ── Boarding Point Management ────────────────────────────────────────────────
+const renderBoardingManagement = () => {
+  const section = document.getElementById('boarding-mgmt-section');
+  if (!section) return; // Only exists in admin.html
+
+  const searchInput  = section.querySelector('#boarding-search-input');
+  const searchBtn    = section.querySelector('#boarding-search-btn');
+  const searchMsg    = section.querySelector('#boarding-search-msg');
+  const resultsDiv   = section.querySelector('#boarding-search-results');
+  const searchBody   = section.querySelector('#boarding-search-body');
+  const detailPanel  = section.querySelector('#boarding-detail-panel');
+  const detailName   = section.querySelector('#boarding-detail-name');
+  const detailEmail  = section.querySelector('#boarding-detail-email');
+  const curPoint     = section.querySelector('#boarding-cur-point');
+  const curActual    = section.querySelector('#boarding-cur-actual');
+  const curStop      = section.querySelector('#boarding-cur-stop');
+  const curFrom      = section.querySelector('#boarding-cur-from');
+  const historyBody  = section.querySelector('#boarding-history-body');
+  const formPoint    = section.querySelector('#boarding-form-point');
+  const formActual   = section.querySelector('#boarding-form-actual');
+  const formStop     = section.querySelector('#boarding-form-stop');
+  const formFrom     = section.querySelector('#boarding-form-from');
+  const formComment  = section.querySelector('#boarding-form-comment');
+  const formSaveBtn  = section.querySelector('#boarding-form-save');
+  const formMsg      = section.querySelector('#boarding-form-msg');
+  const closeBtn     = section.querySelector('#boarding-close-detail');
+
+  // Set default effective_from to today
+  const todayStr = (() => { const n = new Date(); return new Date(n - n.getTimezoneOffset() * 60000).toISOString().slice(0, 10); })();
+  if (formFrom) formFrom.value = todayStr;
+
+  let selectedStudentId   = null;
+  let selectedStudentName = '';
+
+  const fmtDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+  // ── Load and render boarding history for a student ─────────────────────────
+  const loadBoardingDetail = async (studentId, studentFullName, studentEmail) => {
+    selectedStudentId   = studentId;
+    selectedStudentName = studentFullName;
+
+    detailName.textContent  = studentFullName;
+    detailEmail.textContent = studentEmail;
+
+    // Reset form
+    formPoint.value   = '';
+    formActual.value  = '';
+    formStop.value    = '';
+    formFrom.value    = todayStr;
+    formComment.value = '';
+    formMsg.innerHTML = '';
+
+    historyBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">Loading…</td></tr>';
+    detailPanel.removeAttribute('hidden');
+    detailPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    const { data: history, error } = await supabase.rpc('get_student_boarding', { p_student_id: studentId });
+    if (error) {
+      historyBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Could not load boarding history: ${error.message}</td></tr>`;
+      curPoint.textContent = curActual.textContent = curStop.textContent = curFrom.textContent = '—';
+      return;
+    }
+
+    const current = (history || []).find(r => r.is_current);
+    if (current) {
+      curPoint.textContent  = current.boarding_point  || '—';
+      curActual.textContent = current.actual_boarding_point || '—';
+      curStop.textContent   = current.bus_stop_no != null ? `Stop ${current.bus_stop_no}` : '—';
+      curFrom.textContent   = fmtDate(current.effective_from);
+      // Pre-fill form with current values for quick editing
+      formPoint.value  = current.boarding_point  || '';
+      formActual.value = current.actual_boarding_point || '';
+      formStop.value   = current.bus_stop_no != null ? current.bus_stop_no : '';
+    } else {
+      curPoint.textContent = curActual.textContent = curStop.textContent = curFrom.textContent = 'No active record';
+    }
+
+    if (!history || history.length === 0) {
+      historyBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No boarding records yet.</td></tr>';
+      return;
+    }
+
+    historyBody.replaceChildren(...history.map(rec => {
+      const tr = document.createElement('tr');
+      const statusBadge = rec.is_current
+        ? '<span class="badge bg-success">Active</span>'
+        : '<span class="badge bg-secondary">Historical</span>';
+      tr.innerHTML = `
+        <td>${rec.boarding_point || '—'}</td>
+        <td>${rec.actual_boarding_point || '—'}</td>
+        <td>${rec.bus_stop_no != null ? rec.bus_stop_no : '—'}</td>
+        <td>${fmtDate(rec.effective_from)}</td>
+        <td>${rec.effective_to ? fmtDate(rec.effective_to) : '<span class="text-success">Present</span>'}</td>
+        <td>${rec.comment || '—'}</td>
+        <td>${statusBadge}</td>
+      `;
+      return tr;
+    }));
+  };
+
+  // ── Search handler ─────────────────────────────────────────────────────────
+  const doSearch = async () => {
+    const query = searchInput.value.trim();
+    if (query.length < 2) {
+      searchMsg.innerHTML = '<span class="text-warning">Enter at least 2 characters to search.</span>';
+      resultsDiv.setAttribute('hidden', '');
+      return;
+    }
+    searchMsg.innerHTML = '<span class="text-muted">Searching…</span>';
+    resultsDiv.setAttribute('hidden', '');
+    detailPanel.setAttribute('hidden', '');
+    selectedStudentId = null;
+
+    const { data: students, error } = await supabase.rpc('search_students_for_boarding', { p_query: query });
+    if (error) {
+      searchMsg.innerHTML = `<span class="text-danger">Search failed: ${error.message}</span>`;
+      return;
+    }
+    if (!students || students.length === 0) {
+      searchMsg.innerHTML = '<span class="text-warning">No students found. Try a different search term.</span>';
+      return;
+    }
+    searchMsg.innerHTML = `<span class="text-muted">${students.length} result${students.length !== 1 ? 's' : ''} found.</span>`;
+
+    searchBody.replaceChildren(...students.map(s => {
+      const tr = document.createElement('tr');
+      const boardingCell = s.has_boarding
+        ? `<span class="text-success">${s.boarding_point || '—'}</span>`
+        : '<span class="text-muted fst-italic">Not assigned</span>';
+      const stopCell = s.has_boarding && s.bus_stop_no != null ? s.bus_stop_no : '—';
+      tr.innerHTML = `
+        <td>${s.full_name || '—'}</td>
+        <td>${s.register_number || '—'}</td>
+        <td>${s.email}</td>
+        <td>${s.bus_number ? 'Bus ' + s.bus_number : '—'}</td>
+        <td>${boardingCell}</td>
+        <td>${stopCell}</td>
+        <td class="text-center">
+          <button class="btn btn-sm btn-outline-info py-0 px-2 btn-manage-boarding" data-id="${s.id}" data-name="${s.full_name}" data-email="${s.email}">
+            Manage
+          </button>
+        </td>
+      `;
+      tr.querySelector('.btn-manage-boarding').onclick = () => loadBoardingDetail(s.id, s.full_name, s.email);
+      return tr;
+    }));
+    resultsDiv.removeAttribute('hidden');
+  };
+
+  searchBtn.onclick = doSearch;
+  searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+
+  let searchDebounce;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchDebounce);
+    if (searchInput.value.trim().length >= 2) {
+      searchDebounce = setTimeout(doSearch, 400);
+    }
+  });
+
+  // ── Close detail panel ─────────────────────────────────────────────────────
+  closeBtn.onclick = () => {
+    detailPanel.setAttribute('hidden', '');
+    selectedStudentId = null;
+  };
+
+  // ── Save boarding (upsert) ─────────────────────────────────────────────────
+  formSaveBtn.onclick = async () => {
+    if (!selectedStudentId) {
+      showToast('No student selected.', 'warning');
+      return;
+    }
+    const boardingPoint = formPoint.value.trim();
+    const actualBoarding = formActual.value.trim() || null;
+    const stopNo = formStop.value ? parseInt(formStop.value, 10) : null;
+    const effectiveFrom = formFrom.value || todayStr;
+    const comment = formComment.value.trim() || null;
+
+    if (!boardingPoint) {
+      formMsg.innerHTML = '<span class="text-danger">Boarding point is required.</span>';
+      return;
+    }
+    if (!effectiveFrom) {
+      formMsg.innerHTML = '<span class="text-danger">Effective from date is required.</span>';
+      return;
+    }
+
+    formSaveBtn.disabled = true;
+    formMsg.innerHTML = '<span class="text-muted">Saving…</span>';
+
+    const { data: newId, error } = await supabase.rpc('upsert_student_boarding', {
+      p_student_id:            selectedStudentId,
+      p_boarding_point:        boardingPoint,
+      p_actual_boarding_point: actualBoarding,
+      p_bus_stop_no:           stopNo,
+      p_effective_from:        effectiveFrom,
+      p_comment:               comment,
+    });
+
+    formSaveBtn.disabled = false;
+
+    if (error) {
+      formMsg.innerHTML = `<span class="text-danger">⚠️ ${error.message || 'Could not save boarding details.'}</span>`;
+      showToast('Could not save boarding details.', 'danger');
+      return;
+    }
+
+    formMsg.innerHTML = '<span class="text-success">✅ Boarding point saved successfully!</span>';
+    showToast(`Boarding point set for ${selectedStudentName}.`, 'success');
+    // Refresh history
+    await loadBoardingDetail(selectedStudentId, detailName.textContent, detailEmail.textContent);
+    // Refresh search results to reflect new boarding point
+    if (searchInput.value.trim().length >= 2) doSearch();
+  };
+};
 
 const renderSecurityDashboard = async () => {
   const section = document.createElement('section');
