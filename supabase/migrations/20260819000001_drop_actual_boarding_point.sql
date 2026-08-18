@@ -6,6 +6,8 @@ ALTER TABLE public.student_boarding_details
   DROP COLUMN IF EXISTS actual_boarding_point;
 
 -- ── 2. Re-create get_student_boarding without actual_boarding_point ───────────
+-- Must DROP first because the return type (OUT columns) is changing.
+DROP FUNCTION IF EXISTS public.get_student_boarding(UUID);
 CREATE OR REPLACE FUNCTION public.get_student_boarding(p_student_id UUID)
 RETURNS TABLE (
   id             UUID,
