@@ -1256,6 +1256,29 @@ const setupStudentManagementControls = (buses) => {
         return;
       }
 
+      // ── Duplicate-email guard ────────────────────────────────────────────
+      const { data: existing, error: lookupErr } = await supabase
+        .from('profiles')
+        .select('id, full_name, status')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (lookupErr) {
+        const errMsg = lookupErr.message || 'Could not verify email uniqueness.';
+        if (msg) msg.innerHTML = `<span class="text-danger">⚠️ ${errMsg}</span>`;
+        showToast(errMsg, 'danger');
+        return;
+      }
+
+      if (existing) {
+        const statusLabel = existing.status ? ` (status: ${existing.status})` : '';
+        const warnMsg = `⚠️ A student with this email already exists: <strong>${existing.full_name || email}</strong>${statusLabel}. Please use a different email or update the existing record.`;
+        if (msg) msg.innerHTML = `<span class="text-warning">${warnMsg}</span>`;
+        showToast('Student with this email already exists.', 'danger');
+        return;
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       const { data, error } = await supabase.functions.invoke('attendance-api', {
         body: { action: 'add-student', fullName: name, email, registerNumber: regNumber, busId }
       });
