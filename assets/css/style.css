@@ -451,7 +451,7 @@ body {
   .no-print,
   #qr-panel,
   #admin-student-mgmt,
-  .row.g-3,
+  .rpt-filter-row,
   #quick-filters,
   section.glass-panel:not(.printable-section):not(#reports-section),
   .navbar-wrapper,
@@ -959,7 +959,7 @@ button#btn-back-to-top svg {
   /* Hide chrome inside the reports section that shouldn't print */
   body.printing-report .rpt-tab-strip,
   body.printing-report .rpt-actions,
-  body.printing-report .row.g-3 { /* hides the date/student input row */
+  body.printing-report .rpt-filter-row { /* hides the date/student input row */
     display: none !important;
   }
 

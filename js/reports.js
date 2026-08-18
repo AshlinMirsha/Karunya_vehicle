@@ -57,8 +57,8 @@ const dateRange = (start, end) => {
 };
 
 /** IST-aware ISO strings for the RPC. */
-const istFrom = (dateStr) => new Date(dateStr + 'T00:00:00+05:30').toISOString();
-const istTo = (dateStr) => new Date(dateStr + 'T23:59:59.999+05:30').toISOString();
+const istFrom = (dateStr) => (dateStr ? `${dateStr}T00:00:00.000+05:30` : null);
+const istTo = (dateStr) => (dateStr ? `${dateStr}T23:59:59.999+05:30` : null);
 
 /** Inject or update a <style> tag that controls print orientation. */
 let _orientEl = null;
