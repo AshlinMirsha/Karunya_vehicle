@@ -941,8 +941,11 @@ button#btn-back-to-top svg {
 @media print {
 
   /* ── When printing a report: show ONLY #reports-section ── */
+  html body.printing-report #reports-section,
   body.printing-report #reports-section {
     display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
     background: none !important;
     border: none !important;
     box-shadow: none !important;

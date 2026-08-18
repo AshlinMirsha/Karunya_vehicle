@@ -160,11 +160,17 @@ function _wireDateRangeReport(profile) {
     document.body.classList.add('printing-report');
     // Ensure pane is visible (not hidden) so CSS shows it
     document.querySelector('[data-rpt-pane="date-range"]')?.removeAttribute('hidden');
-    window.print();
-    // Remove the class once the print dialog closes
-    window.addEventListener('afterprint', () => {
+    
+    // Defer window.print() so browser repaints styles before snapshotting
+    setTimeout(() => {
+      window.print();
+    }, 150);
+
+    const cleanup = () => {
       document.body.classList.remove('printing-report');
-    }, { once: true });
+    };
+    window.addEventListener('afterprint', cleanup, { once: true });
+    setTimeout(cleanup, 3000);
   });
   xlsBtn?.addEventListener('click', () => _exportDateRangeExcel());
 }
@@ -399,8 +405,13 @@ function _wireStudentWiseReport(profile) {
     document.body.classList.add('printing-report');
     // Ensure pane is visible
     document.querySelector('[data-rpt-pane="student-wise"]')?.removeAttribute('hidden');
-    window.print();
-    window.addEventListener('afterprint', () => {
+
+    // Defer window.print() so browser repaints styles before snapshotting
+    setTimeout(() => {
+      window.print();
+    }, 150);
+
+    const cleanup = () => {
       document.body.classList.remove('printing-report');
       // Restore hidden state based on which tab is active
       const activeTab = document.querySelector('.rpt-tab-btn.active');
@@ -409,7 +420,9 @@ function _wireStudentWiseReport(profile) {
         if (p.dataset.rptPane !== activePane) p.setAttribute('hidden', '');
         else p.removeAttribute('hidden');
       });
-    }, { once: true });
+    };
+    window.addEventListener('afterprint', cleanup, { once: true });
+    setTimeout(cleanup, 3000);
   });
   xlsBtn?.addEventListener('click', () => _exportStudentWiseExcel());
 }

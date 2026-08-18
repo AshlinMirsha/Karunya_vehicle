@@ -116,7 +116,7 @@ const renderStudentRoster = async () => {
     section.id = 'sidebarAssignedStudents';
     section.className = 'offcanvas offcanvas-end glass-sidebar';
     section.tabIndex = -1;
-    section.style.cssText = 'width: 600px; max-width: 95vw;';
+    section.style.cssText = 'width: 750px; max-width: 95vw;';
     section.innerHTML = `
       <div class="offcanvas-header p-3">
         <div>
@@ -128,7 +128,7 @@ const renderStudentRoster = async () => {
       <div class="offcanvas-body p-3">
         <div class="table-responsive">
           <table class="table align-middle mb-0">
-            <thead><tr><th>Name</th><th>Register number</th><th>Email</th><th>Bus</th><th>Status</th></tr></thead>
+            <thead><tr><th>Name</th><th>Register number</th><th>Email</th><th>Boarding Point</th><th>Bus</th><th>Status</th></tr></thead>
             <tbody id="student-roster-list"></tbody>
           </table>
         </div>
@@ -139,10 +139,15 @@ const renderStudentRoster = async () => {
   const body = section.querySelector('#student-roster-list');
   const totalCount = (students ?? []).length;
   if (!totalCount) {
-    const empty = row(['No students are assigned.']); empty.firstElementChild.colSpan = 5; body.replaceChildren(empty); return;
+    const empty = row(['No students are assigned.']); empty.firstElementChild.colSpan = 6; body.replaceChildren(empty); return;
   }
   body.replaceChildren(...students.map((student) => row([
-    student.full_name || '—', student.register_number || '—', student.email, `Bus ${student.bus_number}`, student.status,
+    student.full_name || '—',
+    student.register_number || '—',
+    student.email,
+    student.boarding_point || 'Not assigned',
+    `Bus ${student.bus_number}`,
+    student.status,
   ])));
 };
 
