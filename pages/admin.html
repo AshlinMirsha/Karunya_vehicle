@@ -276,7 +276,7 @@
 
         <!-- Current boarding info -->
         <div class="row g-2 mb-3" id="boarding-current-card">
-          <div class="col-md-3">
+          <div class="col-md-4">
             <div class="glass-panel p-2 text-center">
               <div class="text-muted small text-uppercase mb-1">Boarding Point</div>
               <div class="fw-bold" id="boarding-cur-point">—</div>
@@ -284,17 +284,11 @@
           </div>
           <div class="col-md-3">
             <div class="glass-panel p-2 text-center">
-              <div class="text-muted small text-uppercase mb-1">Actual Boarding Point</div>
-              <div class="fw-bold" id="boarding-cur-actual">—</div>
-            </div>
-          </div>
-          <div class="col-md-2">
-            <div class="glass-panel p-2 text-center">
               <div class="text-muted small text-uppercase mb-1">Stop No.</div>
               <div class="fw-bold" id="boarding-cur-stop">—</div>
             </div>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-5">
             <div class="glass-panel p-2 text-center">
               <div class="text-muted small text-uppercase mb-1">Effective From</div>
               <div class="fw-bold" id="boarding-cur-from">—</div>
@@ -309,7 +303,6 @@
             <thead>
               <tr>
                 <th>Boarding Point</th>
-                <th>Actual Boarding</th>
                 <th>Stop No.</th>
                 <th>Effective From</th>
                 <th>Effective To</th>
@@ -318,7 +311,7 @@
               </tr>
             </thead>
             <tbody id="boarding-history-body">
-              <tr><td colspan="7" class="text-center text-muted py-3">No history yet.</td></tr>
+              <tr><td colspan="6" class="text-center text-muted py-3">No history yet.</td></tr>
             </tbody>
           </table>
         </div>
@@ -330,19 +323,15 @@
           The old record is preserved for historical reporting.
         </p>
         <div class="row g-2 align-items-end">
-          <div class="col-md-4">
+          <div class="col-md-5">
             <label class="form-label small" for="boarding-form-point">Boarding Point <span class="text-danger">*</span></label>
             <input id="boarding-form-point" type="text" class="form-control" placeholder="e.g. Kottar" maxlength="150">
           </div>
           <div class="col-md-3">
-            <label class="form-label small" for="boarding-form-actual">Actual Boarding Point</label>
-            <input id="boarding-form-actual" type="text" class="form-control" placeholder="e.g. Kottar Bus Stand" maxlength="150">
-          </div>
-          <div class="col-md-2">
             <label class="form-label small" for="boarding-form-stop">Stop No.</label>
             <input id="boarding-form-stop" type="number" class="form-control" placeholder="5" min="1" max="999">
           </div>
-          <div class="col-md-3">
+          <div class="col-md-4">
             <label class="form-label small" for="boarding-form-from">Effective From <span class="text-danger">*</span></label>
             <input id="boarding-form-from" type="date" class="form-control">
           </div>

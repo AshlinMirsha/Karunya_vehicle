@@ -962,7 +962,6 @@ const renderBoardingManagement = () => {
   const curFrom      = section.querySelector('#boarding-cur-from');
   const historyBody  = section.querySelector('#boarding-history-body');
   const formPoint    = section.querySelector('#boarding-form-point');
-  const formActual   = section.querySelector('#boarding-form-actual');
   const formStop     = section.querySelector('#boarding-form-stop');
   const formFrom     = section.querySelector('#boarding-form-from');
   const formComment  = section.querySelector('#boarding-form-comment');
@@ -989,39 +988,36 @@ const renderBoardingManagement = () => {
 
     // Reset form
     formPoint.value   = '';
-    formActual.value  = '';
     formStop.value    = '';
     formFrom.value    = todayStr;
     formComment.value = '';
     formMsg.innerHTML = '';
 
-    historyBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">Loading…</td></tr>';
+    historyBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Loading…</td></tr>';
     detailPanel.removeAttribute('hidden');
     detailPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     const { data: history, error } = await supabase.rpc('get_student_boarding', { p_student_id: studentId });
     if (error) {
-      historyBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Could not load boarding history: ${error.message}</td></tr>`;
-      curPoint.textContent = curActual.textContent = curStop.textContent = curFrom.textContent = '—';
+      historyBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Could not load boarding history: ${error.message}</td></tr>`;
+      curPoint.textContent = curStop.textContent = curFrom.textContent = '—';
       return;
     }
 
     const current = (history || []).find(r => r.is_current);
     if (current) {
-      curPoint.textContent  = current.boarding_point  || '—';
-      curActual.textContent = current.actual_boarding_point || '—';
-      curStop.textContent   = current.bus_stop_no != null ? `Stop ${current.bus_stop_no}` : '—';
-      curFrom.textContent   = fmtDate(current.effective_from);
+      curPoint.textContent = current.boarding_point || '—';
+      curStop.textContent  = current.bus_stop_no != null ? `Stop ${current.bus_stop_no}` : '—';
+      curFrom.textContent  = fmtDate(current.effective_from);
       // Pre-fill form with current values for quick editing
-      formPoint.value  = current.boarding_point  || '';
-      formActual.value = current.actual_boarding_point || '';
-      formStop.value   = current.bus_stop_no != null ? current.bus_stop_no : '';
+      formPoint.value = current.boarding_point || '';
+      formStop.value  = current.bus_stop_no != null ? current.bus_stop_no : '';
     } else {
-      curPoint.textContent = curActual.textContent = curStop.textContent = curFrom.textContent = 'No active record';
+      curPoint.textContent = curStop.textContent = curFrom.textContent = 'No active record';
     }
 
     if (!history || history.length === 0) {
-      historyBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No boarding records yet.</td></tr>';
+      historyBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No boarding records yet.</td></tr>';
       return;
     }
 
@@ -1032,7 +1028,6 @@ const renderBoardingManagement = () => {
         : '<span class="badge bg-secondary">Historical</span>';
       tr.innerHTML = `
         <td>${rec.boarding_point || '—'}</td>
-        <td>${rec.actual_boarding_point || '—'}</td>
         <td>${rec.bus_stop_no != null ? rec.bus_stop_no : '—'}</td>
         <td>${fmtDate(rec.effective_from)}</td>
         <td>${rec.effective_to ? fmtDate(rec.effective_to) : '<span class="text-success">Present</span>'}</td>
@@ -1116,7 +1111,6 @@ const renderBoardingManagement = () => {
       return;
     }
     const boardingPoint = formPoint.value.trim();
-    const actualBoarding = formActual.value.trim() || null;
     const stopNo = formStop.value ? parseInt(formStop.value, 10) : null;
     const effectiveFrom = formFrom.value || todayStr;
     const comment = formComment.value.trim() || null;
@@ -1134,12 +1128,11 @@ const renderBoardingManagement = () => {
     formMsg.innerHTML = '<span class="text-muted">Saving…</span>';
 
     const { data: newId, error } = await supabase.rpc('upsert_student_boarding', {
-      p_student_id:            selectedStudentId,
-      p_boarding_point:        boardingPoint,
-      p_actual_boarding_point: actualBoarding,
-      p_bus_stop_no:           stopNo,
-      p_effective_from:        effectiveFrom,
-      p_comment:               comment,
+      p_student_id:     selectedStudentId,
+      p_boarding_point: boardingPoint,
+      p_bus_stop_no:    stopNo,
+      p_effective_from: effectiveFrom,
+      p_comment:        comment,
     });
 
     formSaveBtn.disabled = false;

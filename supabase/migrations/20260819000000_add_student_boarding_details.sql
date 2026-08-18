@@ -7,7 +7,6 @@ CREATE TABLE public.student_boarding_details (
   id                    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id            UUID        NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   boarding_point        TEXT        NOT NULL CHECK (trim(boarding_point) <> ''),
-  actual_boarding_point TEXT,
   bus_stop_no           INTEGER,
   effective_from        DATE        NOT NULL,
   effective_to          DATE,
@@ -75,7 +74,6 @@ RETURNS TABLE (
   id                    UUID,
   student_id            UUID,
   boarding_point        TEXT,
-  actual_boarding_point TEXT,
   bus_stop_no           INTEGER,
   effective_from        DATE,
   effective_to          DATE,
@@ -94,7 +92,6 @@ BEGIN
     b.id,
     b.student_id,
     b.boarding_point,
-    b.actual_boarding_point,
     b.bus_stop_no,
     b.effective_from,
     b.effective_to,
@@ -113,12 +110,11 @@ $$;
 -- Admin-only. Closes the existing active record then inserts a new one.
 -- Old records are NEVER overwritten or deleted.
 CREATE OR REPLACE FUNCTION public.upsert_student_boarding(
-  p_student_id            UUID,
-  p_boarding_point        TEXT,
-  p_actual_boarding_point TEXT    DEFAULT NULL,
-  p_bus_stop_no           INTEGER DEFAULT NULL,
-  p_effective_from        DATE    DEFAULT CURRENT_DATE,
-  p_comment               TEXT    DEFAULT NULL
+  p_student_id     UUID,
+  p_boarding_point TEXT,
+  p_bus_stop_no    INTEGER DEFAULT NULL,
+  p_effective_from DATE    DEFAULT CURRENT_DATE,
+  p_comment        TEXT    DEFAULT NULL
 )
 RETURNS UUID
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -126,7 +122,6 @@ DECLARE
   v_new_id         UUID;
   v_close_date     DATE := p_effective_from - INTERVAL '1 day';
   v_clean_boarding TEXT := trim(p_boarding_point);
-  v_clean_actual   TEXT := NULLIF(trim(COALESCE(p_actual_boarding_point, '')), '');
   v_clean_comment  TEXT := NULLIF(trim(COALESCE(p_comment, '')), '');
 BEGIN
   IF public.current_user_role() != 'admin' THEN
@@ -153,9 +148,9 @@ BEGIN
 
   -- Insert new record
   INSERT INTO public.student_boarding_details
-    (student_id, boarding_point, actual_boarding_point, bus_stop_no, effective_from, effective_to, comment)
+    (student_id, boarding_point, bus_stop_no, effective_from, effective_to, comment)
   VALUES
-    (p_student_id, v_clean_boarding, v_clean_actual, p_bus_stop_no, p_effective_from, NULL, v_clean_comment)
+    (p_student_id, v_clean_boarding, p_bus_stop_no, p_effective_from, NULL, v_clean_comment)
   RETURNING id INTO v_new_id;
 
   RETURN v_new_id;
@@ -211,5 +206,5 @@ $$;
 
 -- ── 8. Grants ─────────────────────────────────────────────────────────────────
 GRANT EXECUTE ON FUNCTION public.get_student_boarding(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.upsert_student_boarding(UUID, TEXT, TEXT, INTEGER, DATE, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_student_boarding(UUID, TEXT, INTEGER, DATE, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.search_students_for_boarding(TEXT) TO authenticated;
