@@ -35,27 +35,39 @@ const statusCell = (status, time, lat, lon, sessionDateStr, sessionType = null, 
   return td;
 };
 
-const renderRows = (records, isMobileBc = false) => {
-  const table = document.getElementById('attendance-print-table');
-  if (table) {
-    const thead = table.querySelector('thead');
-    if (thead) {
-      if (isMobileBc) {
-        thead.innerHTML = `<tr><th>Student</th><th>Register No</th><th>Morning</th><th>Evening</th><th>Special</th><th class="text-center">Date</th><th>Bus</th></tr>`;
-      } else {
-        thead.innerHTML = `<tr><th>Student</th><th>Register number</th><th>Bus</th><th class="text-center">Date</th><th>Morning</th><th>Evening</th><th>Special</th></tr>`;
-      }
-    }
-  }
-
+const renderRows = (records, isCoordinator = false, currentStopSort = 'none') => {
   const body = document.getElementById('attendance-list');
+  if (!body) return;
+
+  const colSpanCount = isCoordinator ? 8 : 7;
+
   if (!records.length) {
     const empty = row(['No attendance records match these filters.']);
-    empty.firstElementChild.colSpan = 7;
+    empty.firstElementChild.colSpan = colSpanCount;
     body.replaceChildren(empty);
     return;
   }
-  body.replaceChildren(...records.map((record) => {
+
+  let displayRecords = [...records];
+  if (isCoordinator && currentStopSort !== 'none') {
+    if (currentStopSort === 'asc') {
+      displayRecords.sort((a, b) => {
+        const sa = (a.bus_stop_no !== null && a.bus_stop_no !== undefined) ? Number(a.bus_stop_no) : 999999;
+        const sb = (b.bus_stop_no !== null && b.bus_stop_no !== undefined) ? Number(b.bus_stop_no) : 999999;
+        if (sa !== sb) return sa - sb;
+        return (a.full_name || '').localeCompare(b.full_name || '');
+      });
+    } else if (currentStopSort === 'desc') {
+      displayRecords.sort((a, b) => {
+        const sa = (a.bus_stop_no !== null && a.bus_stop_no !== undefined) ? Number(a.bus_stop_no) : -1;
+        const sb = (b.bus_stop_no !== null && b.bus_stop_no !== undefined) ? Number(b.bus_stop_no) : -1;
+        if (sa !== sb) return sb - sa;
+        return (a.full_name || '').localeCompare(b.full_name || '');
+      });
+    }
+  }
+
+  body.replaceChildren(...displayRecords.map((record) => {
     const tr = document.createElement('tr');
     const dateTd = cell(record.session_date ? new Date(record.session_date).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : '—');
     dateTd.classList.add('text-center');
@@ -63,13 +75,18 @@ const renderRows = (records, isMobileBc = false) => {
     const mCell = statusCell(record.morning_status, record.morning_checked_in_at, record.morning_latitude, record.morning_longitude, record.session_date, 'morning', record.morning_submission);
     const eCell = statusCell(record.evening_status, record.evening_checked_in_at, record.evening_latitude, record.evening_longitude, record.session_date, 'evening', record.evening_submission);
     const spCell = statusCell(record.special_status, record.special_checked_in_at, record.special_latitude, record.special_longitude, record.session_date, 'special', record.special_submission);
-    const busTd = cell(`Bus ${record.bus_number}`);
     const nameTd = cell(record.full_name || 'Unnamed student');
     const regTd = cell(record.register_number || '—');
 
-    if (isMobileBc) {
-      tr.append(nameTd, regTd, mCell, eCell, spCell, dateTd, busTd);
+    if (isCoordinator) {
+      // 1. Name 2. Reg No 3. Stop No 4. Stop Name 5. Date 6. Morning 7. Evening 8. Special
+      const stopNoVal = (record.bus_stop_no !== null && record.bus_stop_no !== undefined) ? `#${record.bus_stop_no}` : '—';
+      const stopNoTd = cell(stopNoVal);
+      const stopNameTd = cell(record.boarding_point || 'Not assigned');
+      tr.append(nameTd, regTd, stopNoTd, stopNameTd, dateTd, mCell, eCell, spCell);
     } else {
+      // Admin: 1. Name 2. Reg No 3. Bus 4. Date 5. Morning 6. Evening 7. Special
+      const busTd = cell(`Bus ${record.bus_number}`);
       tr.append(nameTd, regTd, busTd, dateTd, mCell, eCell, spCell);
     }
     return tr;
@@ -709,9 +726,24 @@ export async function initOperationsDashboard(expectedRole) {
         printDateEl.textContent = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
       }
     }
-    const isMobileBc = expectedRole === 'coordinator' && window.innerWidth < 768;
-    renderRows(records, isMobileBc);
+    renderRows(records, expectedRole === 'coordinator', stopSortDir);
   };
+
+  let stopSortDir = 'none';
+  const thSortStopNo = document.getElementById('th-sort-stop-no');
+  if (thSortStopNo) {
+    thSortStopNo.onclick = () => {
+      if (stopSortDir === 'none') stopSortDir = 'asc';
+      else if (stopSortDir === 'asc') stopSortDir = 'desc';
+      else stopSortDir = 'none';
+
+      const iconEl = document.getElementById('sort-stop-icon');
+      if (iconEl) {
+        iconEl.textContent = stopSortDir === 'asc' ? '🔼' : (stopSortDir === 'desc' ? '🔽' : '↕️');
+      }
+      loadHistory();
+    };
+  }
 
   const setTodayDefaults = () => {
     const now = new Date();

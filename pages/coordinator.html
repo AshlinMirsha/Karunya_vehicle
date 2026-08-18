@@ -165,8 +165,21 @@
     </div>
     <div class="table-responsive">
       <table class="table table-dark-custom align-middle mb-0" id="attendance-print-table">
-        <thead><tr><th>Student</th><th>Register number</th><th>Bus</th><th class="text-center">Date</th><th>Morning</th><th>Evening</th><th>Special</th></tr></thead>
-        <tbody id="attendance-list"><tr><td colspan="7" class="text-center text-muted py-4">Loading attendance history…</td></tr></tbody>
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Register Number</th>
+            <th id="th-sort-stop-no" style="cursor: pointer; user-select: none;" title="Click to sort by Stop Number">
+              Stop No. <span id="sort-stop-icon" class="small ms-1">↕️</span>
+            </th>
+            <th>Stop Name</th>
+            <th class="text-center">Date</th>
+            <th>Morning</th>
+            <th>Evening</th>
+            <th>Special</th>
+          </tr>
+        </thead>
+        <tbody id="attendance-list"><tr><td colspan="8" class="text-center text-muted py-4">Loading attendance history…</td></tr></tbody>
       </table>
     </div>
   <!-- ══════════════════════════════════════════════════════════════════════
