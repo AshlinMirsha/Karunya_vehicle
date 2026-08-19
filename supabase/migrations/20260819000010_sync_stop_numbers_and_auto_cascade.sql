@@ -538,9 +538,59 @@ BEGIN
 END;
 $$;
 
--- ── 7. Grants ───────────────────────────────────────────────────────────────
+-- ── 7. Update delete_boarding_point RPC ───────────────────────────────────────
+DROP FUNCTION IF EXISTS public.delete_boarding_point(UUID);
+
+CREATE OR REPLACE FUNCTION public.delete_boarding_point(p_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_role TEXT := public.current_user_role();
+  v_user_bus_id UUID;
+  v_point_name TEXT;
+  v_bp_bus_id UUID;
+BEGIN
+  IF v_role NOT IN ('admin', 'coordinator') THEN
+    RAISE EXCEPTION 'Staff access required';
+  END IF;
+
+  SELECT p.bus_id INTO v_user_bus_id FROM public.profiles p WHERE p.id = auth.uid();
+
+  SELECT name, bus_id INTO v_point_name, v_bp_bus_id
+  FROM public.boarding_points
+  WHERE id = p_id
+    AND (v_role = 'admin' OR bus_id = v_user_bus_id);
+
+  IF v_point_name IS NULL THEN
+    RETURN false;
+  END IF;
+
+  -- Soft delete the master boarding point
+  UPDATE public.boarding_points
+  SET is_active = false, updated_at = now()
+  WHERE id = p_id;
+
+  -- Close active student boarding assignments for students who had this boarding point
+  UPDATE public.student_boarding_details bd
+  SET effective_to = (now() AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '1 day',
+      bus_stop_no = NULL,
+      updated_at = now()
+  WHERE bd.effective_to IS NULL
+    AND (
+      lower(trim(bd.boarding_point)) = lower(trim(v_point_name))
+      OR regexp_replace(lower(trim(bd.boarding_point)), '[\s\-]+', ' ', 'g') = regexp_replace(lower(trim(v_point_name)), '[\s\-]+', ' ', 'g')
+      OR (length(trim(v_point_name)) >= 5 AND lower(trim(bd.boarding_point)) LIKE lower(trim(v_point_name)) || '%')
+      OR (length(trim(bd.boarding_point)) >= 5 AND lower(trim(v_point_name)) LIKE lower(trim(bd.boarding_point)) || '%')
+    );
+
+  RETURN true;
+END;
+$$;
+
+-- ── 8. Grants ───────────────────────────────────────────────────────────────
 GRANT EXECUTE ON FUNCTION public.upsert_boarding_point(UUID, TEXT, INTEGER, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.upsert_student_boarding(UUID, TEXT, INTEGER, DATE, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.authorized_attendance_history(uuid, timestamptz, timestamptz, text, text, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.search_students_for_boarding(TEXT, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_student_boarding(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_boarding_point(UUID) TO authenticated;

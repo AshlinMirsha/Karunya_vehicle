@@ -1132,6 +1132,7 @@ const renderBoardingManagement = (expectedRole = 'admin', profile = null, buses 
           } else {
             showToast(`Boarding point "${pt.name}" removed.`, 'success');
             loadMasterBoardingPoints();
+            document.getElementById('btn-apply-filters')?.click();
           }
         };
 
