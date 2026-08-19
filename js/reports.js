@@ -148,7 +148,7 @@ function _wireTabButtons() {
 
 // ─── Feature 1: Date Range Report ─────────────────────────────────────────
 
-function _triggerPrintReport(previewElement) {
+function _triggerPrintReport(previewElement, orientation = 'landscape') {
   if (!previewElement || !previewElement.innerHTML.trim()) {
     showToast('No report content available to print.', 'warning');
     return;
@@ -161,7 +161,7 @@ function _triggerPrintReport(previewElement) {
     document.body.appendChild(mount);
   }
 
-  setPrintOrientation('landscape');
+  setPrintOrientation(orientation);
   const savedY = window.scrollY;
 
   // Mount the report HTML into root element
@@ -197,7 +197,7 @@ function _wireDateRangeReport(profile) {
   btn.addEventListener('click', () => _runDateRangeReport(profile));
   pdfBtn?.addEventListener('click', () => {
     const preview = document.getElementById('rpt-dr-preview');
-    _triggerPrintReport(preview);
+    _triggerPrintReport(preview, 'landscape');
   });
   xlsBtn?.addEventListener('click', () => _exportDateRangeExcel());
 }
@@ -429,7 +429,7 @@ function _wireStudentWiseReport(profile) {
   btn.addEventListener('click', () => _runStudentWiseReport(profile));
   pdfBtn?.addEventListener('click', () => {
     const preview = document.getElementById('rpt-sw-preview');
-    _triggerPrintReport(preview);
+    _triggerPrintReport(preview, 'portrait');
   });
   xlsBtn?.addEventListener('click', () => _exportStudentWiseExcel());
 }

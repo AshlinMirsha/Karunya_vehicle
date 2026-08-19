@@ -615,6 +615,45 @@ body {
     break-after: avoid !important;
   }
 
+  /* Force side-by-side flex layout for Bootstrap row/cols on mobile devices during print */
+  #print-mount-point .row {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 16px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+  }
+
+  #print-mount-point .col-md-5,
+  #print-mount-point [class*="col-md-5"] {
+    width: 42% !important;
+    flex: 0 0 42% !important;
+    max-width: 42% !important;
+    display: block !important;
+  }
+
+  #print-mount-point .col-md-7,
+  #print-mount-point [class*="col-md-7"] {
+    width: 56% !important;
+    flex: 0 0 56% !important;
+    max-width: 56% !important;
+    display: block !important;
+  }
+
+  #print-mount-point .rpt-name,
+  #print-mount-point .rpt-reg,
+  #print-mount-point .rpt-bp,
+  #print-mount-point .rpt-fixed-col {
+    white-space: nowrap !important;
+  }
+
+  #print-mount-point .rpt-info-table th {
+    width: 110px !important;
+    white-space: nowrap !important;
+  }
+
   #print-mount-point .rpt-page-chunk {
     position: relative !important;
     width: 100% !important;
