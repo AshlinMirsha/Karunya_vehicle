@@ -1798,7 +1798,17 @@ const setupStudentManagementControls = (buses) => {
         body: { action: 'add-student', fullName: name, email, registerNumber: regNumber, busId }
       });
       if (error || data?.message !== 'Student added successfully.') {
-        const err = error?.context?.message || data?.message || error?.message || 'Could not add student.';
+        let err = data?.message;
+        if (!err && error) {
+          try {
+            if (typeof error.context?.json === 'function') {
+              const resBody = await error.context.json();
+              err = resBody?.message;
+            }
+          } catch (_) {}
+          if (!err && error.message && !error.message.includes('non-2xx')) err = error.message;
+        }
+        err = err || 'Could not add student.';
         if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
         showToast(err, 'danger');
       } else {
@@ -1826,7 +1836,17 @@ const setupStudentManagementControls = (buses) => {
         body: { action: 'move-student', studentEmail: email, newBusId }
       });
       if (error || data?.message !== 'Student moved to new bus successfully.') {
-        const err = error?.context?.message || data?.message || error?.message || 'Could not move student.';
+        let err = data?.message;
+        if (!err && error) {
+          try {
+            if (typeof error.context?.json === 'function') {
+              const resBody = await error.context.json();
+              err = resBody?.message;
+            }
+          } catch (_) {}
+          if (!err && error.message && !error.message.includes('non-2xx')) err = error.message;
+        }
+        err = err || 'Could not move student.';
         if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
         showToast(err, 'danger');
       } else {
@@ -1850,7 +1870,17 @@ const setupStudentManagementControls = (buses) => {
         body: { action: 'remove-student', studentEmail: email }
       });
       if (error || data?.message !== 'Student removed from bus.') {
-        const err = error?.context?.message || data?.message || error?.message || 'Could not remove student.';
+        let err = data?.message;
+        if (!err && error) {
+          try {
+            if (typeof error.context?.json === 'function') {
+              const resBody = await error.context.json();
+              err = resBody?.message;
+            }
+          } catch (_) {}
+          if (!err && error.message && !error.message.includes('non-2xx')) err = error.message;
+        }
+        err = err || 'Could not remove student.';
         if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
         showToast(err, 'danger');
       } else {
