@@ -259,7 +259,8 @@ Deno.serve(async (request) => {
       const studentEmail = (b.studentEmail as string)?.toLowerCase()?.trim() ?? '';
       const regNo = ((b.registerNumber || b.register_number || '') as string).trim().toUpperCase();
       const status = String(b.status ?? '').toUpperCase();
-      const sessionType = String(b.sessionType ?? 'Morning');
+      let sessionType = String(b.sessionType ?? 'Morning').trim();
+      if (sessionType) sessionType = sessionType.charAt(0).toUpperCase() + sessionType.slice(1).toLowerCase();
       const remark = String(b.remark ?? '').trim();
 
       if (!studentEmail && !regNo) return response(request, { message: 'Student email or register number is required.' }, 400);
@@ -273,21 +274,40 @@ Deno.serve(async (request) => {
 
       let targetStudent: any = null;
       if (regNo) {
-        const { data } = await adminClient.from('profiles').select('id, bus_id, role, full_name, email, register_number').eq('register_number', regNo).maybeSingle();
+        const { data } = await adminClient.from('profiles').select('id, bus_id, role, full_name, email, register_number').ilike('register_number', regNo).maybeSingle();
         targetStudent = data;
       }
       if (!targetStudent && studentEmail && !studentEmail.includes('@')) {
-        const { data } = await adminClient.from('profiles').select('id, bus_id, role, full_name, email, register_number').eq('register_number', studentEmail.toUpperCase()).maybeSingle();
+        const { data } = await adminClient.from('profiles').select('id, bus_id, role, full_name, email, register_number').ilike('register_number', studentEmail.toUpperCase()).maybeSingle();
         targetStudent = data;
       }
       if (!targetStudent && studentEmail && studentEmail.includes('@')) {
-        const { data } = await adminClient.from('profiles').select('id, bus_id, role, full_name, email, register_number').eq('email', studentEmail).maybeSingle();
+        const { data } = await adminClient.from('profiles').select('id, bus_id, role, full_name, email, register_number').ilike('email', studentEmail).maybeSingle();
         targetStudent = data;
       }
 
-      if (!targetStudent || targetStudent.role !== 'student') {
+      // Check if student exists in pending assignments if not yet in profiles
+      if (!targetStudent) {
+        const { data: pendingStudent } = await adminClient.from('pending_student_assignments')
+          .select('email, full_name, register_number, bus_id')
+          .or(`register_number.ilike.${regNo || 'NONE'},email.ilike.${studentEmail || 'NONE'}`)
+          .maybeSingle();
+
+        if (pendingStudent) {
+          return response(request, { message: `Student (${pendingStudent.full_name || pendingStudent.email}) has been assigned to Bus, but has not logged into the portal with Google yet. Attendance will record automatically after their first login.` }, 422);
+        }
         return response(request, { message: 'Student profile not found.' }, 404);
       }
+
+      // Sync bus_id from pending assignments if profile bus_id is null
+      if (!targetStudent.bus_id) {
+        const { data: pending } = await adminClient.from('pending_student_assignments').select('bus_id').ilike('email', targetStudent.email).maybeSingle();
+        if (pending?.bus_id) {
+          await adminClient.from('profiles').update({ bus_id: pending.bus_id, status: 'active' }).eq('id', targetStudent.id);
+          targetStudent.bus_id = pending.bus_id;
+        }
+      }
+
       if (!targetStudent.bus_id) {
         return response(request, { message: 'Student is not assigned to any bus.' }, 400);
       }
