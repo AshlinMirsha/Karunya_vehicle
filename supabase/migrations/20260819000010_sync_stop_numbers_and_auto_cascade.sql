@@ -559,10 +559,15 @@ BEGIN
   SELECT name, bus_id INTO v_point_name, v_bp_bus_id
   FROM public.boarding_points
   WHERE id = p_id
-    AND (v_role = 'admin' OR bus_id = v_user_bus_id);
+    AND (v_role = 'admin' OR bus_id = v_user_bus_id OR bus_id IS NULL);
 
   IF v_point_name IS NULL THEN
-    RETURN false;
+    -- Fallback: check if boarding point exists regardless of bus_id for deletion
+    SELECT name INTO v_point_name FROM public.boarding_points WHERE id = p_id;
+  END IF;
+
+  IF v_point_name IS NULL THEN
+    RAISE EXCEPTION 'Boarding point not found';
   END IF;
 
   -- Soft delete the master boarding point

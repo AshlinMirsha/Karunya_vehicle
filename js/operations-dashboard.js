@@ -1128,7 +1128,7 @@ const renderBoardingManagement = (expectedRole = 'admin', profile = null, buses 
           if (!confirm(`Are you sure you want to remove boarding point "${pt.name}"?`)) return;
           const { error: delErr } = await supabase.rpc('delete_boarding_point', { p_id: pt.id });
           if (delErr) {
-            showToast('Could not delete boarding point.', 'danger');
+            showToast(`Could not delete boarding point: ${delErr.message || 'Access denied'}`, 'danger');
           } else {
             showToast(`Boarding point "${pt.name}" removed.`, 'success');
             loadMasterBoardingPoints();
