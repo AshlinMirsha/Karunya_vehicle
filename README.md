@@ -40,7 +40,6 @@ Set the environment variables (Secrets) for the Edge Functions in your Supabase 
 ```bash
 supabase secrets set EMAIL_ID="karunya.attendance@gmail.com"
 supabase secrets set EMAIL_APP_PASSWORD="your_16_char_app_password"
-supabase secrets set CRON_SECRET="your_custom_cron_secret"
 ```
 
 ### 3. Deploy Supabase Edge Functions
@@ -70,4 +69,4 @@ Configure Environment Variables in Vercel Dashboard (for Supabase connection):
 
 1. **Authentication**: All read/write requests require a valid JWT bearer token from Supabase Auth.
 2. **Role-Based Access (RLS)**: Row Level Security policies ensure students can only mark their own attendance, and coordinators can only view their assigned buses.
-3. **Edge Validation**: Attendance submission is processed securely, ensuring tokens are valid, unexpired, and geofenced correctly.
+3. **Edge Validation**: Attendance submission is processed securely, ensuring tokens are valid, unexpired, and location-verified correctly.
