@@ -277,9 +277,9 @@ async function _runDateRangeReport(profile) {
     });
 
     // Store data for Excel export
-    preview._reportData = { students: active, dates: dateRange(startDate, endDate), lookup, startDate, endDate };
+    preview._reportData = { students: active, dates: dateRange(startDate, endDate), lookup, startDate, endDate, profile };
 
-    _renderDateRangeTable(preview, active, dateRange(startDate, endDate), lookup, startDate, endDate);
+    _renderDateRangeTable(preview, active, dateRange(startDate, endDate), lookup, startDate, endDate, profile);
     document.getElementById('rpt-dr-actions')?.removeAttribute('hidden');
 
   } catch (err) {
@@ -290,12 +290,13 @@ async function _runDateRangeReport(profile) {
   }
 }
 
-function _renderDateRangeTable(container, students, dates, lookup, startDate, endDate) {
+function _renderDateRangeTable(container, students, dates, lookup, startDate, endDate, profile) {
   if (!students.length) {
     container.innerHTML = '<p class="text-muted text-center py-3">No active students found.</p>';
     return;
   }
 
+  const isAdmin = profile?.role === 'admin';
   const DATES_PER_PAGE = 15;
   const periodLabel = `Period: ${fmtLong(startDate)} to ${fmtLong(endDate)}`;
 
@@ -332,6 +333,7 @@ function _renderDateRangeTable(container, students, dates, lookup, startDate, en
         return `<tr>
           <td class="rpt-name">${escHtml(st.full_name || '—')}</td>
           <td class="rpt-reg">${escHtml(st.register_number || '—')}</td>
+          ${isAdmin ? `<td class="rpt-bus">${escHtml(st.bus_number || '—')}</td>` : ''}
           <td class="rpt-bp">${escHtml(st.boarding_point || '—')}</td>
           ${dateCells}
         </tr>`;
@@ -351,6 +353,7 @@ function _renderDateRangeTable(container, students, dates, lookup, startDate, en
               <tr class="rpt-header-row">
                 <th rowspan="2" class="rpt-fixed-col">Name</th>
                 <th rowspan="2" class="rpt-fixed-col">Reg No</th>
+                ${isAdmin ? '<th rowspan="2" class="rpt-fixed-col">Bus No</th>' : ''}
                 <th rowspan="2" class="rpt-fixed-col">Boarding Point</th>
                 ${headerCells}
               </tr>
@@ -380,7 +383,8 @@ async function _exportDateRangeExcel() {
   if (!reportData) {
     return showToast('Please generate the report first.', 'warning');
   }
-  const { students, dates, lookup, startDate, endDate } = reportData;
+  const { students, dates, lookup, startDate, endDate, profile } = reportData;
+  const isAdmin = profile?.role === 'admin';
 
   const XLSX = await loadXLSX();
   if (!XLSX) {
@@ -388,8 +392,13 @@ async function _exportDateRangeExcel() {
   }
 
   // Build header rows
-  const header1 = ['Name', 'Reg No', 'Boarding Point'];
-  const header2 = ['', '', ''];
+  const header1 = ['Name', 'Reg No'];
+  if (isAdmin) header1.push('Bus No');
+  header1.push('Boarding Point');
+
+  const header2 = isAdmin ? ['', '', '', ''] : ['', '', ''];
+  const startColIdx = isAdmin ? 4 : 3;
+
   dates.forEach((d) => {
     header1.push(fmtShort(d), '');
     header2.push('Morning', 'Evening');
@@ -404,7 +413,10 @@ async function _exportDateRangeExcel() {
   ];
 
   students.forEach((st) => {
-    const row = [st.full_name || '—', st.register_number || '—', st.boarding_point || '—'];
+    const row = [st.full_name || '—', st.register_number || '—'];
+    if (isAdmin) row.push(st.bus_number || '—');
+    row.push(st.boarding_point || '—');
+
     dates.forEach((d) => {
       const hist = lookup.get(`${st.register_number}|${d}`);
       row.push(toToken(hist?.morning_status ?? null));
@@ -422,11 +434,13 @@ async function _exportDateRangeExcel() {
   ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: header1.length - 1 } });
   ws['!merges'].push({ s: { r: 1, c: 0 }, e: { r: 1, c: header1.length - 1 } });
   dates.forEach((_, i) => {
-    const col = 3 + i * 2;
+    const col = startColIdx + i * 2;
     ws['!merges'].push({ s: { r: 3, c: col }, e: { r: 3, c: col + 1 } });
   });
 
-  const colWidths = [{ wch: 28 }, { wch: 16 }, { wch: 18 }];
+  const colWidths = [{ wch: 28 }, { wch: 16 }];
+  if (isAdmin) colWidths.push({ wch: 12 });
+  colWidths.push({ wch: 18 });
   dates.forEach(() => { colWidths.push({ wch: 9 }, { wch: 9 }); });
   ws['!cols'] = colWidths;
 
@@ -499,11 +513,12 @@ async function _runStudentWiseReport(profile) {
     rows.sort((a, b) => String(a.session_date).localeCompare(String(b.session_date)));
 
     const boardingPoint = rows.find((r) => r.boarding_point)?.boarding_point || 'Not assigned';
+    const busNumber = rows.find((r) => r.bus_number)?.bus_number || 'Not assigned';
 
     // Store for Excel export
-    preview._reportData = { rows, studentReg, studentName, boardingPoint, startDate, endDate };
+    preview._reportData = { rows, studentReg, studentName, boardingPoint, busNumber, startDate, endDate, profile };
 
-    _renderStudentWiseTable(preview, rows, { studentReg, studentName, boardingPoint, startDate, endDate });
+    _renderStudentWiseTable(preview, rows, { studentReg, studentName, boardingPoint, busNumber, startDate, endDate }, profile);
     document.getElementById('rpt-sw-actions')?.removeAttribute('hidden');
 
   } catch (err) {
@@ -514,7 +529,9 @@ async function _runStudentWiseReport(profile) {
   }
 }
 
-function _renderStudentWiseTable(container, rows, { studentReg, studentName, boardingPoint, startDate, endDate }) {
+function _renderStudentWiseTable(container, rows, { studentReg, studentName, boardingPoint, busNumber, startDate, endDate }, profile) {
+
+  const isAdmin = profile?.role === 'admin';
 
   // ── Monthly percentage calculation ───────────────────────────────────────
   // Only count dates where a session actually existed (status !== null).
@@ -586,6 +603,7 @@ function _renderStudentWiseTable(container, rows, { studentReg, studentName, boa
           <tbody>
             <tr><th>Name</th><td>${escHtml(studentName || studentReg)}</td></tr>
             <tr><th>Register No.</th><td>${escHtml(studentReg)}</td></tr>
+            ${isAdmin ? `<tr><th>Bus No.</th><td>${escHtml(busNumber || 'Not assigned')}</td></tr>` : ''}
             <tr><th>Boarding Point</th><td>${escHtml(boardingPoint || 'Not assigned')}</td></tr>
             <tr><th>Period</th><td>${fmtLong(startDate)} – ${fmtLong(endDate)}</td></tr>
           </tbody>
@@ -629,7 +647,8 @@ async function _exportStudentWiseExcel() {
   if (!reportData) {
     return showToast('Please generate the report first.', 'warning');
   }
-  const { rows, studentReg, studentName, boardingPoint, startDate, endDate } = reportData;
+  const { rows, studentReg, studentName, boardingPoint, busNumber, startDate, endDate, profile } = reportData;
+  const isAdmin = profile?.role === 'admin';
 
   const XLSX = await loadXLSX();
   if (!XLSX) return showToast('Excel library could not be loaded.', 'danger');
@@ -637,6 +656,7 @@ async function _exportStudentWiseExcel() {
   // ── Sheet 1: Date-wise attendance ─────────────────────────────────────────
   const detailRows = [
     [`Student Attendance Report — ${studentName || studentReg} (${studentReg})`],
+    ...(isAdmin ? [[`Bus No.: ${busNumber || 'Not assigned'}`]] : []),
     [`Boarding Point: ${boardingPoint || 'Not assigned'}`],
     [`Period: ${fmtLong(startDate)} to ${fmtLong(endDate)}`],
     [],
