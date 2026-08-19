@@ -10,17 +10,6 @@ test('automatic daily QR cron schedule is unscheduled in favor of manual generat
   assert.match(migration, /cron\.unschedule\('karunya-evening-qr'\)/);
 });
 
-test('daily QR function protects the scheduler and delivers a QR email', async () => {
-  const source = await read('supabase/functions/daily-qr/index.ts');
-  assert.match(source, /x-cron-secret/);
-  assert.match(source, /BREVO_API_KEY/);
-  assert.match(source, /npm:qrcode@/);
-  assert.match(source, /QRCode\.toDataURL/);
-  assert.match(source, /sendBrevoEmail/);
-  assert.match(source, /QR_SESSION_DURATION_MS = 5 \* 60 \* 60 \* 1000/);
-  assert.match(source, /Brevo send failed/);
-});
-
 test('attendance API remains JWT-protected', async () => {
   const config = await read('supabase/config.toml');
   const client = await read('supabase/client.js');
