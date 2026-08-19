@@ -36,6 +36,7 @@ BEGIN
       UPDATE public.boarding_points
       SET stop_no = i, updated_at = now()
       WHERE bus_id = v_bus_id
+        AND stop_no IS NULL
         AND (
           lower(trim(name)) = lower(trim(v_name))
           OR regexp_replace(lower(trim(name)), '[\s\-]+', ' ', 'g') = regexp_replace(lower(trim(v_name)), '[\s\-]+', ' ', 'g')
