@@ -4,11 +4,10 @@ import test from 'node:test';
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('daily QR schedule uses the required 5 AM and 3 PM IST UTC schedules', async () => {
-  const migration = await read('supabase/migrations/20260802135404_schedule_daily_qr.sql');
-  assert.match(migration, /karunya-morning-qr', '30 23 \* \* \*'/);
-  assert.match(migration, /karunya-evening-qr', '30 9 \* \* \*'/);
-  assert.match(migration, /x-cron-secret/);
+test('automatic daily QR cron schedule is unscheduled in favor of manual generation', async () => {
+  const migration = await read('supabase/migrations/20260819000012_remove_automatic_daily_qr_cron.sql');
+  assert.match(migration, /cron\.unschedule\('karunya-morning-qr'\)/);
+  assert.match(migration, /cron\.unschedule\('karunya-evening-qr'\)/);
 });
 
 test('daily QR function protects the scheduler and delivers a QR email', async () => {

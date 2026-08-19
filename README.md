@@ -7,8 +7,8 @@ A production-grade, secure, dynamic QR-code-based Bus Attendance Portal for **Ka
 ## 🌟 Key Features
 
 - **Domain-Restricted Authentication**: Only users with official `@karunya.edu.in` Google accounts can authenticate via Supabase Auth.
-- **Dynamic QR Code Sessions**: Dynamic tokens created per bus session (Morning / Evening) via Supabase Cron Edge Functions & Coordinator dashboard.
-- **Automated Faculty Notifications**: QR codes are generated dynamically and automatically emailed to assigned bus coordinators using raw SMTP via Deno Edge Functions.
+- **Dynamic QR Code Sessions**: Dynamic tokens generated on-demand per bus session (Morning / Evening / Special) via the Coordinator dashboard.
+- **Manual Faculty QR Generation**: QR codes are generated on-demand by bus coordinators directly on screen or sent via email when requested.
 - **Server-Side Enforcement**: Zero client-side validation bypasses. Edge Functions enforce bus isolation, dynamic QR token cryptographic hashing, and duplicate prevention.
 - **GPS Geofencing**: Validates student coordinates using the Haversine formula against configured bus stop radii.
 - **Glassmorphism UI**: Modern UI with full-screen video background, responsive elements, dark mode, toast notifications, and Leaflet/QRCode.js integrations.
