@@ -170,13 +170,12 @@ function _triggerPrintReport(previewElement) {
   document.documentElement.classList.add('printing-report');
   document.body.classList.add('printing-report');
 
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        window.print();
-      }, 150);
-    });
-  });
+  // Force reflow for mobile browser layout engines before invoking print
+  void document.body.offsetHeight;
+
+  setTimeout(() => {
+    window.print();
+  }, 300);
 
   const cleanup = () => {
     document.body.classList.remove('printing-report');
@@ -186,7 +185,7 @@ function _triggerPrintReport(previewElement) {
   };
 
   window.addEventListener('afterprint', cleanup, { once: true });
-  setTimeout(cleanup, 4000);
+  setTimeout(cleanup, 10000);
 }
 
 function _wireDateRangeReport(profile) {

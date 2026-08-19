@@ -478,17 +478,34 @@ body {
   #boarding-mgmt-section,
   #btn-back-to-top,
   button#btn-back-to-top,
+  .scroll-to-top,
   .rpt-filter-row,
   #quick-filters,
   button,
-  .badge {
+  .badge,
+  input,
+  select,
+  textarea,
+  label,
+  .form-label,
+  .form-control,
+  .form-select,
+  .dashboard-page main > div:first-child,
+  .dashboard-page main > .row.g-3,
+  .protected-page main > div:first-child,
+  .protected-page main > .row.g-3 {
     display: none !important;
   }
 
   /* ── 1. REPORT PRINT MODE (body.printing-report) ── */
 
-  /* Hide all root children of body except #print-mount-point */
-  body.printing-report > *:not(#print-mount-point) {
+  /* Hide all root children of body except #print-mount-point, and hide main DOM */
+  body.printing-report > *:not(#print-mount-point),
+  body.printing-report main,
+  body.printing-report #navbar-container,
+  body.printing-report header,
+  body.printing-report nav,
+  body.printing-report footer {
     display: none !important;
   }
 
@@ -621,6 +638,9 @@ body {
   body:not(.printing-report) #reports-section {
     display: none !important;
   }
+  body:not(.printing-report) main > *:not(.printable-section) {
+    display: none !important;
+  }
   body:not(.printing-report) .printable-section {
     background: none !important;
     border: none !important;
@@ -629,45 +649,43 @@ body {
     margin: 0 !important;
     display: block !important;
   }
+  body:not(.printing-report) .printable-section > div:not(#print-header):not(.table-responsive) {
+    display: none !important;
+  }
   body:not(.printing-report) #print-header {
     display: block !important;
-    margin-bottom: 16px;
-    padding-bottom: 8px;
-    border-bottom: 2px solid #000000;
+    margin-bottom: 16px !important;
+    padding-bottom: 8px !important;
+    border-bottom: 2px solid #000000 !important;
     color: #000000 !important;
+    text-align: center !important;
   }
   body:not(.printing-report) #print-header h3 {
-    margin: 0 0 4px 0;
-    font-weight: bold;
-    font-size: 16pt;
-    color: #000000;
+    margin: 0 0 4px 0 !important;
+    font-weight: bold !important;
+    font-size: 16pt !important;
+    color: #000000 !important;
   }
   body:not(.printing-report) #print-header p {
-    margin: 0;
-    font-size: 10pt;
-    color: #333333;
+    margin: 0 !important;
+    font-size: 10pt !important;
+    color: #333333 !important;
   }
 
   /* General table print rules */
   .table-responsive {
     overflow: visible !important;
-  }
-  table, .table-dark-custom {
-    width: 100% !important;
-    border-collapse: collapse !important;
-    background: #ffffff !important;
-    color: #000000 !important;
+    border: none !important;
   }
   table th, table td,
   .table-dark-custom th, .table-dark-custom td {
     background: #ffffff !important;
     color: #000000 !important;
-    border: 1px solid #cccccc !important;
+    border: 1px solid #555555 !important;
     padding: 6px 8px !important;
     font-size: 9.5pt !important;
     text-align: left !important;
   }
-
   table th, .table-dark-custom th {
     background-color: #f2f2f2 !important;
     font-weight: bold !important;
@@ -676,6 +694,7 @@ body {
   tr {
     page-break-inside: avoid !important;
   }
+}
 
 .glass-dropdown {
   background: rgba(15, 23, 42, 0.96) !important;

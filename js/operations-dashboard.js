@@ -885,7 +885,12 @@ export async function initOperationsDashboard(expectedRole) {
 
   const btnExportPdf = document.getElementById('btn-export-pdf');
   if (btnExportPdf) {
-    btnExportPdf.onclick = () => window.print();
+    btnExportPdf.onclick = () => {
+      void document.body.offsetHeight;
+      setTimeout(() => {
+        window.print();
+      }, 150);
+    };
   }
 
   const quickFilters = document.getElementById('quick-filters');
