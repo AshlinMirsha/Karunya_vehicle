@@ -1,6 +1,6 @@
 # Karunya Bus Attendance Management System
 
-A production-grade, secure, dynamic QR-code-based Bus Attendance Portal for **Karunya Institute of Technology and Sciences**, featuring domain-locked Supabase Auth, GPS Haversine Geofencing, strict server-side Supabase Edge Functions validation, and multi-role dashboards.
+A production-grade, secure, dynamic QR-code-based Bus Attendance Portal for **Karunya Institute of Technology and Sciences**, featuring domain-locked Supabase Auth, GPS coordinate tracking, strict server-side Supabase Edge Functions validation, and multi-role dashboards.
 
 ---
 
@@ -10,7 +10,7 @@ A production-grade, secure, dynamic QR-code-based Bus Attendance Portal for **Ka
 - **Dynamic QR Code Sessions**: Dynamic tokens generated on-demand per bus session (Morning / Evening / Special) via the Coordinator dashboard.
 - **Manual Faculty QR Generation**: QR codes are generated on-demand by bus coordinators directly on screen or sent via email when requested.
 - **Server-Side Enforcement**: Zero client-side validation bypasses. Edge Functions enforce bus isolation, dynamic QR token cryptographic hashing, and duplicate prevention.
-- **GPS Geofencing**: Validates student coordinates using the Haversine formula against configured bus stop radii.
+- **GPS Location Logging**: Captures and logs student GPS coordinates on attendance submission for live map visualization and auditability.
 - **Glassmorphism UI**: Modern UI with full-screen video background, responsive elements, dark mode, toast notifications, and Leaflet/QRCode.js integrations.
 
 ---

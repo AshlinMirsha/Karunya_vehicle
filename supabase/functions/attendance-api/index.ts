@@ -7,7 +7,6 @@ const ALLOWED_ORIGINS = new Set([
   'https://karunya-bus-attendance-ashlinmirsha-ashlinmirshas-projects.vercel.app',
 ]);
 const PRIMARY_APP_ORIGIN = 'https://karunya-bus-attendance.vercel.app';
-const EARTH_RADIUS_METERS = 6_371_000;
 const SESSION_DURATION_MS = 5 * 60 * 60 * 1000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const QR_TOKEN_PATTERN = /^[0-9a-f]{64}$/i;
@@ -38,13 +37,6 @@ const hasValidJsonBody = (request: Request) => {
 };
 const withinCoordinateBounds = (latitude: unknown, longitude: unknown) => Number.isFinite(latitude) && Number.isFinite(longitude)
   && Math.abs(latitude as number) <= 90 && Math.abs(longitude as number) <= 180;
-const distanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const radians = Math.PI / 180;
-  const deltaLat = (lat2 - lat1) * radians;
-  const deltaLon = (lon2 - lon1) * radians;
-  const a = Math.sin(deltaLat / 2) ** 2 + Math.cos(lat1 * radians) * Math.cos(lat2 * radians) * Math.sin(deltaLon / 2) ** 2;
-  return EARTH_RADIUS_METERS * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
 const hashToken = async (token: string, secret: string) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${secret}:${token}`))))
   .map((item) => item.toString(16).padStart(2, '0')).join('');
 const base64Url = (value: string) => btoa(unescape(encodeURIComponent(value))).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
