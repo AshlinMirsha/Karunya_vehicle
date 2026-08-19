@@ -25,32 +25,31 @@ END $$;
 UPDATE public.student_boarding_details bd
 SET bus_stop_no = bp.stop_no,
     updated_at = now()
-FROM public.profiles p
-JOIN public.boarding_points bp
-  ON (
+FROM public.profiles p, public.boarding_points bp
+WHERE bd.student_id = p.id
+  AND (bp.bus_id IS NULL OR bp.bus_id = p.bus_id)
+  AND bp.is_active = true
+  AND bp.stop_no IS NOT NULL
+  AND (
     lower(trim(bp.name)) = lower(trim(bd.boarding_point))
     OR regexp_replace(lower(trim(bp.name)), '[\s\-]+', ' ', 'g') = regexp_replace(lower(trim(bd.boarding_point)), '[\s\-]+', ' ', 'g')
     OR (length(trim(bd.boarding_point)) >= 5 AND lower(trim(bp.name)) LIKE lower(trim(bd.boarding_point)) || '%')
     OR (length(trim(bp.name)) >= 5 AND lower(trim(bd.boarding_point)) LIKE lower(trim(bp.name)) || '%')
-  )
-  AND (bp.bus_id IS NULL OR bp.bus_id = p.bus_id)
-  AND bp.is_active = true
-  AND bp.stop_no IS NOT NULL
-WHERE bd.student_id = p.id;
+  );
 
 -- Fallback backfill for any remaining active boarding details
 UPDATE public.student_boarding_details bd
 SET bus_stop_no = bp.stop_no,
     updated_at = now()
 FROM public.boarding_points bp
-WHERE (
+WHERE bp.is_active = true
+  AND bp.stop_no IS NOT NULL
+  AND (
     lower(trim(bp.name)) = lower(trim(bd.boarding_point))
     OR regexp_replace(lower(trim(bp.name)), '[\s\-]+', ' ', 'g') = regexp_replace(lower(trim(bd.boarding_point)), '[\s\-]+', ' ', 'g')
     OR (length(trim(bd.boarding_point)) >= 5 AND lower(trim(bp.name)) LIKE lower(trim(bd.boarding_point)) || '%')
     OR (length(trim(bp.name)) >= 5 AND lower(trim(bd.boarding_point)) LIKE lower(trim(bp.name)) || '%')
-  )
-  AND bp.is_active = true
-  AND bp.stop_no IS NOT NULL;
+  );
 
 -- ── 3. Update upsert_boarding_point RPC to cascade stop_no to student_boarding_details ──
 DROP FUNCTION IF EXISTS public.upsert_boarding_point(UUID, TEXT, INTEGER);
