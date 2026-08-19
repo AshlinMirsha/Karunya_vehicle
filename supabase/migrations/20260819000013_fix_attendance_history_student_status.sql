@@ -1,5 +1,5 @@
--- Migration: Update authorized_attendance_history RPC to include all assigned students (active, pending, etc.)
--- Fixes attendance history query so students with pending status or updated records are not excluded.
+-- Migration: Enforce that only active registered student profiles (p.status = 'active') appear in attendance history.
+-- Pending students (awaiting first sign-in) are excluded from history tables as requested.
 
 DROP FUNCTION IF EXISTS public.authorized_attendance_history(uuid, timestamptz, timestamptz, text, text, text);
 
@@ -89,7 +89,7 @@ BEGIN
             lower(trim(bp.name)) = lower(trim(bd.boarding_point))
             OR regexp_replace(lower(trim(bp.name)), '[\s\-]+', ' ', 'g') = regexp_replace(lower(trim(bd.boarding_point)), '[\s\-]+', ' ', 'g')
             OR (length(trim(bd.boarding_point)) >= 5 AND lower(trim(bp.name)) LIKE lower(trim(bd.boarding_point)) || '%')
-            OR (length(trim(bp.name)) >= 5 AND lower(trim(bd.boarding_point)) LIKE lower(trim(bp.name)) || '%')
+            OR (length(trim(bp.name)) >= 5 AND lower(trim(bp.name)) LIKE lower(trim(bd.boarding_point)) || '%')
           )
             AND (bp.bus_id IS NULL OR bp.bus_id = p.bus_id)
             AND bp.is_active = true
@@ -118,7 +118,7 @@ BEGIN
       (SELECT CASE WHEN a.submission = 'Manual' OR a.remark IS NOT NULL THEN 'Manual' ELSE COALESCE(a.submission, 'Self') END FROM public.attendance a WHERE a.student_id = p.id AND a.session_id = ANY(s.special_session_ids) ORDER BY a.checked_in_at DESC LIMIT 1) AS sp_sub
     FROM sessions s
     JOIN public.buses b ON b.id = s.bus_id
-    JOIN public.profiles p ON p.bus_id = s.bus_id AND p.role = 'student' AND (p.status IS NULL OR p.status <> 'inactive')
+    JOIN public.profiles p ON p.bus_id = s.bus_id AND p.role = 'student' AND p.status = 'active'
     LEFT JOIN public.student_boarding_details bd
       ON bd.student_id = p.id AND bd.effective_to IS NULL
     WHERE p_search IS NULL 
