@@ -44,9 +44,9 @@ supabase secrets set CRON_SECRET="your_custom_cron_secret"
 ```
 
 ### 3. Deploy Supabase Edge Functions
-Deploy the `daily-qr` edge function to your linked Supabase project:
+Deploy the `attendance-api` edge function to your linked Supabase project:
 ```bash
-supabase functions deploy daily-qr
+supabase functions deploy attendance-api
 ```
 
 ### 4. Deploy Frontend Application to Vercel
