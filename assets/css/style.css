@@ -505,16 +505,23 @@ body {
 
   /* Hide all root children of body except #print-mount-point, and hide main DOM */
   body.printing-report > *:not(#print-mount-point),
+  body:has(#print-mount-point:not(:empty)) > *:not(#print-mount-point),
   body.printing-report main,
+  body:has(#print-mount-point:not(:empty)) main,
   body.printing-report #navbar-container,
+  body:has(#print-mount-point:not(:empty)) #navbar-container,
   body.printing-report header,
+  body:has(#print-mount-point:not(:empty)) header,
   body.printing-report nav,
-  body.printing-report footer {
+  body:has(#print-mount-point:not(:empty)) nav,
+  body.printing-report footer,
+  body:has(#print-mount-point:not(:empty)) footer {
     display: none !important;
   }
 
   /* Show ONLY #print-mount-point at top (0,0) of page 1 */
-  body.printing-report #print-mount-point {
+  body.printing-report #print-mount-point,
+  #print-mount-point:not(:empty) {
     display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
@@ -677,42 +684,8 @@ body {
     break-after: auto !important;
   }
 
-  /* ── 2. NON-REPORT PRINT MODE (body:not(.printing-report)) ── */
-  body:not(.printing-report) #reports-section {
+  #print-mount-point:empty {
     display: none !important;
-  }
-  body:not(.printing-report) main > *:not(.printable-section) {
-    display: none !important;
-  }
-  body:not(.printing-report) .printable-section {
-    background: none !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    display: block !important;
-  }
-  body:not(.printing-report) .printable-section > div:not(#print-header):not(.table-responsive) {
-    display: none !important;
-  }
-  body:not(.printing-report) #print-header {
-    display: block !important;
-    margin-bottom: 16px !important;
-    padding-bottom: 8px !important;
-    border-bottom: 2px solid #000000 !important;
-    color: #000000 !important;
-    text-align: center !important;
-  }
-  body:not(.printing-report) #print-header h3 {
-    margin: 0 0 4px 0 !important;
-    font-weight: bold !important;
-    font-size: 16pt !important;
-    color: #000000 !important;
-  }
-  body:not(.printing-report) #print-header p {
-    margin: 0 !important;
-    font-size: 10pt !important;
-    color: #333333 !important;
   }
 
   /* General table print rules */

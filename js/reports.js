@@ -173,19 +173,36 @@ function _triggerPrintReport(previewElement, orientation = 'landscape') {
   // Force reflow for mobile browser layout engines before invoking print
   void document.body.offsetHeight;
 
-  setTimeout(() => {
-    window.print();
-  }, 300);
-
+  let cleanedUp = false;
   const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
     document.body.classList.remove('printing-report');
     document.documentElement.classList.remove('printing-report');
     if (mount) mount.innerHTML = '';
     window.scrollTo(0, savedY);
   };
 
-  window.addEventListener('afterprint', cleanup, { once: true });
-  setTimeout(cleanup, 10000);
+  setTimeout(() => {
+    window.print();
+  }, 300);
+
+  // Mobile browsers (iOS Safari / Android Chrome) invoke 'afterprint' prematurely
+  // before the native PDF engine finishes rendering the DOM.
+  // Delay cleanup so report HTML remains mounted for at least 3.5 seconds.
+  const startTime = Date.now();
+  const safeCleanup = () => {
+    const elapsed = Date.now() - startTime;
+    if (elapsed < 3500) {
+      setTimeout(cleanup, 3500 - elapsed);
+    } else {
+      cleanup();
+    }
+  };
+
+  window.addEventListener('afterprint', safeCleanup, { once: true });
+  window.addEventListener('focus', safeCleanup, { once: true });
+  setTimeout(cleanup, 6000);
 }
 
 function _wireDateRangeReport(profile) {
