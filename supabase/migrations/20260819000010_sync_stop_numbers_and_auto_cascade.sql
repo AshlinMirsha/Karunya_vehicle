@@ -577,7 +577,10 @@ BEGIN
 
   -- Close active student boarding assignments for students who had this boarding point
   UPDATE public.student_boarding_details bd
-  SET effective_to = (now() AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '1 day',
+  SET effective_to = CASE 
+                       WHEN bd.effective_from >= (now() AT TIME ZONE 'Asia/Kolkata')::date THEN bd.effective_from 
+                       ELSE ((now() AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '1 day')::date
+                     END,
       bus_stop_no = NULL,
       updated_at = now()
   WHERE bd.effective_to IS NULL
