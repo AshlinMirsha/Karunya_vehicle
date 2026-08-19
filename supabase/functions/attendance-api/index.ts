@@ -404,8 +404,29 @@ Deno.serve(async (request) => {
       const latitude = withinCoordinateBounds(latVal, lngVal) ? latVal : 0.0;
       const longitude = withinCoordinateBounds(latVal, lngVal) ? lngVal : 0.0;
 
+      const { data: matchingSessions } = await adminClient
+        .from('attendance_sessions')
+        .select('id')
+        .eq('bus_id', targetStudent.bus_id)
+        .eq('session_type', sessionType)
+        .gte('created_at', startOfDay.toISOString())
+        .lte('created_at', endOfDay.toISOString());
+
+      const matchingSessionIds = (matchingSessions || []).map(s => s.id);
+
       if (status === 'PRESENT') {
         await adminClient.from('profiles').update({ status: 'active' }).eq('id', targetStudent.id);
+
+        if (matchingSessionIds.length > 0) {
+          const otherIds = matchingSessionIds.filter(id => id !== session.id);
+          if (otherIds.length > 0) {
+            await adminClient.from('attendance')
+              .delete()
+              .eq('student_id', targetStudent.id)
+              .in('session_id', otherIds);
+          }
+        }
+
         const { error: upsertErr } = await adminClient.from('attendance').upsert({
           session_id: session.id,
           student_id: targetStudent.id,
@@ -418,10 +439,18 @@ Deno.serve(async (request) => {
         }, { onConflict: 'session_id,student_id' });
         if (upsertErr) return response(request, { message: 'Could not record manual attendance.' }, 500);
       } else {
-        await adminClient.from('attendance')
-          .delete()
-          .eq('session_id', session.id)
-          .eq('student_id', targetStudent.id);
+        if (matchingSessionIds.length > 0) {
+          await adminClient.from('attendance')
+            .delete()
+            .eq('student_id', targetStudent.id)
+            .in('session_id', matchingSessionIds);
+        }
+        if (session?.id) {
+          await adminClient.from('attendance')
+            .delete()
+            .eq('session_id', session.id)
+            .eq('student_id', targetStudent.id);
+        }
       }
 
       await adminClient.from('security_audit_events').insert({
