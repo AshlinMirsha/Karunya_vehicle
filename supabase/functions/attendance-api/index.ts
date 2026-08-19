@@ -405,6 +405,7 @@ Deno.serve(async (request) => {
       const longitude = withinCoordinateBounds(latVal, lngVal) ? lngVal : 0.0;
 
       if (status === 'PRESENT') {
+        await adminClient.from('profiles').update({ status: 'active' }).eq('id', targetStudent.id);
         const { error: upsertErr } = await adminClient.from('attendance').upsert({
           session_id: session.id,
           student_id: targetStudent.id,
@@ -413,6 +414,7 @@ Deno.serve(async (request) => {
           status: 'PRESENT',
           remark: remark,
           submission: 'Manual',
+          checked_in_at: new Date().toISOString(),
         }, { onConflict: 'session_id,student_id' });
         if (upsertErr) return response(request, { message: 'Could not record manual attendance.' }, 500);
       } else {
