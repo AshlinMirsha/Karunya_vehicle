@@ -1,47 +1,23 @@
 -- Migration: Sync stop numbers and enable auto-cascading stop number updates
 
--- ── 1. Seed/Update default stop_no for Bus 13 boarding points if NULL ──────────
+-- ── 1. Clean up master boarding point names for Bus 13 ───────────────────────
 DO $$
 DECLARE
   v_bus_id UUID;
-  v_stops TEXT[] := ARRAY[
-    'KINATHUKADAVU',
-    'OTHAKAL MANDAPAM',
-    'OTHAKAL MANDAPAM - PREMIER MILL',
-    'MALUMICHAMPATTI',
-    'EACHANARI',
-    'RATHINAM CAMPUS',
-    'LIC COLONY, SUNDARAPURAM',
-    'SIDCO, POLLACHI MAIN ROAD',
-    'SUNDARAPURAM GANDHINAGAR',
-    'SUNDARAPURAM',
-    'KURUCHI',
-    'ATHUPAALLAM',
-    'KUNIYAMUTHUR - High School',
-    'KUNIYAMUTHUR - HP Petrol Bank',
-    'KUNIYAMUTHUR - HMR',
-    'KUNIYAMUTHUR - Sundarapuram Pirivu',
-    'KUNIYAMUTHUR - Edayar Palyam Pirivu',
-    'VIJAYALAKSHMI MILLS',
-    'BK PUDUR',
-    'WESTERN RING ROAD'
-  ];
-  i INT;
-  v_name TEXT;
 BEGIN
   SELECT id INTO v_bus_id FROM public.buses WHERE bus_number = '13' OR bus_number = 'Bus 13' OR bus_number = 'BUS 13' LIMIT 1;
   IF v_bus_id IS NOT NULL THEN
-    FOR i IN 1..array_length(v_stops, 1) LOOP
-      v_name := v_stops[i];
-      UPDATE public.boarding_points
-      SET stop_no = i, updated_at = now()
-      WHERE bus_id = v_bus_id
-        AND stop_no IS NULL
-        AND (
-          lower(trim(name)) = lower(trim(v_name))
-          OR regexp_replace(lower(trim(name)), '[\s\-]+', ' ', 'g') = regexp_replace(lower(trim(v_name)), '[\s\-]+', ' ', 'g')
-        );
-    END LOOP;
+    UPDATE public.boarding_points
+    SET name = 'KUNIYAMUTHUR - Sundarapuram Pirivu', updated_at = now()
+    WHERE bus_id = v_bus_id AND lower(name) LIKE 'kuniyamuthur%sundarapuram%piriv%';
+
+    UPDATE public.boarding_points
+    SET name = 'KUNIYAMUTHUR - Edayar Palyam Pirivu', updated_at = now()
+    WHERE bus_id = v_bus_id AND lower(name) LIKE 'kuniyamuthur%edayar%piriv%';
+
+    UPDATE public.boarding_points
+    SET name = 'MALUMICHAMPATTI', updated_at = now()
+    WHERE bus_id = v_bus_id AND lower(name) LIKE 'malumichampett%';
   END IF;
 END $$;
 
@@ -54,6 +30,8 @@ JOIN public.boarding_points bp
   ON (
     lower(trim(bp.name)) = lower(trim(bd.boarding_point))
     OR regexp_replace(lower(trim(bp.name)), '[\s\-]+', ' ', 'g') = regexp_replace(lower(trim(bd.boarding_point)), '[\s\-]+', ' ', 'g')
+    OR (length(trim(bd.boarding_point)) >= 5 AND lower(trim(bp.name)) LIKE lower(trim(bd.boarding_point)) || '%')
+    OR (length(trim(bp.name)) >= 5 AND lower(trim(bd.boarding_point)) LIKE lower(trim(bp.name)) || '%')
   )
   AND (bp.bus_id IS NULL OR bp.bus_id = p.bus_id)
   AND bp.is_active = true
@@ -68,6 +46,8 @@ FROM public.boarding_points bp
 WHERE (
     lower(trim(bp.name)) = lower(trim(bd.boarding_point))
     OR regexp_replace(lower(trim(bp.name)), '[\s\-]+', ' ', 'g') = regexp_replace(lower(trim(bd.boarding_point)), '[\s\-]+', ' ', 'g')
+    OR (length(trim(bd.boarding_point)) >= 5 AND lower(trim(bp.name)) LIKE lower(trim(bd.boarding_point)) || '%')
+    OR (length(trim(bp.name)) >= 5 AND lower(trim(bd.boarding_point)) LIKE lower(trim(bp.name)) || '%')
   )
   AND bp.is_active = true
   AND bp.stop_no IS NOT NULL;
@@ -151,6 +131,8 @@ BEGIN
       AND (
         lower(trim(bd.boarding_point)) = lower(v_clean_name)
         OR regexp_replace(lower(trim(bd.boarding_point)), '[\s\-]+', ' ', 'g') = regexp_replace(lower(v_clean_name), '[\s\-]+', ' ', 'g')
+        OR (length(v_clean_name) >= 5 AND lower(trim(bd.boarding_point)) LIKE lower(v_clean_name) || '%')
+        OR (length(trim(bd.boarding_point)) >= 5 AND lower(v_clean_name) LIKE lower(trim(bd.boarding_point)) || '%')
       );
   END IF;
 
@@ -208,6 +190,8 @@ BEGIN
     WHERE (
       lower(trim(name)) = lower(v_clean_boarding)
       OR regexp_replace(lower(trim(name)), '[\s\-]+', ' ', 'g') = regexp_replace(lower(v_clean_boarding), '[\s\-]+', ' ', 'g')
+      OR (length(v_clean_boarding) >= 5 AND lower(trim(name)) LIKE lower(v_clean_boarding) || '%')
+      OR (length(trim(name)) >= 5 AND lower(v_clean_boarding) LIKE lower(trim(name)) || '%')
     )
       AND (bus_id IS NULL OR bus_id = v_student_bus_id)
       AND is_active = true
@@ -340,6 +324,8 @@ BEGIN
           WHERE (
             lower(trim(bp.name)) = lower(trim(bd.boarding_point))
             OR regexp_replace(lower(trim(bp.name)), '[\s\-]+', ' ', 'g') = regexp_replace(lower(trim(bd.boarding_point)), '[\s\-]+', ' ', 'g')
+            OR (length(trim(bd.boarding_point)) >= 5 AND lower(trim(bp.name)) LIKE lower(trim(bd.boarding_point)) || '%')
+            OR (length(trim(bp.name)) >= 5 AND lower(trim(bd.boarding_point)) LIKE lower(trim(bp.name)) || '%')
           )
             AND (bp.bus_id IS NULL OR bp.bus_id = p.bus_id)
             AND bp.is_active = true
@@ -468,6 +454,8 @@ BEGIN
         WHERE (
           lower(trim(bp.name)) = lower(trim(bd.boarding_point))
           OR regexp_replace(lower(trim(bp.name)), '[\s\-]+', ' ', 'g') = regexp_replace(lower(trim(bd.boarding_point)), '[\s\-]+', ' ', 'g')
+          OR (length(trim(bd.boarding_point)) >= 5 AND lower(trim(bp.name)) LIKE lower(trim(bd.boarding_point)) || '%')
+          OR (length(trim(bp.name)) >= 5 AND lower(trim(bd.boarding_point)) LIKE lower(trim(bp.name)) || '%')
         )
           AND (bp.bus_id IS NULL OR bp.bus_id = p.bus_id)
           AND bp.is_active = true
@@ -527,6 +515,8 @@ BEGIN
         WHERE (
           lower(trim(bp.name)) = lower(trim(b.boarding_point))
           OR regexp_replace(lower(trim(bp.name)), '[\s\-]+', ' ', 'g') = regexp_replace(lower(trim(b.boarding_point)), '[\s\-]+', ' ', 'g')
+          OR (length(trim(b.boarding_point)) >= 5 AND lower(trim(bp.name)) LIKE lower(trim(b.boarding_point)) || '%')
+          OR (length(trim(bp.name)) >= 5 AND lower(trim(b.boarding_point)) LIKE lower(trim(bp.name)) || '%')
         )
           AND bp.is_active = true
           AND bp.stop_no IS NOT NULL
