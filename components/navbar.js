@@ -85,7 +85,7 @@ export function renderNavbar(user = null, activeRole = null) {
           </li>
           <li class="nav-item">
             <button class="nav-link btn btn-link text-white-50 px-3 py-1 rounded-3 fw-medium text-hover-white text-decoration-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarAssignedStudents">
-              Assigned Students
+              Students
             </button>
           </li>
           <li class="nav-item">

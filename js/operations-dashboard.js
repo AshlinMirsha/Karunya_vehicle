@@ -137,22 +137,67 @@ const renderStudentRoster = async () => {
     section.innerHTML = `
       <div class="offcanvas-header p-3">
         <div>
-          <h5 class="offcanvas-title fw-bold mb-0">👥 Assigned Students (${(students ?? []).length})</h5>
-          <small class="text-muted">Active students &amp; pre-assigned roster</small>
+          <h5 class="offcanvas-title fw-bold mb-0">👥 Students (<span id="student-roster-count">${(students ?? []).length}</span>)</h5>
+          <small class="text-muted">Assigned student roster &amp; management</small>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
       </div>
       <div class="offcanvas-body p-3">
-        <div class="table-responsive">
-          <table class="table align-middle mb-0">
-            <thead><tr><th>Name</th><th>Register number</th><th>Email</th><th>Boarding Point</th><th>Bus</th><th>Status</th></tr></thead>
-            <tbody id="student-roster-list"></tbody>
-          </table>
+        <ul class="nav nav-tabs border-secondary mb-3" id="coord-student-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active text-white" id="tab-btn-assigned-students" data-bs-toggle="tab" data-bs-target="#tab-assigned-students" type="button" role="tab">
+              📋 Assigned Students
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link text-white-50" id="tab-btn-edit-students" data-bs-toggle="tab" data-bs-target="#tab-edit-students" type="button" role="tab">
+              ✏️ Edit Students
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content" id="coord-student-tab-content">
+          <!-- Tab 1: Assigned Students -->
+          <div class="tab-pane fade show active" id="tab-assigned-students" role="tabpanel">
+            <div class="table-responsive">
+              <table class="table align-middle mb-0">
+                <thead><tr><th>Name</th><th>Register number</th><th>Email</th><th>Boarding Point</th><th>Bus</th><th>Status</th></tr></thead>
+                <tbody id="student-roster-list"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 2: Edit Students -->
+          <div class="tab-pane fade" id="tab-edit-students" role="tabpanel">
+            <div class="card bg-transparent border border-secondary mb-4 p-3">
+              <h6 class="fw-semibold mb-3">Add / update student</h6>
+              <div class="row g-2 align-items-end">
+                <div class="col-md-6"><label class="form-label small" for="add-student-name">Full name</label><input id="add-student-name" type="text" class="form-control" placeholder="Mohammed Sadiq A" maxlength="100"></div>
+                <div class="col-md-6"><label class="form-label small" for="add-student-email">Email (@karunya.edu.in)</label><input id="add-student-email" type="email" class="form-control" placeholder="student@karunya.edu.in" maxlength="254"></div>
+                <div class="col-md-6"><label class="form-label small" for="add-student-regnumber">Register number</label><input id="add-student-regnumber" type="text" class="form-control" placeholder="URK25CS1001" maxlength="30"></div>
+                <div class="col-md-6"><label class="form-label small" for="add-student-bus">Bus</label><select id="add-student-bus" class="form-select"></select></div>
+                <div class="col-md-12 mt-2"><button id="btn-add-student" class="btn btn-glass-primary w-100">Add Student</button></div>
+              </div>
+              <div id="add-student-msg" class="mt-2 small"></div>
+            </div>
+
+            <div class="card bg-transparent border border-secondary mb-4 p-3">
+              <h6 class="fw-semibold mb-3">Remove student from bus</h6>
+              <div class="row g-2 align-items-end">
+                <div class="col-md-12"><label class="form-label small" for="remove-student-email">Student email</label><input id="remove-student-email" type="email" class="form-control" placeholder="student@karunya.edu.in"></div>
+                <div class="col-md-12 mt-2"><button id="btn-remove-student" class="btn btn-outline-danger w-100">Remove Student</button></div>
+              </div>
+              <div id="remove-student-msg" class="mt-2 small"></div>
+            </div>
+          </div>
         </div>
       </div>`;
     document.body.append(section);
   }
   
+  const countEl = section.querySelector('#student-roster-count');
+  if (countEl) countEl.textContent = String((students ?? []).length);
+
   const body = section.querySelector('#student-roster-list');
   const totalCount = (students ?? []).length;
   if (!totalCount) {
@@ -1762,6 +1807,7 @@ const setupStudentManagementControls = (buses) => {
         document.getElementById('add-student-name').value = '';
         document.getElementById('add-student-email').value = '';
         document.getElementById('add-student-regnumber').value = '';
+        await renderStudentRoster();
       }
     };
   }
@@ -1811,6 +1857,7 @@ const setupStudentManagementControls = (buses) => {
         if (msg) msg.innerHTML = '<span class="text-success">Student removed from bus.</span>';
         showToast('Student removed from bus.', 'info');
         document.getElementById('remove-student-email').value = '';
+        await renderStudentRoster();
       }
     };
   }
