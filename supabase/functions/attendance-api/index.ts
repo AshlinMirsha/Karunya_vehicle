@@ -1,5 +1,4 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import QRCode from 'npm:qrcode@1.5.4';
 
 const ALLOWED_ORIGINS = new Set([
   'https://karunya-bus-attendance.vercel.app',
@@ -11,7 +10,6 @@ const SESSION_DURATION_MS = 5 * 60 * 60 * 1000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const QR_TOKEN_PATTERN = /^[0-9a-f]{64}$/i;
 const SESSION_TYPES = new Set(['Morning', 'Evening', 'Special']);
-const QR_IMAGE_CID = 'manual-attendance-qr';
 const MAX_REQUEST_BODY_BYTES = 4_096;
 const EMAIL_PATTERN = /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i;
 const ADMIN_ONLY_ACTIONS = new Set(['move-student', 'add-coordinator', 'remove-coordinator', 'add-bus']);
@@ -40,25 +38,6 @@ const withinCoordinateBounds = (latitude: unknown, longitude: unknown) => Number
   && Math.abs(latitude as number) <= 90 && Math.abs(longitude as number) <= 180;
 const hashToken = async (token: string, secret: string) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${secret}:${token}`))))
   .map((item) => item.toString(16).padStart(2, '0')).join('');
-const base64Url = (value: string) => btoa(unescape(encodeURIComponent(value))).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
-
-const sendManualQrEmail = async (recipient: string, busNumber: string, sessionType: string, token: string) => {
-  const [clientId, clientSecret, refreshToken] = ['GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_REFRESH_TOKEN'].map((name) => Deno.env.get(name) ?? '');
-  if (!clientId || !clientSecret || !refreshToken) return false;
-  const refresh = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, refresh_token: refreshToken, grant_type: 'refresh_token' }) });
-  const credentials = await refresh.json().catch(() => null);
-  if (!refresh.ok || !credentials?.access_token) return false;
-  const checkinUrl = `${PRIMARY_APP_ORIGIN}/checkin?token=${token}`;
-  const qrDataUrl = await QRCode.toDataURL(checkinUrl, { errorCorrectionLevel: 'M', margin: 2, width: 640 });
-  const encodedPng = qrDataUrl.split(',', 2)[1];
-  if (!encodedPng) return false;
-  const boundary = `manual-qr-${crypto.randomUUID()}`;
-  const wrappedPng = encodedPng.replace(/(.{76})/g, '$1\r\n');
-  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f7fa;color:#102a43;font-family:Arial,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #d9e2ec;border-radius:16px"><tr><td style="padding:32px"><p style="margin:0 0 12px;color:#486581;font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase">Karunya bus attendance</p><h1 style="margin:0 0 16px;font-size:24px">Bus ${busNumber} ${sessionType} QR</h1><p style="margin:0 0 24px;line-height:1.5">Scan this QR code to open the secure attendance check-in.</p><p style="margin:0 0 24px;text-align:center"><img src="cid:${QR_IMAGE_CID}" alt="Attendance QR code" width="320" height="320" style="display:inline-block;max-width:100%;height:auto;border:0"></p><p style="margin:0 0 12px;line-height:1.5">If the image does not appear, use this secure link:</p><p style="margin:0 0 24px"><a href="${checkinUrl}" style="display:inline-block;padding:12px 18px;background:#1769aa;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold">Open attendance check-in</a></p><p style="margin:0;color:#627d98;font-size:13px">This code expires in five hours.</p></td></tr></table></td></tr></table></body></html>`;
-  const raw = [`To: ${recipient}`, `From: ${Deno.env.get('GMAIL_FROM_EMAIL') ?? recipient}`, `Subject: Bus ${busNumber} ${sessionType} Attendance QR`, 'MIME-Version: 1.0', `Content-Type: multipart/related; boundary="${boundary}"`, '', `--${boundary}`, 'Content-Type: text/html; charset=UTF-8', '', html, `--${boundary}`, 'Content-Type: image/png; name="attendance-qr.png"', 'Content-Transfer-Encoding: base64', `Content-ID: <${QR_IMAGE_CID}>`, 'Content-Disposition: inline; filename="attendance-qr.png"', '', wrappedPng, `--${boundary}--`].join('\r\n');
-  const sent = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', { method: 'POST', headers: { Authorization: `Bearer ${credentials.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ raw: base64Url(raw) }) });
-  return sent.ok;
-};
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return isAllowedOrigin(request) ? new Response('ok', { headers: corsHeadersFor(request.headers.get('Origin')) }) : response(request, { message: 'Forbidden origin.' }, 403);
@@ -228,12 +207,8 @@ Deno.serve(async (request) => {
       const { data: session, error } = await adminClient.from('attendance_sessions').insert({
         bus_id: bus.id, session_type: b.sessionType, token_hash: await hashToken(token, qrSecret), expires_at: expiresAt, created_by: user.id,
       }).select('id').single();
-      if (error || !session) return response(request, { message: 'Could not create QR session.' }, 500);
-      const emailSent = b.emailQr === true
-        ? await sendManualQrEmail(profile.email, String(bus.bus_number), String(b.sessionType), token).catch(() => false)
-        : true;
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
-      return response(request, { token, sessionId: session.id, expiresAt, emailSent });
+      return response(request, { token, sessionId: session.id, expiresAt });
     }
 
     if (action === 'update-coordinator-location') {
