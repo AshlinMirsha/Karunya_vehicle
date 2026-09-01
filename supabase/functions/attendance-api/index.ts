@@ -168,9 +168,13 @@ Deno.serve(async (request) => {
         return response(request, { message: `User ${emailLower} is not currently a coordinator.` }, 400);
       }
 
-      // Step 1: Unassign bus and revoke coordinator role (guarantees removal of coordinator privileges)
+      // Step 1: Unassign bus and set status inactive (safe for both @karunya.edu.in and faculty @karunya.edu emails)
+      const updatePayload: Record<string, unknown> = { bus_id: null, status: 'inactive' };
+      if (emailLower.endsWith('@karunya.edu.in')) {
+        updatePayload.role = 'student';
+      }
       const { error: updateErr } = await adminClient.from('profiles')
-        .update({ role: 'student', bus_id: null, status: 'inactive' })
+        .update(updatePayload)
         .eq('id', targetProfile.id);
 
       if (updateErr) return response(request, { message: updateErr.message || 'Could not remove coordinator.' }, 500);
