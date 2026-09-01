@@ -87,7 +87,7 @@
   </section>
 
   <!-- ── Offcanvas Sidebar Drawer: Student & Staff Management ────── -->
-  <div class="offcanvas offcanvas-end glass-sidebar" tabindex="-1" id="sidebarStudentMgmt" aria-labelledby="sidebarStudentMgmtLabel" style="width: 600px; max-width: 95vw;">
+  <div class="offcanvas offcanvas-end glass-sidebar sidebar-student-mgmt" tabindex="-1" id="sidebarStudentMgmt" aria-labelledby="sidebarStudentMgmtLabel">
     <div class="offcanvas-header p-3">
       <div>
         <h5 class="offcanvas-title fw-bold mb-0" id="sidebarStudentMgmtLabel">⚙️ Student &amp; Staff Management</h5>
@@ -308,7 +308,7 @@
 
             <!-- History table -->
             <h6 class="fw-semibold mb-2">📋 Boarding History</h6>
-            <div class="table-responsive mb-3" style="max-height: 220px; overflow-y: auto;">
+            <div class="table-responsive mb-3 table-scroll-container">
               <table class="table table-dark-custom align-middle mb-0 small">
                 <thead>
                   <tr>
@@ -488,7 +488,7 @@
   </section>
 
 </main>
-<button id="btn-back-to-top" type="button" aria-label="Back to top" title="Back to top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:18px;height:18px;max-width:18px;max-height:18px;"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+<button id="btn-back-to-top" type="button" aria-label="Back to top" title="Back to top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script type="module">import { initAdminDashboard } from '../js/admin.js'; if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initAdminDashboard,{once:true});else initAdminDashboard();</script>
 </body></html>
