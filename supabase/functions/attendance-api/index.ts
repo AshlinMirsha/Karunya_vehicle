@@ -168,11 +168,25 @@ Deno.serve(async (request) => {
         return response(request, { message: `User ${emailLower} is not currently a coordinator.` }, 400);
       }
 
-      const { error: updateErr } = await adminClient.from('profiles')
-        .update({ role: 'student', bus_id: null, status: 'inactive' })
-        .eq('id', targetProfile.id);
+      // Check if coordinator created sessions
+      const { count: sessionCount } = await adminClient.from('attendance_sessions').select('id', { count: 'exact', head: true }).eq('created_by', targetProfile.id);
 
-      if (updateErr) return response(request, { message: updateErr.message || 'Could not remove coordinator.' }, 500);
+      if (sessionCount && sessionCount > 0) {
+        // If sessions exist, revoke coordinator role and unassign bus to preserve historical logs
+        const { error: updateErr } = await adminClient.from('profiles')
+          .update({ role: 'student', bus_id: null, status: 'inactive' })
+          .eq('id', targetProfile.id);
+        if (updateErr) return response(request, { message: updateErr.message || 'Could not remove coordinator.' }, 500);
+      } else {
+        // Delete profile completely from public.profiles table
+        const { error: deleteErr } = await adminClient.from('profiles').delete().eq('id', targetProfile.id);
+        if (deleteErr) {
+          await adminClient.from('profiles').update({ role: 'student', bus_id: null, status: 'inactive' }).eq('id', targetProfile.id);
+        }
+        try {
+          await adminClient.auth.admin.deleteUser(targetProfile.id);
+        } catch (_) {}
+      }
 
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
       return response(request, { message: 'Coordinator removed successfully.' });

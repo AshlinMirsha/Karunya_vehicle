@@ -1154,7 +1154,7 @@ export async function initOperationsDashboard(expectedRole) {
         newBuses = dbBuses ?? [];
       }
 
-      ['add-student-bus', 'move-student-bus', 'add-coord-bus', 'filter-bus', 'rpt-dr-bus'].forEach((id) => {
+      ['add-student-bus', 'move-student-bus', 'add-coord-bus', 'delete-bus-select', 'filter-bus', 'rpt-dr-bus'].forEach((id) => {
         const select = document.getElementById(id);
         if (select) {
           const currentVal = select.value;
@@ -1931,6 +1931,7 @@ const setupStudentManagementControls = (buses) => {
   const addStudentBus = document.getElementById('add-student-bus');
   const moveStudentBus = document.getElementById('move-student-bus');
   const addCoordBus = document.getElementById('add-coord-bus');
+  const deleteBusSelect = document.getElementById('delete-bus-select');
 
   if (addStudentBus) {
     addStudentBus.replaceChildren();
@@ -1943,6 +1944,60 @@ const setupStudentManagementControls = (buses) => {
   if (addCoordBus) {
     addCoordBus.replaceChildren();
     buses.forEach((b) => addOption(addCoordBus, b.id, `Bus ${b.bus_number} — ${b.route}`));
+  }
+  if (deleteBusSelect) {
+    deleteBusSelect.replaceChildren();
+    buses.forEach((b) => addOption(deleteBusSelect, b.id, `Bus ${b.bus_number} — ${b.route}`));
+  }
+
+  const btnDeleteBusSidebar = document.getElementById('btn-delete-bus-sidebar');
+  if (btnDeleteBusSidebar) {
+    btnDeleteBusSidebar.onclick = async () => {
+      const busId = deleteBusSelect?.value;
+      const msg = document.getElementById('delete-bus-msg');
+      if (!busId) {
+        showToast('Please select a bus to delete.', 'danger');
+        return;
+      }
+      const bus = buses.find((b) => b.id === busId);
+      if (!bus) return;
+
+      if (!confirm(`Are you sure you want to delete Bus ${bus.bus_number} (${bus.route || 'No route description'})?\n\nThis action cannot be undone.`)) {
+        return;
+      }
+
+      btnDeleteBusSidebar.disabled = true;
+      btnDeleteBusSidebar.textContent = 'Deleting Bus…';
+
+      const { data, error } = await supabase.functions.invoke('attendance-api', {
+        body: { action: 'delete-bus', busId }
+      });
+
+      btnDeleteBusSidebar.disabled = false;
+      btnDeleteBusSidebar.textContent = 'Delete Bus';
+
+      if (error || !data?.message) {
+        let err = data?.message;
+        if (!err && error) {
+          try {
+            if (typeof error.context?.json === 'function') {
+              const resBody = await error.context.json();
+              err = resBody?.message;
+            }
+          } catch (_) {}
+          if (!err && error.message && !error.message.includes('non-2xx')) err = error.message;
+        }
+        err = err || 'Could not delete bus.';
+        if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
+        showToast(err, 'danger');
+      } else {
+        if (msg) msg.innerHTML = `<span class="text-success">${data.message}</span>`;
+        showToast(data.message, 'success');
+        if (typeof globalRefreshAdminViews === 'function') {
+          await globalRefreshAdminViews();
+        }
+      }
+    };
   }
 
   const btnAddStudent = document.getElementById('btn-add-student');
