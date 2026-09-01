@@ -1,6 +1,11 @@
--- Add capacity column and remove radius_meters from public.buses table
+-- Add capacity column, set latitude/longitude defaults, and remove radius_meters from public.buses table
 alter table public.buses add column if not exists capacity integer not null default 60;
 alter table public.buses drop column if not exists radius_meters;
+
+alter table public.buses alter column latitude set default 0.0;
+alter table public.buses alter column longitude set default 0.0;
+alter table public.buses alter column latitude drop not null;
+alter table public.buses alter column longitude drop not null;
 
 -- Update admin_bus_records RPC function to return capacity instead of radius_meters
 create or replace function public.admin_bus_records()
