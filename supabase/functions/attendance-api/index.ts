@@ -49,6 +49,14 @@ async function logAdminActivity(
   }
 }
 
+const corsHeadersFor = (origin: string | null) => ({
+  'Access-Control-Allow-Origin': origin && (ALLOWED_ORIGINS.has(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:') || origin.endsWith('.vercel.app')) ? origin : ALLOWED_ORIGINS.values().next().value,
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Content-Type': 'application/json',
+  Vary: 'Origin',
+});
+
 const response = (request: Request, body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: corsHeadersFor(request.headers.get('Origin')) });
 const isAllowedOrigin = (request: Request) => {
   const origin = request.headers.get('Origin') ?? '';
