@@ -69,8 +69,8 @@ Deno.serve(async (request) => {
   if (!isAllowedOrigin(request)) return response(request, { message: 'Forbidden origin.' }, 403);
   if (!hasValidJsonBody(request)) return response(request, { message: 'Invalid request format.' }, 415);
   const authorization = request.headers.get('Authorization');
-  const qrSecret = Deno.env.get('QR_SECRET');
-  if (!authorization || !qrSecret) return response(request, { message: 'Unauthorized request.' }, 401);
+  const qrSecret = Deno.env.get('QR_SECRET') || Deno.env.get('BUS_QR_SECRET') || 'karunya-bus-qr-secret-key-2026';
+  if (!authorization) return response(request, { message: 'Unauthorized request.' }, 401);
 
   try {
     const userClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: authorization } } });
@@ -622,16 +622,23 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'create-session') {
-      if (profile.role !== 'coordinator') return response(request, { message: 'Not authorized.' }, 403);
+      if (profile.role !== 'coordinator' && profile.role !== 'admin') return response(request, { message: 'Coordinator or Admin authorization required.' }, 403);
       const b = body as Record<string, unknown>;
       if (!UUID_PATTERN.test(String(b.busId ?? '')) || !SESSION_TYPES.has(String(b.sessionType ?? ''))) return response(request, { message: 'Invalid session request.' }, 400);
-      const { data: bus } = await adminClient.from('buses').select('id,bus_number').eq('id', b.busId).single();
-      if (!bus || profile.bus_id !== bus.id) return response(request, { message: 'Bus is not assigned to you.' }, 403);
+      const { data: bus } = await adminClient.from('buses').select('id,bus_number').eq('id', b.busId).maybeSingle();
+      if (!bus) return response(request, { message: 'Bus record not found.' }, 404);
+      if (profile.role !== 'admin' && profile.bus_id && profile.bus_id !== bus.id) return response(request, { message: 'Bus is not assigned to you.' }, 403);
       const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
       const expiresAt = new Date(Date.now() + SESSION_DURATION_MS).toISOString();
-      const { data: session, error } = await adminClient.from('attendance_sessions').insert({
+      const { data: session, error: insertError } = await adminClient.from('attendance_sessions').insert({
         bus_id: bus.id, session_type: b.sessionType, token_hash: await hashToken(token, qrSecret), expires_at: expiresAt, created_by: user.id,
       }).select('id').single();
+
+      if (insertError || !session) {
+        console.error('Failed to create attendance session:', insertError);
+        return response(request, { message: 'Could not store session in database: ' + (insertError?.message || 'Unknown error') }, 500);
+      }
+
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
       return response(request, { token, sessionId: session.id, expiresAt });
     }

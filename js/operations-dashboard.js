@@ -1252,10 +1252,15 @@ export async function initOperationsDashboard(expectedRole) {
     });
     if (error || !data?.token || !data?.expiresAt) {
       let errorMessage = 'QR session could not be created.';
-      if (error?.context && typeof error.context.clone === 'function') {
-        const body = await error.context.clone().json().catch(() => null);
-        if (body?.message) errorMessage = body.message;
-      }
+      try {
+        if (typeof error?.context?.json === 'function') {
+          const resBody = await error.context.json();
+          if (resBody?.message) errorMessage = resBody.message;
+        } else if (typeof error?.context?.clone === 'function') {
+          const resBody = await error.context.clone().json();
+          if (resBody?.message) errorMessage = resBody.message;
+        }
+      } catch (_) {}
       if (errorMessage === 'QR session could not be created.' && data?.message) errorMessage = data.message;
       if (errorMessage === 'QR session could not be created.' && error?.message) errorMessage = error.message;
       return showToast(errorMessage, 'danger');
