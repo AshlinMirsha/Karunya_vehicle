@@ -30,7 +30,7 @@ test('attendance API remains JWT-protected', async () => {
   assert.match(api, /action === 'add-bus'/);
   assert.match(api, /latitude: 0\.0/);
   assert.match(api, /longitude: 0\.0/);
-  assert.doesNotMatch(api, /capacity: cap/);
+  assert.match(api, /capacity:/);
   assert.match(client, /storage: window\.sessionStorage/);
   assert.match(client, /flowType: 'pkce'/);
 });

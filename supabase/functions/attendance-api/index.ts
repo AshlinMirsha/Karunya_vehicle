@@ -167,11 +167,12 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'add-bus') {
-      const { busNumber, routeName } = body as Record<string, unknown>;
+      const { busNumber, routeName, capacity } = body as Record<string, unknown>;
       const num = parseInt(String(busNumber), 10);
       if (isNaN(num) || num < 1 || num > 999) return response(request, { message: 'Bus number must be between 1 and 999.' }, 400);
       const route = String(routeName || '').trim();
       if (!route) return response(request, { message: 'Route description is required.' }, 400);
+      const cap = parseInt(String(capacity || 60), 10);
 
       const busNumStr = String(num);
       const { data: existing } = await adminClient.from('buses').select('id').eq('bus_number', busNumStr).maybeSingle();
@@ -180,6 +181,7 @@ Deno.serve(async (request) => {
       const { data: newBus, error: insertErr } = await adminClient.from('buses').insert({
         bus_number: busNumStr,
         route: route,
+        capacity: isNaN(cap) || cap < 1 ? 60 : cap,
         latitude: 0.0,
         longitude: 0.0
       }).select().single();
