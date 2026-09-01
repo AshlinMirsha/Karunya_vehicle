@@ -614,8 +614,8 @@ Deno.serve(async (request) => {
     }
     
     if (action === 'create-session' || action === 'mark-attendance') {
-      const { data: limit, error: limitError } = await adminClient.rpc('consume_attendance_rate_limit', { p_actor_id: user.id, p_action: action }).single();
-      if (limitError || !limit?.allowed) {
+      const { data: limit, error: limitError } = await adminClient.rpc('consume_attendance_rate_limit', { p_actor_id: user.id, p_action: action }).maybeSingle();
+      if (!limitError && limit && limit.allowed === false) {
         await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'rate_limited' });
         return response(request, { message: `Too many requests. Try again in ${Math.max(1, limit?.retry_after_seconds ?? 600)} seconds.` }, 429);
       }
@@ -627,7 +627,13 @@ Deno.serve(async (request) => {
       if (!UUID_PATTERN.test(String(b.busId ?? '')) || !SESSION_TYPES.has(String(b.sessionType ?? ''))) return response(request, { message: 'Invalid session request.' }, 400);
       const { data: bus } = await adminClient.from('buses').select('id,bus_number').eq('id', b.busId).maybeSingle();
       if (!bus) return response(request, { message: 'Bus record not found.' }, 404);
-      if (profile.role !== 'admin' && profile.bus_id && profile.bus_id !== bus.id) return response(request, { message: 'Bus is not assigned to you.' }, 403);
+      if (profile.role !== 'admin' && profile.bus_id && profile.bus_id !== bus.id) {
+        const { data: coordBus } = await adminClient.from('buses').select('id, bus_number').eq('id', profile.bus_id).maybeSingle();
+        if (!coordBus || coordBus.bus_number !== bus.bus_number) {
+          return response(request, { message: 'Bus is not assigned to you.' }, 403);
+        }
+        await adminClient.from('profiles').update({ bus_id: bus.id }).eq('id', profile.id);
+      }
       const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
       const expiresAt = new Date(Date.now() + SESSION_DURATION_MS).toISOString();
       const { data: session, error: insertError } = await adminClient.from('attendance_sessions').insert({
