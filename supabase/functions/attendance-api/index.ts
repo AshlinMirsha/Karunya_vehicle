@@ -168,21 +168,21 @@ Deno.serve(async (request) => {
         return response(request, { message: `User ${emailLower} is not currently a coordinator.` }, 400);
       }
 
-      // Check if coordinator created sessions
-      const { count: sessionCount } = await adminClient.from('attendance_sessions').select('id', { count: 'exact', head: true }).eq('created_by', targetProfile.id);
+      // Step 1: Unassign bus and revoke coordinator role (guarantees removal of coordinator privileges)
+      const { error: updateErr } = await adminClient.from('profiles')
+        .update({ role: 'student', bus_id: null, status: 'inactive' })
+        .eq('id', targetProfile.id);
 
-      if (sessionCount && sessionCount > 0) {
-        // If sessions exist, revoke coordinator role and unassign bus to preserve historical logs
-        const { error: updateErr } = await adminClient.from('profiles')
-          .update({ role: 'student', bus_id: null, status: 'inactive' })
-          .eq('id', targetProfile.id);
-        if (updateErr) return response(request, { message: updateErr.message || 'Could not remove coordinator.' }, 500);
-      } else {
-        // Delete profile completely from public.profiles table
-        const { error: deleteErr } = await adminClient.from('profiles').delete().eq('id', targetProfile.id);
-        if (deleteErr) {
-          await adminClient.from('profiles').update({ role: 'student', bus_id: null, status: 'inactive' }).eq('id', targetProfile.id);
-        }
+      if (updateErr) return response(request, { message: updateErr.message || 'Could not remove coordinator.' }, 500);
+
+      // Step 2: Attempt hard deletion if no historical attendance logs or sessions reference this user
+      const [{ count: sessionCount }, { count: attendanceCount }] = await Promise.all([
+        adminClient.from('attendance_sessions').select('id', { count: 'exact', head: true }).eq('created_by', targetProfile.id),
+        adminClient.from('attendance').select('id', { count: 'exact', head: true }).eq('student_id', targetProfile.id)
+      ]);
+
+      if ((sessionCount ?? 0) === 0 && (attendanceCount ?? 0) === 0) {
+        await adminClient.from('profiles').delete().eq('id', targetProfile.id);
         try {
           await adminClient.auth.admin.deleteUser(targetProfile.id);
         } catch (_) {}
