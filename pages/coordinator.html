@@ -176,6 +176,57 @@
       </table>
     </div>
   <!-- ══════════════════════════════════════════════════════════════════════
+       Manage Students — Import Students via CSV Section
+       ═════════════════════════════════════════════════════════════════════ -->
+  <section id="csv-import-main-section" class="glass-panel p-4 mb-4 mt-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+      <div>
+        <h2 class="h5 fw-bold mb-1">📥 Import Students via CSV</h2>
+        <p class="text-muted small mb-0">Bulk-add students to your assigned bus using a structured CSV file.</p>
+      </div>
+      <button id="main-btn-download-csv-template" class="btn btn-outline-info btn-sm">
+        📄 Download CSV Template
+      </button>
+    </div>
+
+    <div class="row g-3 align-items-end mb-3">
+      <div class="col-md-8">
+        <label for="main-csv-file-input" class="form-label small fw-semibold">Select CSV File</label>
+        <input class="form-control" type="file" id="main-csv-file-input" accept=".csv,text/csv">
+      </div>
+      <div class="col-md-4">
+        <button id="main-btn-import-csv-submit" class="btn btn-glass-primary w-100" disabled>
+          🚀 Import Students
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Preview Container -->
+    <div id="main-csv-preview-container" class="mb-3" hidden>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="small fw-semibold text-light" id="main-csv-preview-count">CSV Preview</span>
+        <span id="main-csv-validation-badge" class="badge bg-secondary">Awaiting validation</span>
+      </div>
+      <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+        <table class="table table-dark-custom align-middle mb-0 small">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Student Name</th>
+              <th>Student ID</th>
+              <th>Email</th>
+              <th>Validation Status</th>
+            </tr>
+          </thead>
+          <tbody id="main-csv-preview-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="main-csv-import-msg" class="mt-2"></div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
        Boarding Point Management Section
        ═════════════════════════════════════════════════════════════════════ -->
   <section id="boarding-mgmt-section" class="glass-panel p-4 mb-4 mt-4">

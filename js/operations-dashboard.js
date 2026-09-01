@@ -311,6 +311,11 @@ const renderStudentRoster = async () => {
               ✏️ Edit Students
             </button>
           </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link text-white-50" id="tab-btn-import-csv" data-bs-toggle="tab" data-bs-target="#tab-import-csv" type="button" role="tab">
+              📥 Import CSV
+            </button>
+          </li>
         </ul>
 
         <div class="tab-content" id="coord-student-tab-content">
@@ -345,6 +350,54 @@ const renderStudentRoster = async () => {
                 <div class="col-md-12 mt-2"><button id="btn-remove-student" class="btn btn-outline-danger w-100">Remove Student</button></div>
               </div>
               <div id="remove-student-msg" class="mt-2 small"></div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Import CSV -->
+          <div class="tab-pane fade" id="tab-import-csv" role="tabpanel">
+            <div class="card bg-transparent border border-secondary mb-4 p-3">
+              <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                <div>
+                  <h6 class="fw-bold mb-1">📥 Bulk Import Students (CSV)</h6>
+                  <p class="text-muted small mb-0">Upload a CSV file to add multiple students to your bus.</p>
+                </div>
+                <button id="btn-download-csv-template" class="btn btn-outline-info btn-sm">
+                  📄 Download Template
+                </button>
+              </div>
+
+              <div class="mb-3">
+                <label for="csv-file-input" class="form-label small fw-semibold">Select CSV File</label>
+                <input class="form-control" type="file" id="csv-file-input" accept=".csv,text/csv">
+              </div>
+
+              <div id="csv-preview-container" class="mb-3" hidden>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="small fw-semibold text-light" id="csv-preview-count">CSV Preview</span>
+                  <span id="csv-validation-badge" class="badge bg-secondary">Awaiting validation</span>
+                </div>
+                <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                  <table class="table table-dark-custom align-middle mb-0 small">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Student Name</th>
+                        <th>Student ID</th>
+                        <th>Email</th>
+                        <th>Validation Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="csv-preview-tbody"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="d-flex gap-2">
+                <button id="btn-import-csv-submit" class="btn btn-glass-primary w-100" disabled>
+                  🚀 Import Students
+                </button>
+              </div>
+              <div id="csv-import-msg" class="mt-3"></div>
             </div>
           </div>
         </div>
@@ -1123,6 +1176,7 @@ export async function initOperationsDashboard(expectedRole) {
 
   await renderStudentRoster();
   setupStudentManagementControls(buses);
+  setupCSVImportHandlers();
 
   // ── Populate Reports section bus filter & initialise report UI ────────
   try {
@@ -1146,6 +1200,7 @@ export async function initOperationsDashboard(expectedRole) {
     const people = await renderAdminDirectory(buses);
     await renderAdminBusFleet(buses, people);
     await renderSecurityDashboard();
+    await initAdminActivitiesSystem();
 
     globalRefreshAdminViews = async () => {
       let { data: newBuses } = await supabase.rpc('authorized_bus_records');
@@ -2437,6 +2492,409 @@ const setupStudentManagementControls = (buses) => {
     };
   }
   initBackToTopButton();
+};
+
+const setupCSVImportHandlers = () => {
+  const EMAIL_PATTERN = /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i;
+  const isValidEmail = (v) => typeof v === 'string' && EMAIL_PATTERN.test(v) && v.length <= 254;
+  const isValidRegNo = (v) => typeof v === 'string' && /^[A-Z0-9]+$/i.test(v.trim()) && v.trim().length <= 30;
+
+  const downloadTemplate = () => {
+    const csvContent = "student_name,student_id,email\nAshika Braicy,24CS001,ashika@karunya.edu.in\nBenesha Mercy,24CS002,benesha@karunya.edu.in\nAngel Achsah,24CS003,angel@karunya.edu.in\n";
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'student_import_template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  ['btn-download-csv-template', 'main-btn-download-csv-template'].forEach((id) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.onclick = downloadTemplate;
+  });
+
+  const parseCSV = (text) => {
+    const lines = text.split(/\r\n|\n|\r/);
+    if (!lines.length) return { headers: [], rows: [] };
+
+    const parseRow = (line) => {
+      const res = [];
+      let cell = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"') {
+          inQuotes = !inQuotes;
+        } else if (c === ',' && !inQuotes) {
+          res.push(cell.trim());
+          cell = '';
+        } else {
+          cell += c;
+        }
+      }
+      res.push(cell.trim());
+      return res;
+    };
+
+    const rawHeaders = parseRow(lines[0]);
+    const headers = rawHeaders.map((h) => h.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      const cells = parseRow(line);
+      const rowObj = {};
+      headers.forEach((h, idx) => {
+        rowObj[h] = cells[idx] ?? '';
+      });
+      rows.push(rowObj);
+    }
+    return { headers, rows };
+  };
+
+  const bindCSVInput = (fileInputId, previewContainerId, previewCountId, badgeId, tbodyId, submitBtnId, msgId) => {
+    const fileInput = document.getElementById(fileInputId);
+    const previewContainer = document.getElementById(previewContainerId);
+    const previewCount = document.getElementById(previewCountId);
+    const badge = document.getElementById(badgeId);
+    const tbody = document.getElementById(tbodyId);
+    const submitBtn = document.getElementById(submitBtnId);
+    const msg = document.getElementById(msgId);
+
+    if (!fileInput || !submitBtn) return;
+
+    let parsedRows = [];
+
+    fileInput.onchange = (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      if (!file.name.toLowerCase().endsWith('.csv') && file.type !== 'text/csv' && file.type !== 'application/vnd.ms-excel') {
+        if (msg) msg.innerHTML = `<div class="alert alert-danger p-2 small">Invalid file type. Please upload a .csv file.</div>`;
+        if (submitBtn) submitBtn.disabled = true;
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result;
+        if (typeof content !== 'string') return;
+
+        const { headers, rows } = parseCSV(content);
+
+        const hasName = headers.some((h) => ['student_name', 'full_name', 'name'].includes(h));
+        const hasId = headers.some((h) => ['student_id', 'register_number', 'reg_no', 'roll_no'].includes(h));
+        const hasEmail = headers.some((h) => ['email', 'student_email'].includes(h));
+
+        if (!hasName || !hasId || !hasEmail) {
+          if (msg) msg.innerHTML = `<div class="alert alert-danger p-2 small">Missing required CSV columns. Required headers: <code>student_name,student_id,email</code></div>`;
+          if (previewContainer) previewContainer.hidden = true;
+          if (submitBtn) submitBtn.disabled = true;
+          return;
+        }
+
+        if (!rows.length) {
+          if (msg) msg.innerHTML = `<div class="alert alert-warning p-2 small">No student records found in CSV.</div>`;
+          if (previewContainer) previewContainer.hidden = true;
+          if (submitBtn) submitBtn.disabled = true;
+          return;
+        }
+
+        parsedRows = rows;
+        let validCount = 0;
+        let invalidCount = 0;
+
+        if (tbody) {
+          tbody.replaceChildren(...rows.map((row, idx) => {
+            const tr = document.createElement('tr');
+
+            const name = row.student_name || row.full_name || row.name || '';
+            const regNo = (row.student_id || row.register_number || row.reg_no || row.roll_no || '').toUpperCase();
+            const email = (row.email || row.student_email || '').toLowerCase();
+
+            let statusHtml = '';
+            let isRowValid = true;
+
+            if (!name) {
+              isRowValid = false;
+              statusHtml = `<span class="badge bg-danger">Missing Name</span>`;
+            } else if (!regNo || !isValidRegNo(regNo)) {
+              isRowValid = false;
+              statusHtml = `<span class="badge bg-danger">Invalid Student ID</span>`;
+            } else if (!email || !isValidEmail(email)) {
+              isRowValid = false;
+              statusHtml = `<span class="badge bg-danger">Invalid Email</span>`;
+            } else {
+              statusHtml = `<span class="badge bg-success">Valid</span>`;
+            }
+
+            if (isRowValid) validCount++;
+            else invalidCount++;
+
+            tr.innerHTML = `
+              <td>${idx + 1}</td>
+              <td>${name || '—'}</td>
+              <td><code>${regNo || '—'}</code></td>
+              <td>${email || '—'}</td>
+              <td>${statusHtml}</td>
+            `;
+            return tr;
+          }));
+        }
+
+        if (previewCount) previewCount.textContent = `CSV Preview (${rows.length} rows found)`;
+        if (badge) {
+          badge.className = validCount > 0 ? 'badge bg-success' : 'badge bg-danger';
+          badge.textContent = `${validCount} valid, ${invalidCount} invalid`;
+        }
+        if (previewContainer) previewContainer.hidden = false;
+        if (msg) msg.innerHTML = '';
+        if (submitBtn) submitBtn.disabled = validCount === 0;
+      };
+
+      reader.readAsText(file);
+    };
+
+    submitBtn.onclick = async () => {
+      if (!parsedRows.length) return;
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Importing…';
+      if (msg) msg.innerHTML = `<div class="alert alert-info p-2 small">Importing student records into database…</div>`;
+
+      const { data, error } = await supabase.functions.invoke('attendance-api', {
+        body: { action: 'import-students-csv', students: parsedRows }
+      });
+
+      submitBtn.disabled = false;
+      submitBtn.textContent = '🚀 Import Students';
+
+      if (error || !data?.summary) {
+        let err = data?.message;
+        if (!err && error) {
+          try {
+            if (typeof error.context?.json === 'function') {
+              const resBody = await error.context.json();
+              err = resBody?.message;
+            }
+          } catch (_) {}
+          if (!err && error.message && !error.message.includes('non-2xx')) err = error.message;
+        }
+        err = err || 'Failed to import CSV.';
+        if (msg) msg.innerHTML = `<div class="alert alert-danger p-2 small">${err}</div>`;
+        showToast(err, 'danger');
+      } else {
+        const sum = data.summary;
+        let alertClass = sum.successfullyAdded > 0 ? 'alert-success' : 'alert-warning';
+        let html = `
+          <div class="alert ${alertClass} p-3 mb-0">
+            <h6 class="fw-bold mb-2">🎉 ${data.message}</h6>
+            <div class="d-flex flex-wrap gap-2 mb-2">
+              <span class="badge bg-dark">Total Rows: ${sum.totalRows}</span>
+              <span class="badge bg-success">Successfully Added: ${sum.successfullyAdded}</span>
+              <span class="badge bg-warning text-dark">Already Existing: ${sum.alreadyExisting}</span>
+              <span class="badge bg-danger">Invalid / Rejected: ${sum.invalidRows}</span>
+            </div>
+        `;
+
+        if (sum.rowErrors && sum.rowErrors.length > 0) {
+          html += `
+            <hr class="border-secondary my-2">
+            <div class="small fw-semibold text-danger mb-1">Row Details &amp; Rejections:</div>
+            <ul class="small mb-0 text-muted ps-3" style="max-height: 140px; overflow-y: auto;">
+              ${sum.rowErrors.map((e) => `<li>Row ${e.row}: ${e.error}</li>`).join('')}
+            </ul>
+          `;
+        }
+
+        html += `</div>`;
+        if (msg) msg.innerHTML = html;
+        showToast(`Import completed: ${sum.successfullyAdded} added, ${sum.alreadyExisting} existing.`, 'success');
+
+        await renderStudentRoster();
+      }
+    };
+  };
+
+  bindCSVInput('csv-file-input', 'csv-preview-container', 'csv-preview-count', 'csv-validation-badge', 'csv-preview-tbody', 'btn-import-csv-submit', 'csv-import-msg');
+  bindCSVInput('main-csv-file-input', 'main-csv-preview-container', 'main-csv-preview-count', 'main-csv-validation-badge', 'main-csv-preview-tbody', 'main-btn-import-csv-submit', 'main-csv-import-msg');
+};
+
+const initAdminActivitiesSystem = async () => {
+  const badgeEl = document.getElementById('nav-unread-badge');
+  const feedList = document.getElementById('activity-feed-list');
+  const markAllReadBtn = document.getElementById('btn-mark-all-read');
+  const loadMoreBtn = document.getElementById('btn-load-more-activities');
+  const filterButtons = document.querySelectorAll('#activity-filter-group button');
+  const infoText = document.getElementById('activity-pagination-info');
+
+  let currentPage = 1;
+  const pageSize = 15;
+  let currentFilter = 'all';
+  let loadedActivities = [];
+  let totalCount = 0;
+
+  const getActionIcon = (action, entityType) => {
+    if (entityType === 'bus' || action.includes('BUS')) return '🚌';
+    if (entityType === 'coordinator' || action.includes('COORDINATOR')) return '👤';
+    if (entityType === 'student' || action.includes('STUDENT')) return '🎓';
+    return '🔔';
+  };
+
+  const formatTimestamp = (isoStr) => {
+    if (!isoStr) return '';
+    const date = new Date(isoStr);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = date.toDateString() === yesterday.toDateString();
+
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (isToday) return `Today, ${timeStr}`;
+    if (isYesterday) return `Yesterday, ${timeStr}`;
+    return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${timeStr}`;
+  };
+
+  const fetchActivities = async (page = 1, append = false) => {
+    const unreadOnly = currentFilter === 'unread';
+    const { data, error } = await supabase.functions.invoke('attendance-api', {
+      body: { action: 'get-admin-activities', page, limit: pageSize, unreadOnly }
+    });
+
+    if (error || !data) {
+      if (feedList && !append) {
+        feedList.innerHTML = `<div class="alert alert-danger p-3 text-center small">Unable to load recent activities. Please try again.</div>`;
+      }
+      return;
+    }
+
+    const { activities, totalCount: total, unreadCount } = data;
+    totalCount = total;
+
+    if (badgeEl) {
+      if (unreadCount > 0) {
+        badgeEl.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+        badgeEl.hidden = false;
+      } else {
+        badgeEl.hidden = true;
+      }
+    }
+
+    if (append) {
+      loadedActivities = [...loadedActivities, ...(activities || [])];
+    } else {
+      loadedActivities = activities || [];
+    }
+
+    if (infoText) {
+      infoText.textContent = `Showing ${loadedActivities.length} of ${totalCount} activities`;
+    }
+
+    if (loadMoreBtn) {
+      loadMoreBtn.hidden = loadedActivities.length >= totalCount;
+    }
+
+    renderActivitiesList();
+  };
+
+  const renderActivitiesList = () => {
+    if (!feedList) return;
+
+    if (!loadedActivities.length) {
+      feedList.innerHTML = `<div class="glass-panel p-4 text-center text-muted small">No ${currentFilter === 'unread' ? 'unread ' : ''}activities recorded yet.</div>`;
+      return;
+    }
+
+    feedList.replaceChildren(...loadedActivities.map((act) => {
+      const card = document.createElement('div');
+      card.className = `glass-panel p-3 border ${act.is_read ? 'border-secondary border-opacity-25' : 'border-warning border-opacity-50'} position-relative`;
+
+      const icon = getActionIcon(act.action, act.entity_type);
+      const timeDisplay = formatTimestamp(act.created_at);
+
+      let detailsHtml = '';
+      if (act.details && typeof act.details === 'object' && Object.keys(act.details).length > 0) {
+        const d = act.details;
+        if (d.capacityOld !== undefined && d.capacityNew !== undefined) {
+          detailsHtml = `<div class="small text-muted mt-1">Capacity: <span class="text-light">${d.capacityOld ?? 60}</span> → <span class="text-warning fw-bold">${d.capacityNew}</span></div>`;
+        } else if (d.totalRows !== undefined && d.successfullyAdded !== undefined) {
+          detailsHtml = `<div class="small text-muted mt-1">Total CSV rows: ${d.totalRows} | Added: <span class="text-success fw-bold">${d.successfullyAdded}</span> | Existing: ${d.alreadyExisting} | Rejected: ${d.invalidRows}</div>`;
+        }
+      }
+
+      card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start gap-2">
+          <div class="d-flex gap-3 align-items-start">
+            <span class="fs-4">${icon}</span>
+            <div>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge ${act.actor_role === 'admin' ? 'bg-danger' : 'bg-warning text-dark'}">${act.actor_role === 'admin' ? 'Admin' : 'Bus Coordinator'}</span>
+                <strong class="text-light small">${act.actor_name}</strong>
+                ${!act.is_read ? '<span class="badge bg-warning text-dark" style="font-size: 0.65rem;">NEW</span>' : ''}
+              </div>
+              <p class="mb-0 text-light mt-1 small">${act.message}</p>
+              ${detailsHtml}
+              <small class="text-muted" style="font-size: 0.72rem;">${timeDisplay}</small>
+            </div>
+          </div>
+          ${!act.is_read ? `<button class="btn btn-sm btn-outline-secondary btn-mark-single-read" data-id="${act.id}" title="Mark as read">✓ Read</button>` : ''}
+        </div>
+      `;
+
+      card.querySelector('.btn-mark-single-read')?.addEventListener('click', async () => {
+        const { data, error } = await supabase.functions.invoke('attendance-api', {
+          body: { action: 'mark-activity-read', activityId: act.id }
+        });
+        if (!error && data) {
+          act.is_read = true;
+          fetchActivities(1, false);
+        }
+      });
+
+      return card;
+    }));
+  };
+
+  filterButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      filterButtons.forEach((b) => b.classList.remove('active', 'btn-warning'));
+      btn.classList.add('active');
+      currentFilter = btn.dataset.filter || 'all';
+      currentPage = 1;
+      fetchActivities(1, false);
+    });
+  });
+
+  if (markAllReadBtn) {
+    markAllReadBtn.onclick = async () => {
+      markAllReadBtn.disabled = true;
+      const { data, error } = await supabase.functions.invoke('attendance-api', {
+        body: { action: 'mark-all-activities-read' }
+      });
+      markAllReadBtn.disabled = false;
+      if (!error && data) {
+        showToast('All activities marked as read.', 'success');
+        currentPage = 1;
+        fetchActivities(1, false);
+      }
+    };
+  }
+
+  if (loadMoreBtn) {
+    loadMoreBtn.onclick = () => {
+      currentPage += 1;
+      fetchActivities(currentPage, true);
+    };
+  }
+
+  await fetchActivities(1, false);
+  setInterval(() => fetchActivities(1, false), 30000);
 };
 
 const initBackToTopButton = () => {

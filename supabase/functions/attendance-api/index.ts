@@ -12,18 +12,42 @@ const QR_TOKEN_PATTERN = /^[0-9a-f]{64}$/i;
 const SESSION_TYPES = new Set(['Morning', 'Evening', 'Special']);
 const MAX_REQUEST_BODY_BYTES = 4_096;
 const EMAIL_PATTERN = /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i;
-const ADMIN_ONLY_ACTIONS = new Set(['move-student', 'add-coordinator', 'remove-coordinator', 'add-bus', 'edit-bus', 'delete-bus']);
-const STAFF_ACTIONS = new Set(['add-student', 'remove-student', ...ADMIN_ONLY_ACTIONS]);
+const ADMIN_ONLY_ACTIONS = new Set(['move-student', 'add-coordinator', 'remove-coordinator', 'add-bus', 'edit-bus', 'delete-bus', 'get-admin-activities', 'mark-activity-read', 'mark-all-activities-read']);
+const STAFF_ACTIONS = new Set(['add-student', 'remove-student', 'import-students-csv', ...ADMIN_ONLY_ACTIONS]);
 const isValidEmail = (v: unknown): v is string => typeof v === 'string' && EMAIL_PATTERN.test(v) && v.length <= 254;
 const isValidName  = (v: unknown): v is string => typeof v === 'string' && v.trim().length >= 1 && v.length <= 100;
 const isValidRegNo = (v: unknown): v is string => typeof v === 'string' && /^[A-Z0-9]+$/i.test(v.trim()) && v.trim().length <= 30;
-const corsHeadersFor = (origin: string | null) => ({
-  'Access-Control-Allow-Origin': origin && (ALLOWED_ORIGINS.has(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:') || origin.endsWith('.vercel.app')) ? origin : ALLOWED_ORIGINS.values().next().value,
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json',
-  Vary: 'Origin',
-});
+
+// Helper to log administrative & system management activities
+async function logAdminActivity(
+  adminClient: any,
+  actor: { id: string; name: string; role: string },
+  activity: {
+    action: string;
+    entityType: string;
+    entityId?: string | null;
+    entityName?: string | null;
+    details?: Record<string, unknown>;
+    message: string;
+  }
+) {
+  try {
+    await adminClient.from('admin_activities').insert({
+      actor_id: actor.id,
+      actor_name: actor.name || 'Staff User',
+      actor_role: actor.role || 'staff',
+      action: activity.action,
+      entity_type: activity.entityType,
+      entity_id: activity.entityId ?? null,
+      entity_name: activity.entityName ?? null,
+      details: activity.details ?? {},
+      message: activity.message,
+      is_read: false
+    });
+  } catch (err) {
+    console.error('Failed to log admin activity:', err);
+  }
+}
 
 const response = (request: Request, body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: corsHeadersFor(request.headers.get('Origin')) });
 const isAllowedOrigin = (request: Request) => {
@@ -90,21 +114,211 @@ Deno.serve(async (request) => {
       const { data: busCheck } = await adminClient.from('buses').select('id').eq('id', busId).maybeSingle();
       if (!busCheck) return response(request, { message: 'Bus not found.' }, 404);
       const { error: upsertErr } = await adminClient.from('pending_student_assignments').upsert(
-        { email: email.toLowerCase(), full_name: (fullName as string).trim(), register_number: (registerNumber as string).trim().toUpperCase(), bus_id: busId, status: 'active' },
+        { email: (email as string).toLowerCase(), full_name: (fullName as string).trim(), register_number: (registerNumber as string).trim().toUpperCase(), bus_id: busId, status: 'active' },
         { onConflict: 'email' }
       );
       if (upsertErr) return response(request, { message: 'Could not add student.' }, 500);
       // Also update existing profile if already signed in
-      await adminClient.from('profiles').update({ bus_id: busId, full_name: (fullName as string).trim(), register_number: (registerNumber as string).trim().toUpperCase(), status: 'active' }).eq('email', email.toLowerCase());
+      await adminClient.from('profiles').update({ bus_id: busId, full_name: (fullName as string).trim(), register_number: (registerNumber as string).trim().toUpperCase(), status: 'active' }).eq('email', (email as string).toLowerCase());
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+      await logAdminActivity(adminClient, { id: user.id, name: profile.full_name || user.email || 'Staff', role: profile.role }, {
+        action: 'STUDENT_CREATED',
+        entityType: 'student',
+        entityId: String(email).toLowerCase(),
+        entityName: (fullName as string).trim(),
+        details: { fullName, email, registerNumber, busId, busNumber: busCheck?.bus_number },
+        message: `${profile.role === 'coordinator' ? 'Bus Coordinator' : 'Admin'} ${profile.full_name || user.email} added student ${(fullName as string).trim()} (${registerNumber}) to Bus ${busCheck?.bus_number || ''}.`
+      });
       return response(request, { message: 'Student added successfully.' });
+    }
+
+    if (action === 'import-students-csv') {
+      if (profile.role !== 'admin' && profile.role !== 'coordinator') {
+        await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'denied' });
+        return response(request, { message: 'Admin or Coordinator access required.' }, 403);
+      }
+
+      let targetBusId: string | null = null;
+      if (profile.role === 'coordinator') {
+        if (!profile.bus_id) {
+          return response(request, { message: 'You are not currently assigned to a bus.' }, 400);
+        }
+        targetBusId = profile.bus_id;
+      } else {
+        targetBusId = (body.busId as string) || profile.bus_id;
+        if (!targetBusId || !UUID_PATTERN.test(targetBusId)) {
+          return response(request, { message: 'A valid target bus ID is required.' }, 400);
+        }
+      }
+
+      const { data: busCheck } = await adminClient.from('buses').select('id, bus_number').eq('id', targetBusId).maybeSingle();
+      if (!busCheck) return response(request, { message: 'Assigned bus not found.' }, 404);
+
+      const { students } = body as { students?: Array<Record<string, unknown>> };
+      if (!Array.isArray(students) || students.length === 0) {
+        return response(request, { message: 'No student records found in CSV.' }, 400);
+      }
+
+      if (students.length > 500) {
+        return response(request, { message: 'CSV exceeds maximum limit of 500 rows per batch.' }, 400);
+      }
+
+      const [{ data: existingProfiles }, { data: existingPending }] = await Promise.all([
+        adminClient.from('profiles').select('id, email, register_number, bus_id, role'),
+        adminClient.from('pending_student_assignments').select('id, email, register_number, bus_id')
+      ]);
+
+      const profileByEmail = new Map<string, typeof existingProfiles[number]>();
+      const profileByRegNo = new Map<string, typeof existingProfiles[number]>();
+      (existingProfiles ?? []).forEach((p) => {
+        if (p.email) profileByEmail.set(p.email.toLowerCase(), p);
+        if (p.register_number) profileByRegNo.set(p.register_number.toUpperCase(), p);
+      });
+
+      const pendingByEmail = new Map<string, typeof existingPending[number]>();
+      const pendingByRegNo = new Map<string, typeof existingPending[number]>();
+      (existingPending ?? []).forEach((p) => {
+        if (p.email) pendingByEmail.set(p.email.toLowerCase(), p);
+        if (p.register_number) pendingByRegNo.set(p.register_number.toUpperCase(), p);
+      });
+
+      let totalRows = 0;
+      let successfullyAdded = 0;
+      let alreadyExisting = 0;
+      let invalidRows = 0;
+      const rowErrors: Array<{ row: number; error: string; student_id?: string; email?: string }> = [];
+
+      const batchToUpsertPending: Array<{ email: string; full_name: string; register_number: string; bus_id: string; status: string }> = [];
+      const profilesToUpdateBus: Array<{ id: string; bus_id: string; full_name: string; register_number: string }> = [];
+
+      for (let i = 0; i < students.length; i++) {
+        const item = students[i];
+        const rowNum = i + 1;
+
+        const rawName = item.student_name ?? item.full_name ?? item.name ?? '';
+        const rawId = item.student_id ?? item.register_number ?? item.reg_no ?? item.roll_no ?? '';
+        const rawEmail = item.email ?? item.student_email ?? '';
+
+        const name = String(rawName).trim();
+        const regNo = String(rawId).trim().toUpperCase();
+        const email = String(rawEmail).trim().toLowerCase();
+
+        if (!name && !regNo && !email) {
+          continue;
+        }
+
+        totalRows++;
+
+        if (!name) {
+          invalidRows++;
+          rowErrors.push({ row: rowNum, error: 'Missing Student Name', student_id: regNo, email });
+          continue;
+        }
+        if (!regNo || !isValidRegNo(regNo)) {
+          invalidRows++;
+          rowErrors.push({ row: rowNum, error: 'Missing or invalid Student ID', student_id: regNo, email });
+          continue;
+        }
+        if (!email || !isValidEmail(email)) {
+          invalidRows++;
+          rowErrors.push({ row: rowNum, error: 'Missing or invalid Email address', student_id: regNo, email });
+          continue;
+        }
+
+        const matchedProfile = profileByEmail.get(email) ?? profileByRegNo.get(regNo);
+        const matchedPending = pendingByEmail.get(email) ?? pendingByRegNo.get(regNo);
+
+        const currentBusId = matchedProfile?.bus_id ?? matchedPending?.bus_id ?? null;
+
+        if (currentBusId === targetBusId) {
+          alreadyExisting++;
+          rowErrors.push({ row: rowNum, error: `Student ${regNo} is already assigned to your bus`, student_id: regNo, email });
+          continue;
+        }
+
+        if (currentBusId && currentBusId !== targetBusId) {
+          invalidRows++;
+          rowErrors.push({ row: rowNum, error: `Student ${regNo} is already assigned to another bus`, student_id: regNo, email });
+          continue;
+        }
+
+        batchToUpsertPending.push({
+          email,
+          full_name: name,
+          register_number: regNo,
+          bus_id: targetBusId,
+          status: 'active'
+        });
+
+        if (matchedProfile) {
+          profilesToUpdateBus.push({
+            id: matchedProfile.id,
+            bus_id: targetBusId,
+            full_name: name,
+            register_number: regNo
+          });
+        }
+
+        const syntheticProfile = { id: matchedProfile?.id ?? '', email, register_number: regNo, bus_id: targetBusId, role: 'student' as const };
+        const syntheticPending = { id: matchedPending?.id ?? '', email, register_number: regNo, bus_id: targetBusId };
+
+        profileByEmail.set(email, syntheticProfile);
+        profileByRegNo.set(regNo, syntheticProfile);
+        pendingByEmail.set(email, syntheticPending);
+        pendingByRegNo.set(regNo, syntheticPending);
+
+        successfullyAdded++;
+      }
+
+      if (batchToUpsertPending.length > 0) {
+        const { error: pendingErr } = await adminClient
+          .from('pending_student_assignments')
+          .upsert(batchToUpsertPending, { onConflict: 'email' });
+
+        if (pendingErr) {
+          return response(request, { message: 'Failed to import student assignments: ' + pendingErr.message }, 500);
+        }
+      }
+
+      if (profilesToUpdateBus.length > 0) {
+        for (const item of profilesToUpdateBus) {
+          await adminClient
+            .from('profiles')
+            .update({ bus_id: item.bus_id, full_name: item.full_name, register_number: item.register_number, status: 'active' })
+            .eq('id', item.id);
+        }
+      }
+
+      await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+
+      if (successfullyAdded > 0) {
+        await logAdminActivity(adminClient, { id: user.id, name: profile.full_name || user.email || 'Staff', role: profile.role }, {
+          action: 'STUDENT_IMPORTED',
+          entityType: 'student',
+          entityId: String(targetBusId),
+          entityName: `Bus ${busCheck.bus_number}`,
+          details: { totalRows, successfullyAdded, alreadyExisting, invalidRows, busNumber: busCheck.bus_number },
+          message: `${profile.role === 'coordinator' ? 'Bus Coordinator' : 'Admin'} ${profile.full_name || user.email} imported ${successfullyAdded} student(s) via CSV to Bus ${busCheck.bus_number}.`
+        });
+      }
+
+      return response(request, {
+        message: `${successfullyAdded} student(s) imported successfully.`,
+        summary: {
+          totalRows,
+          successfullyAdded,
+          alreadyExisting,
+          invalidRows,
+          rowErrors
+        }
+      });
     }
 
     if (action === 'move-student') {
       const { studentEmail, newBusId } = body as Record<string, unknown>;
       if (!isValidEmail(studentEmail)) return response(request, { message: 'A valid student email is required.' }, 400);
       if (!UUID_PATTERN.test(String(newBusId ?? ''))) return response(request, { message: 'A valid target bus ID is required.' }, 400);
-      const { data: busCheck } = await adminClient.from('buses').select('id').eq('id', newBusId).maybeSingle();
+      const { data: busCheck } = await adminClient.from('buses').select('id, bus_number').eq('id', newBusId).maybeSingle();
       if (!busCheck) return response(request, { message: 'Target bus not found.' }, 404);
       const emailLower = (studentEmail as string).toLowerCase();
       const { count } = await adminClient.from('profiles').select('id', { count: 'exact', head: true }).eq('email', emailLower).eq('role', 'student');
@@ -113,6 +327,16 @@ Deno.serve(async (request) => {
       await adminClient.from('profiles').update({ bus_id: newBusId, status: 'active' }).eq('email', emailLower).eq('role', 'student');
       await adminClient.from('pending_student_assignments').update({ bus_id: newBusId }).eq('email', emailLower);
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+
+      await logAdminActivity(adminClient, { id: user.id, name: profile.full_name || user.email || 'Admin', role: profile.role }, {
+        action: 'STUDENT_MOVED',
+        entityType: 'student',
+        entityId: emailLower,
+        entityName: emailLower,
+        details: { studentEmail: emailLower, newBusId, newBusNumber: busCheck.bus_number },
+        message: `Admin ${profile.full_name || user.email} moved student ${emailLower} to Bus ${busCheck.bus_number}.`
+      });
+
       return response(request, { message: 'Student moved to new bus successfully.' });
     }
 
@@ -137,6 +361,16 @@ Deno.serve(async (request) => {
       await adminClient.from('profiles').update({ status: 'inactive', bus_id: null }).eq('email', emailLower).eq('role', 'student');
       await adminClient.from('pending_student_assignments').delete().eq('email', emailLower);
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+
+      await logAdminActivity(adminClient, { id: user.id, name: profile.full_name || user.email || 'Staff', role: profile.role }, {
+        action: 'STUDENT_REMOVED',
+        entityType: 'student',
+        entityId: emailLower,
+        entityName: emailLower,
+        details: { studentEmail: emailLower },
+        message: `${profile.role === 'coordinator' ? 'Bus Coordinator' : 'Admin'} ${profile.full_name || user.email} removed student ${emailLower} from bus.`
+      });
+
       return response(request, { message: 'Student removed from bus.' });
     }
 
@@ -145,13 +379,23 @@ Deno.serve(async (request) => {
       if (!isValidEmail(email)) return response(request, { message: 'A valid email is required.' }, 400);
       if (!isValidName(fullName)) return response(request, { message: 'Full name must be 1–100 characters.' }, 400);
       if (!UUID_PATTERN.test(String(busId ?? ''))) return response(request, { message: 'A valid bus ID is required.' }, 400);
-      const { data: busCheck } = await adminClient.from('buses').select('id').eq('id', busId).maybeSingle();
+      const { data: busCheck } = await adminClient.from('buses').select('id, bus_number').eq('id', busId).maybeSingle();
       if (!busCheck) return response(request, { message: 'Bus not found.' }, 404);
-      // Update existing profile to coordinator, or will be applied on first sign-in via trigger
+      const emailLower = (email as string).toLowerCase();
       const { error: updateErr } = await adminClient.from('profiles')
         .update({ role: 'coordinator', bus_id: busId, full_name: (fullName as string).trim(), status: 'active' })
-        .eq('email', (email as string).toLowerCase());
+        .eq('email', emailLower);
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+
+      await logAdminActivity(adminClient, { id: user.id, name: profile.full_name || user.email || 'Admin', role: profile.role }, {
+        action: 'COORDINATOR_ASSIGNED',
+        entityType: 'coordinator',
+        entityId: emailLower,
+        entityName: (fullName as string).trim(),
+        details: { fullName: (fullName as string).trim(), email: emailLower, busId, busNumber: busCheck.bus_number },
+        message: `Admin ${profile.full_name || user.email} assigned ${(fullName as string).trim()} (${emailLower}) as coordinator for Bus ${busCheck.bus_number}.`
+      });
+
       return response(request, { message: 'Coordinator updated. If not yet signed in, they will be assigned automatically on first login.' });
     }
 
@@ -160,7 +404,7 @@ Deno.serve(async (request) => {
       if (!isValidEmail(email)) return response(request, { message: 'A valid email is required.' }, 400);
       const emailLower = (email as string).toLowerCase().trim();
 
-      const { data: targetProfile } = await adminClient.from('profiles').select('id, role, bus_id').eq('email', emailLower).maybeSingle();
+      const { data: targetProfile } = await adminClient.from('profiles').select('id, role, bus_id, full_name').eq('email', emailLower).maybeSingle();
       if (!targetProfile) {
         return response(request, { message: `Coordinator profile for ${emailLower} was not found.` }, 404);
       }
@@ -168,7 +412,6 @@ Deno.serve(async (request) => {
         return response(request, { message: `User ${emailLower} is not currently a coordinator.` }, 400);
       }
 
-      // Step 1: Unassign bus and set status inactive (safe for both @karunya.edu.in and faculty @karunya.edu emails)
       const updatePayload: Record<string, unknown> = { bus_id: null, status: 'inactive' };
       if (emailLower.endsWith('@karunya.edu.in')) {
         updatePayload.role = 'student';
@@ -179,7 +422,6 @@ Deno.serve(async (request) => {
 
       if (updateErr) return response(request, { message: updateErr.message || 'Could not remove coordinator.' }, 500);
 
-      // Step 2: Attempt hard deletion if no historical attendance logs or sessions reference this user
       const [{ count: sessionCount }, { count: attendanceCount }] = await Promise.all([
         adminClient.from('attendance_sessions').select('id', { count: 'exact', head: true }).eq('created_by', targetProfile.id),
         adminClient.from('attendance').select('id', { count: 'exact', head: true }).eq('student_id', targetProfile.id)
@@ -193,6 +435,16 @@ Deno.serve(async (request) => {
       }
 
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+
+      await logAdminActivity(adminClient, { id: user.id, name: profile.full_name || user.email || 'Admin', role: profile.role }, {
+        action: 'COORDINATOR_REMOVED',
+        entityType: 'coordinator',
+        entityId: emailLower,
+        entityName: targetProfile.full_name || emailLower,
+        details: { email: emailLower },
+        message: `Admin ${profile.full_name || user.email} removed coordinator privileges for ${targetProfile.full_name || emailLower}.`
+      });
+
       return response(request, { message: 'Coordinator removed successfully.' });
     }
 
@@ -219,6 +471,16 @@ Deno.serve(async (request) => {
 
       if (insertErr) return response(request, { message: insertErr.message || 'Could not create bus.' }, 400);
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+
+      await logAdminActivity(adminClient, { id: user.id, name: profile.full_name || user.email || 'Admin', role: profile.role }, {
+        action: 'BUS_CREATED',
+        entityType: 'bus',
+        entityId: newBus.id,
+        entityName: `Bus ${busNumStr}`,
+        details: { busNumber: busNumStr, capacity: cap, routeName: route },
+        message: `Admin ${profile.full_name || user.email} created Bus ${busNumStr} (${route}) with ${cap} seats.`
+      });
+
       return response(request, { message: `Bus ${num} added successfully!` });
     }
 
@@ -233,7 +495,7 @@ Deno.serve(async (request) => {
       if (isNaN(cap) || cap < 1 || cap > 200) return response(request, { message: 'Capacity must be a positive number between 1 and 200.' }, 400);
 
       const busNumStr = String(num);
-      const { data: targetBus } = await adminClient.from('buses').select('id, bus_number').eq('id', busId).maybeSingle();
+      const { data: targetBus } = await adminClient.from('buses').select('id, bus_number, route, capacity').eq('id', busId).maybeSingle();
       if (!targetBus) return response(request, { message: 'Bus not found.' }, 404);
 
       const { data: existingOther } = await adminClient.from('buses').select('id').eq('bus_number', busNumStr).neq('id', busId).maybeSingle();
@@ -247,6 +509,16 @@ Deno.serve(async (request) => {
 
       if (updateErr) return response(request, { message: updateErr.message || 'Could not update bus.' }, 500);
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+
+      await logAdminActivity(adminClient, { id: user.id, name: profile.full_name || user.email || 'Admin', role: profile.role }, {
+        action: 'BUS_UPDATED',
+        entityType: 'bus',
+        entityId: String(busId),
+        entityName: `Bus ${busNumStr}`,
+        details: { busId, busNumber: busNumStr, capacityOld: targetBus.capacity, capacityNew: cap, routeOld: targetBus.route, routeNew: route },
+        message: `Admin ${profile.full_name || user.email} updated Bus ${busNumStr} (Capacity: ${targetBus.capacity ?? 60} → ${cap}, Route: ${route}).`
+      });
+
       return response(request, { message: `Bus ${num} updated successfully.` });
     }
 
@@ -276,7 +548,69 @@ Deno.serve(async (request) => {
       if (deleteErr) return response(request, { message: deleteErr.message || 'Could not delete bus.' }, 500);
 
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+
+      await logAdminActivity(adminClient, { id: user.id, name: profile.full_name || user.email || 'Admin', role: profile.role }, {
+        action: 'BUS_DELETED',
+        entityType: 'bus',
+        entityId: String(busId),
+        entityName: `Bus ${targetBus.bus_number}`,
+        details: { busId, busNumber: targetBus.bus_number, routeName: targetBus.route },
+        message: `Admin ${profile.full_name || user.email} deleted Bus ${targetBus.bus_number} (${targetBus.route || 'No route'}).`
+      });
+
       return response(request, { message: `Bus ${targetBus.bus_number} deleted successfully.` });
+    }
+
+    if (action === 'get-admin-activities') {
+      if (profile.role !== 'admin') {
+        return response(request, { message: 'Admin access required.' }, 403);
+      }
+      const page = Math.max(1, Number((body as any).page || 1));
+      const limit = Math.min(100, Math.max(1, Number((body as any).limit || 20)));
+      const unreadOnly = Boolean((body as any).unreadOnly);
+      const offset = (page - 1) * limit;
+
+      let query = adminClient.from('admin_activities').select('*', { count: 'exact' }).order('created_at', { ascending: false });
+      if (unreadOnly) query = query.eq('is_read', false);
+      query = query.range(offset, offset + limit - 1);
+
+      const { data: activities, count, error: fetchErr } = await query;
+      if (fetchErr) return response(request, { message: 'Could not load activities: ' + fetchErr.message }, 500);
+
+      const { count: unreadCount } = await adminClient.from('admin_activities').select('id', { count: 'exact', head: true }).eq('is_read', false);
+
+      return response(request, {
+        activities: activities ?? [],
+        totalCount: count ?? 0,
+        unreadCount: unreadCount ?? 0,
+        page,
+        limit
+      });
+    }
+
+    if (action === 'mark-activity-read') {
+      if (profile.role !== 'admin') {
+        return response(request, { message: 'Admin access required.' }, 403);
+      }
+      const { activityId, activityIds } = body as { activityId?: string; activityIds?: string[] };
+      const idsToUpdate = activityIds || (activityId ? [activityId] : []);
+      if (!idsToUpdate.length) return response(request, { message: 'Activity ID(s) required.' }, 400);
+
+      const { error: updateErr } = await adminClient.from('admin_activities').update({ is_read: true }).in('id', idsToUpdate);
+      if (updateErr) return response(request, { message: 'Could not update activity.' }, 500);
+
+      const { count: unreadCount } = await adminClient.from('admin_activities').select('id', { count: 'exact', head: true }).eq('is_read', false);
+      return response(request, { message: 'Activity marked as read.', unreadCount: unreadCount ?? 0 });
+    }
+
+    if (action === 'mark-all-activities-read') {
+      if (profile.role !== 'admin') {
+        return response(request, { message: 'Admin access required.' }, 403);
+      }
+      const { error: updateErr } = await adminClient.from('admin_activities').update({ is_read: true }).eq('is_read', false);
+      if (updateErr) return response(request, { message: 'Could not mark activities as read.' }, 500);
+
+      return response(request, { message: 'All activities marked as read.', unreadCount: 0 });
     }
     
     if (action === 'create-session' || action === 'mark-attendance') {

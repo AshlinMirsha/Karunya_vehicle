@@ -117,7 +117,13 @@ export function renderNavbar(user = null, activeRole = null) {
           ${mobileToggler}
           ${navItems}
 
-          <div class="d-flex align-items-center gap-3 ms-auto ms-lg-0">
+          <div class="d-flex align-items-center gap-2 ms-auto ms-lg-0">
+            ${activeRole === 'Admin' ? `
+              <a id="admin-nav-notification-btn" href="#admin-activities-section" class="btn btn-outline-warning btn-sm position-relative d-inline-flex align-items-center gap-1 text-decoration-none px-2 py-1 rounded-pill" title="Notifications & Recent Activities" aria-label="Notifications">
+                <span class="fs-6">🔔</span>
+                <span id="nav-unread-badge" class="badge bg-danger rounded-pill px-2 py-1" style="font-size: 0.7rem;" hidden>0</span>
+              </a>
+            ` : ''}
             ${authBadge}
           </div>
         </div>
