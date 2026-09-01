@@ -1966,7 +1966,17 @@ const setupStudentManagementControls = (buses) => {
       btnAddBus.disabled = false;
       btnAddBus.textContent = 'Add Bus';
       if (error || !data?.message) {
-        const err = error?.message || 'Could not create bus.';
+        let err = data?.message;
+        if (!err && error) {
+          try {
+            if (typeof error.context?.json === 'function') {
+              const resBody = await error.context.json();
+              err = resBody?.message;
+            }
+          } catch (_) {}
+          if (!err && error.message && !error.message.includes('non-2xx')) err = error.message;
+        }
+        err = err || 'Could not create bus.';
         if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
         showToast(err, 'danger');
       } else {
