@@ -12,7 +12,7 @@ const QR_TOKEN_PATTERN = /^[0-9a-f]{64}$/i;
 const SESSION_TYPES = new Set(['Morning', 'Evening', 'Special']);
 const MAX_REQUEST_BODY_BYTES = 4_096;
 const EMAIL_PATTERN = /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i;
-const ADMIN_ONLY_ACTIONS = new Set(['move-student', 'add-coordinator', 'remove-coordinator', 'add-bus']);
+const ADMIN_ONLY_ACTIONS = new Set(['move-student', 'add-coordinator', 'remove-coordinator', 'add-bus', 'edit-bus', 'delete-bus']);
 const STAFF_ACTIONS = new Set(['add-student', 'remove-student', ...ADMIN_ONLY_ACTIONS]);
 const isValidEmail = (v: unknown): v is string => typeof v === 'string' && EMAIL_PATTERN.test(v) && v.length <= 254;
 const isValidName  = (v: unknown): v is string => typeof v === 'string' && v.trim().length >= 1 && v.length <= 100;
@@ -158,12 +158,24 @@ Deno.serve(async (request) => {
     if (action === 'remove-coordinator') {
       const { email } = body as Record<string, unknown>;
       if (!isValidEmail(email)) return response(request, { message: 'A valid email is required.' }, 400);
+      const emailLower = (email as string).toLowerCase().trim();
+
+      const { data: targetProfile } = await adminClient.from('profiles').select('id, role, bus_id').eq('email', emailLower).maybeSingle();
+      if (!targetProfile) {
+        return response(request, { message: `Coordinator profile for ${emailLower} was not found.` }, 404);
+      }
+      if (targetProfile.role !== 'coordinator') {
+        return response(request, { message: `User ${emailLower} is not currently a coordinator.` }, 400);
+      }
+
       const { error: updateErr } = await adminClient.from('profiles')
-        .update({ role: 'student', bus_id: null })
-        .eq('email', (email as string).toLowerCase())
-        .eq('role', 'coordinator');
+        .update({ role: 'student', bus_id: null, status: 'inactive' })
+        .eq('id', targetProfile.id);
+
+      if (updateErr) return response(request, { message: updateErr.message || 'Could not remove coordinator.' }, 500);
+
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
-      return response(request, { message: 'Coordinator removed and unassigned.' });
+      return response(request, { message: 'Coordinator removed successfully.' });
     }
 
     if (action === 'add-bus') {
@@ -173,6 +185,7 @@ Deno.serve(async (request) => {
       const route = String(routeName || '').trim();
       if (!route) return response(request, { message: 'Route description is required.' }, 400);
       const cap = parseInt(String(capacity || 60), 10);
+      if (isNaN(cap) || cap < 1 || cap > 200) return response(request, { message: 'Capacity must be a positive number between 1 and 200.' }, 400);
 
       const busNumStr = String(num);
       const { data: existing } = await adminClient.from('buses').select('id').eq('bus_number', busNumStr).maybeSingle();
@@ -181,7 +194,7 @@ Deno.serve(async (request) => {
       const { data: newBus, error: insertErr } = await adminClient.from('buses').insert({
         bus_number: busNumStr,
         route: route,
-        capacity: isNaN(cap) || cap < 1 ? 60 : cap,
+        capacity: cap,
         latitude: 0.0,
         longitude: 0.0
       }).select().single();
@@ -189,6 +202,63 @@ Deno.serve(async (request) => {
       if (insertErr) return response(request, { message: insertErr.message || 'Could not create bus.' }, 400);
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
       return response(request, { message: `Bus ${num} added successfully!` });
+    }
+
+    if (action === 'edit-bus') {
+      const { busId, busNumber, routeName, capacity } = body as Record<string, unknown>;
+      if (!UUID_PATTERN.test(String(busId ?? ''))) return response(request, { message: 'A valid bus ID is required.' }, 400);
+      const num = parseInt(String(busNumber), 10);
+      if (isNaN(num) || num < 1 || num > 999) return response(request, { message: 'Bus number must be between 1 and 999.' }, 400);
+      const route = String(routeName || '').trim();
+      if (!route) return response(request, { message: 'Route description is required.' }, 400);
+      const cap = parseInt(String(capacity || 60), 10);
+      if (isNaN(cap) || cap < 1 || cap > 200) return response(request, { message: 'Capacity must be a positive number between 1 and 200.' }, 400);
+
+      const busNumStr = String(num);
+      const { data: targetBus } = await adminClient.from('buses').select('id, bus_number').eq('id', busId).maybeSingle();
+      if (!targetBus) return response(request, { message: 'Bus not found.' }, 404);
+
+      const { data: existingOther } = await adminClient.from('buses').select('id').eq('bus_number', busNumStr).neq('id', busId).maybeSingle();
+      if (existingOther) return response(request, { message: `Bus number ${num} is already assigned to another route.` }, 400);
+
+      const { error: updateErr } = await adminClient.from('buses').update({
+        bus_number: busNumStr,
+        route: route,
+        capacity: cap
+      }).eq('id', busId);
+
+      if (updateErr) return response(request, { message: updateErr.message || 'Could not update bus.' }, 500);
+      await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+      return response(request, { message: `Bus ${num} updated successfully.` });
+    }
+
+    if (action === 'delete-bus') {
+      const { busId } = body as Record<string, unknown>;
+      if (!UUID_PATTERN.test(String(busId ?? ''))) return response(request, { message: 'A valid bus ID is required.' }, 400);
+
+      const { data: targetBus } = await adminClient.from('buses').select('id, bus_number, route').eq('id', busId).maybeSingle();
+      if (!targetBus) return response(request, { message: 'Bus not found.' }, 404);
+
+      const [{ count: userCount }, { count: pendingCount }, { count: sessionCount }] = await Promise.all([
+        adminClient.from('profiles').select('id', { count: 'exact', head: true }).eq('bus_id', busId),
+        adminClient.from('pending_student_assignments').select('email', { count: 'exact', head: true }).eq('bus_id', busId),
+        adminClient.from('attendance_sessions').select('id', { count: 'exact', head: true }).eq('bus_id', busId)
+      ]);
+
+      const totalAssigned = (userCount ?? 0) + (pendingCount ?? 0);
+      const totalSessions = sessionCount ?? 0;
+
+      if (totalAssigned > 0 || totalSessions > 0) {
+        return response(request, {
+          message: `Cannot delete Bus ${targetBus.bus_number}: ${totalAssigned} user(s) are assigned to it and ${totalSessions} attendance session(s) exist. Reassign users and clear dependencies first.`
+        }, 400);
+      }
+
+      const { error: deleteErr } = await adminClient.from('buses').delete().eq('id', busId);
+      if (deleteErr) return response(request, { message: deleteErr.message || 'Could not delete bus.' }, 500);
+
+      await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
+      return response(request, { message: `Bus ${targetBus.bus_number} deleted successfully.` });
     }
     
     if (action === 'create-session' || action === 'mark-attendance') {

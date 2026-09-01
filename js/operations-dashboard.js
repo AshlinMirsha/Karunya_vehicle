@@ -99,28 +99,185 @@ const addOption = (select, value, label) => {
 
 
 
+let globalRefreshAdminViews = null;
+
 const renderAdminDirectory = async (buses) => {
   const { data: people, error } = await supabase.rpc('admin_people_records');
-  if (error) return showToast('Student and coordinator records could not be loaded.', 'danger');
-  const section = document.createElement('section');
-  section.id = 'admin-directory-section';
-  section.className = 'glass-panel p-4 mt-4';
-  section.innerHTML = `<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3"><div><h2 class="h5 fw-bold mb-1">People and bus assignments</h2><p class="text-muted small mb-0">Students, coordinators, and their assigned bus details.</p></div><div class="d-flex gap-2"><select class="form-select" id="directory-role"><option value="">All people</option><option value="student">Students</option><option value="coordinator">Coordinators</option><option value="admin">Admins</option></select><select class="form-select" id="directory-bus"><option value="">All buses</option></select></div></div><div class="table-responsive" style="max-height: 450px; overflow-y: auto;"><table class="table table-dark-custom align-middle mb-0"><thead><tr><th>Role</th><th>Name</th><th>Register number</th><th>Email</th><th>Bus</th><th>Route</th><th>Status</th></tr></thead><tbody id="directory-list"></tbody></table></div>`;
-  document.querySelector('main').append(section);
+  if (error) {
+    showToast('Student and coordinator records could not be loaded.', 'danger');
+    return [];
+  }
+  let section = document.getElementById('admin-directory-section');
+  if (!section) {
+    section = document.createElement('section');
+    section.id = 'admin-directory-section';
+    section.className = 'glass-panel p-4 mt-4';
+    document.querySelector('main')?.append(section);
+  }
+  section.innerHTML = `<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3"><div><h2 class="h5 fw-bold mb-1">People and bus assignments</h2><p class="text-muted small mb-0">Students, coordinators, and their assigned bus details.</p></div><div class="d-flex gap-2"><select class="form-select" id="directory-role"><option value="">All people</option><option value="student">Students</option><option value="coordinator">Coordinators</option><option value="admin">Admins</option></select><select class="form-select" id="directory-bus"><option value="">All buses</option></select></div></div><div class="table-responsive" style="max-height: 450px; overflow-y: auto;"><table class="table table-dark-custom align-middle mb-0"><thead><tr><th>Role</th><th>Name</th><th>Register number</th><th>Email</th><th>Bus</th><th>Route</th><th>Status</th><th class="text-end">Actions</th></tr></thead><tbody id="directory-list"></tbody></table></div>`;
+  
   const roleFilter = section.querySelector('#directory-role');
   const busFilter = section.querySelector('#directory-bus');
-  buses.forEach((bus) => addOption(busFilter, bus.id, `Bus ${bus.bus_number}`));
+  (buses || []).forEach((bus) => addOption(busFilter, bus.id, `Bus ${bus.bus_number}`));
+
   const draw = () => {
     const filtered = (people ?? []).filter((person) => (!roleFilter.value || person.role === roleFilter.value) && (!busFilter.value || person.bus_id === busFilter.value));
     const body = section.querySelector('#directory-list');
     if (!filtered.length) {
-      const empty = row(['No people match these filters.']); empty.firstElementChild.colSpan = 7; body.replaceChildren(empty); return;
+      const emptyRow = document.createElement('tr');
+      emptyRow.innerHTML = `<td colspan="8" class="text-center text-muted py-3">No people match these filters.</td>`;
+      body.replaceChildren(emptyRow);
+      return;
     }
-    body.replaceChildren(...filtered.map((person) => row([
-      person.role, person.full_name || '—', person.register_number || '—', person.email, person.bus_number ? `Bus ${person.bus_number}` : 'Unassigned', person.route || '—', person.status,
-    ])));
+    body.replaceChildren(...filtered.map((person) => {
+      const tr = document.createElement('tr');
+      const actionCell = person.role === 'coordinator'
+        ? `<button class="btn btn-outline-danger btn-sm btn-remove-coord-row" data-email="${person.email}">Remove</button>`
+        : '—';
+
+      tr.innerHTML = `
+        <td><span class="badge ${person.role === 'admin' ? 'bg-danger' : person.role === 'coordinator' ? 'bg-warning text-dark' : 'bg-primary'}">${person.role}</span></td>
+        <td>${person.full_name || '—'}</td>
+        <td>${person.register_number || '—'}</td>
+        <td>${person.email}</td>
+        <td>${person.bus_number ? `Bus ${person.bus_number}` : 'Unassigned'}</td>
+        <td>${person.route || '—'}</td>
+        <td><span class="badge bg-secondary">${person.status}</span></td>
+        <td class="text-end">${actionCell}</td>
+      `;
+
+      if (person.role === 'coordinator') {
+        tr.querySelector('.btn-remove-coord-row')?.addEventListener('click', async () => {
+          if (confirm(`Remove coordinator privileges for ${person.full_name || person.email}?`)) {
+            await handleRemoveCoordinator(person.email);
+          }
+        });
+      }
+      return tr;
+    }));
   };
-  roleFilter.addEventListener('change', draw); busFilter.addEventListener('change', draw); draw();
+  roleFilter.addEventListener('change', draw);
+  busFilter.addEventListener('change', draw);
+  draw();
+
+  return people ?? [];
+};
+
+const renderAdminBusFleet = async (buses, people = []) => {
+  let section = document.getElementById('admin-bus-fleet-section');
+  if (!section) {
+    section = document.createElement('section');
+    section.id = 'admin-bus-fleet-section';
+    section.className = 'glass-panel p-4 mt-4';
+    const directorySection = document.getElementById('admin-directory-section');
+    if (directorySection) {
+      directorySection.before(section);
+    } else {
+      document.querySelector('main')?.append(section);
+    }
+  }
+
+  const coordinators = (people || []).filter(p => p.role === 'coordinator');
+
+  section.innerHTML = `
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+      <div>
+        <h2 class="h5 fw-bold mb-1">🚌 Bus Routes &amp; Fleet Management</h2>
+        <p class="text-muted small mb-0">Manage campus bus routes, seating capacities, and assigned coordinators.</p>
+      </div>
+      <button class="btn btn-glass-primary btn-sm" data-bs-toggle="offcanvas" data-bs-target="#sidebarStudentMgmt">
+        ➕ Add New Bus
+      </button>
+    </div>
+    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+      <table class="table table-dark-custom align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Bus Number</th>
+            <th>Route Description</th>
+            <th>Capacity</th>
+            <th>Assigned Coordinator(s)</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="bus-fleet-list"></tbody>
+      </table>
+    </div>
+  `;
+
+  const tbody = section.querySelector('#bus-fleet-list');
+  if (!buses || !buses.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">No bus routes configured yet. Click "Add New Bus" to create one.</td></tr>`;
+    return;
+  }
+
+  tbody.replaceChildren(...buses.map((bus) => {
+    const tr = document.createElement('tr');
+    const busCoords = coordinators.filter(c => c.bus_id === bus.id);
+    const coordDisplay = busCoords.length
+      ? busCoords.map(c => `<span class="badge bg-warning text-dark me-1">${c.full_name || c.email}</span>`).join('')
+      : `<span class="text-muted small">Unassigned</span>`;
+
+    tr.innerHTML = `
+      <td><strong class="text-warning">Bus ${bus.bus_number}</strong></td>
+      <td>${bus.route || '—'}</td>
+      <td><span class="badge bg-info text-dark">${bus.capacity ?? 60} seats</span></td>
+      <td>${coordDisplay}</td>
+      <td class="text-end">
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-info btn-edit-bus" data-id="${bus.id}">✏️ Edit</button>
+          <button class="btn btn-outline-danger btn-delete-bus" data-id="${bus.id}">🗑️ Delete</button>
+        </div>
+      </td>
+    `;
+
+    tr.querySelector('.btn-edit-bus')?.addEventListener('click', () => openEditBusModal(bus));
+    tr.querySelector('.btn-delete-bus')?.addEventListener('click', () => confirmAndDeleteBus(bus));
+    return tr;
+  }));
+};
+
+const openEditBusModal = (bus) => {
+  const modalEl = document.getElementById('modalEditBus');
+  if (!modalEl) return;
+  document.getElementById('edit-bus-id').value = bus.id;
+  document.getElementById('edit-bus-number').value = bus.bus_number;
+  document.getElementById('edit-bus-capacity').value = bus.capacity ?? 60;
+  document.getElementById('edit-bus-route').value = bus.route || '';
+  const msg = document.getElementById('edit-bus-msg');
+  if (msg) msg.innerHTML = '';
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  modal.show();
+};
+
+const confirmAndDeleteBus = async (bus) => {
+  if (!confirm(`Are you sure you want to delete Bus ${bus.bus_number} (${bus.route || 'No route description'})?\n\nThis action cannot be undone.`)) {
+    return;
+  }
+  showToast(`Deleting Bus ${bus.bus_number}…`, 'info');
+  const { data, error } = await supabase.functions.invoke('attendance-api', {
+    body: { action: 'delete-bus', busId: bus.id }
+  });
+  if (error || !data?.message) {
+    let err = data?.message;
+    if (!err && error) {
+      try {
+        if (typeof error.context?.json === 'function') {
+          const resBody = await error.context.json();
+          err = resBody?.message;
+        }
+      } catch (_) {}
+      if (!err && error.message && !error.message.includes('non-2xx')) err = error.message;
+    }
+    err = err || 'Could not delete bus.';
+    showToast(err, 'danger');
+    alert(`Bus Deletion Failed:\n\n${err}`);
+  } else {
+    showToast(data.message, 'success');
+    if (typeof globalRefreshAdminViews === 'function') {
+      await globalRefreshAdminViews();
+    }
+  }
 };
 
 const renderStudentRoster = async () => {
@@ -986,8 +1143,36 @@ export async function initOperationsDashboard(expectedRole) {
   renderBoardingManagement(expectedRole, profile, buses);
 
   if (expectedRole === 'admin') {
-    await renderAdminDirectory(buses);
+    const people = await renderAdminDirectory(buses);
+    await renderAdminBusFleet(buses, people);
     await renderSecurityDashboard();
+
+    globalRefreshAdminViews = async () => {
+      let { data: newBuses } = await supabase.rpc('authorized_bus_records');
+      if (!newBuses || !newBuses.length) {
+        const { data: dbBuses } = await supabase.from('buses').select('id, bus_number, route, capacity').order('bus_number');
+        newBuses = dbBuses ?? [];
+      }
+
+      ['add-student-bus', 'move-student-bus', 'add-coord-bus', 'filter-bus', 'rpt-dr-bus'].forEach((id) => {
+        const select = document.getElementById(id);
+        if (select) {
+          const currentVal = select.value;
+          select.replaceChildren();
+          if (id === 'filter-bus') addOption(select, '', 'All buses');
+          else if (id === 'rpt-dr-bus') addOption(select, '', 'All Buses');
+          (newBuses || []).forEach((b) => addOption(select, b.id, `Bus ${b.bus_number} — ${b.route}`));
+          if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
+            select.value = currentVal;
+          }
+        }
+      });
+
+      if (document.getElementById('stat-active-buses')) text('stat-active-buses', newBuses.length);
+
+      const refreshedPeople = await renderAdminDirectory(newBuses);
+      await renderAdminBusFleet(newBuses, refreshedPeople);
+    };
   }
 
   if (!canGenerateQr) return;
@@ -1892,6 +2077,45 @@ const setupStudentManagementControls = (buses) => {
     };
   }
 
+  const handleRemoveCoordinator = async (email) => {
+    const msg = document.getElementById('remove-coord-msg');
+    const btnRemoveCoord = document.getElementById('btn-remove-coordinator');
+    if (btnRemoveCoord) {
+      btnRemoveCoord.disabled = true;
+      btnRemoveCoord.textContent = 'Removing…';
+    }
+    const { data, error } = await supabase.functions.invoke('attendance-api', {
+      body: { action: 'remove-coordinator', email }
+    });
+    if (btnRemoveCoord) {
+      btnRemoveCoord.disabled = false;
+      btnRemoveCoord.textContent = 'Remove Coordinator';
+    }
+    if (error || !data?.message) {
+      let err = data?.message;
+      if (!err && error) {
+        try {
+          if (typeof error.context?.json === 'function') {
+            const resBody = await error.context.json();
+            err = resBody?.message;
+          }
+        } catch (_) {}
+        if (!err && error.message && !error.message.includes('non-2xx')) err = error.message;
+      }
+      err = err || 'Could not remove coordinator.';
+      if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
+      showToast(err, 'danger');
+    } else {
+      if (msg) msg.innerHTML = `<span class="text-success">${data.message}</span>`;
+      showToast(data.message, 'success');
+      const input = document.getElementById('remove-coord-email');
+      if (input) input.value = '';
+      if (typeof globalRefreshAdminViews === 'function') {
+        await globalRefreshAdminViews();
+      }
+    }
+  };
+
   const btnAddCoord = document.getElementById('btn-add-coordinator');
   if (btnAddCoord) {
     btnAddCoord.onclick = async () => {
@@ -1903,18 +2127,35 @@ const setupStudentManagementControls = (buses) => {
         showToast('Name, email, and bus are required.', 'danger');
         return;
       }
+      btnAddCoord.disabled = true;
+      btnAddCoord.textContent = 'Adding…';
       const { data, error } = await supabase.functions.invoke('attendance-api', {
         body: { action: 'add-coordinator', fullName: name, email, busId }
       });
-      if (error) {
-        const err = error?.context?.message || data?.message || error?.message || 'Could not add coordinator.';
+      btnAddCoord.disabled = false;
+      btnAddCoord.textContent = 'Add Coordinator';
+      if (error || !data?.message) {
+        let err = data?.message;
+        if (!err && error) {
+          try {
+            if (typeof error.context?.json === 'function') {
+              const resBody = await error.context.json();
+              err = resBody?.message;
+            }
+          } catch (_) {}
+          if (!err && error.message && !error.message.includes('non-2xx')) err = error.message;
+        }
+        err = err || 'Could not add coordinator.';
         if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
         showToast(err, 'danger');
       } else {
         if (msg) msg.innerHTML = `<span class="text-success">${data?.message || 'Coordinator updated successfully.'}</span>`;
-        showToast('Coordinator updated successfully.', 'success');
+        showToast(data?.message || 'Coordinator updated successfully.', 'success');
         document.getElementById('add-coord-name').value = '';
         document.getElementById('add-coord-email').value = '';
+        if (typeof globalRefreshAdminViews === 'function') {
+          await globalRefreshAdminViews();
+        }
       }
     };
   }
@@ -1923,27 +2164,11 @@ const setupStudentManagementControls = (buses) => {
   if (btnRemoveCoord) {
     btnRemoveCoord.onclick = async () => {
       const email = document.getElementById('remove-coord-email')?.value?.trim()?.toLowerCase();
-      const msg = document.getElementById('remove-coord-msg');
       if (!email) {
         showToast('Coordinator email is required.', 'danger');
         return;
       }
-      btnRemoveCoord.disabled = true;
-      btnRemoveCoord.textContent = 'Removing…';
-      const { data, error } = await supabase.functions.invoke('attendance-api', {
-        body: { action: 'remove-coordinator', email }
-      });
-      btnRemoveCoord.disabled = false;
-      btnRemoveCoord.textContent = 'Remove Coordinator';
-      if (error || !data?.message) {
-        const err = error?.message || 'Could not remove coordinator.';
-        if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
-        showToast(err, 'danger');
-      } else {
-        if (msg) msg.innerHTML = `<span class="text-success">${data.message}</span>`;
-        showToast(data.message, 'success');
-        document.getElementById('remove-coord-email').value = '';
-      }
+      await handleRemoveCoordinator(email);
     };
   }
 
@@ -1984,6 +2209,62 @@ const setupStudentManagementControls = (buses) => {
         showToast(data.message, 'success');
         document.getElementById('add-bus-number').value = '';
         document.getElementById('add-bus-route').value = '';
+        if (typeof globalRefreshAdminViews === 'function') {
+          await globalRefreshAdminViews();
+        }
+      }
+    };
+  }
+
+  const btnSaveEditBus = document.getElementById('btn-save-edit-bus');
+  if (btnSaveEditBus) {
+    btnSaveEditBus.onclick = async () => {
+      const busId = document.getElementById('edit-bus-id')?.value;
+      const busNumber = document.getElementById('edit-bus-number')?.value;
+      const capacity = document.getElementById('edit-bus-capacity')?.value || 60;
+      const routeName = document.getElementById('edit-bus-route')?.value?.trim();
+      const msg = document.getElementById('edit-bus-msg');
+
+      if (!busId || !busNumber || !routeName) {
+        showToast('Bus number and route description are required.', 'danger');
+        return;
+      }
+
+      btnSaveEditBus.disabled = true;
+      btnSaveEditBus.textContent = 'Saving…';
+
+      const { data, error } = await supabase.functions.invoke('attendance-api', {
+        body: { action: 'edit-bus', busId, busNumber, capacity, routeName }
+      });
+
+      btnSaveEditBus.disabled = false;
+      btnSaveEditBus.textContent = 'Save Changes';
+
+      if (error || !data?.message) {
+        let err = data?.message;
+        if (!err && error) {
+          try {
+            if (typeof error.context?.json === 'function') {
+              const resBody = await error.context.json();
+              err = resBody?.message;
+            }
+          } catch (_) {}
+          if (!err && error.message && !error.message.includes('non-2xx')) err = error.message;
+        }
+        err = err || 'Could not update bus.';
+        if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
+        showToast(err, 'danger');
+      } else {
+        if (msg) msg.innerHTML = `<span class="text-success">${data.message}</span>`;
+        showToast(data.message, 'success');
+        const modalEl = document.getElementById('modalEditBus');
+        if (modalEl) {
+          const modal = bootstrap.Modal.getInstance(modalEl);
+          modal?.hide();
+        }
+        if (typeof globalRefreshAdminViews === 'function') {
+          await globalRefreshAdminViews();
+        }
       }
     };
   }

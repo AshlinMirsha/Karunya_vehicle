@@ -28,6 +28,9 @@ test('attendance API remains JWT-protected', async () => {
   assert.match(api, /manickaraja@karunya\.edu/);
   assert.match(api, /profile\.role !== 'coordinator'/);
   assert.match(api, /action === 'add-bus'/);
+  assert.match(api, /action === 'edit-bus'/);
+  assert.match(api, /action === 'delete-bus'/);
+  assert.match(api, /action === 'remove-coordinator'/);
   assert.match(api, /latitude: 0\.0/);
   assert.match(api, /longitude: 0\.0/);
   assert.match(api, /capacity:/);
