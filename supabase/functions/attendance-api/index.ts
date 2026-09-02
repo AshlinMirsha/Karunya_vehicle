@@ -391,19 +391,58 @@ Deno.serve(async (request) => {
       if (!busCheck) return response(request, { message: 'Bus not found.' }, 404);
       const emailLower = (email as string).toLowerCase().trim();
 
-      const { data: targetProfile } = await adminClient.from('profiles').select('id').eq('email', emailLower).maybeSingle();
-      if (targetProfile) {
-        await adminClient.from('profiles')
-          .update({ role: 'coordinator', bus_id: busId, full_name: (fullName as string).trim(), status: 'active' })
-          .eq('id', targetProfile.id);
-      } else {
-        await adminClient.from('pending_coordinator_assignments')
-          .upsert({
-            email: emailLower,
-            full_name: (fullName as string).trim(),
-            bus_id: busId,
-            status: 'active'
-          });
+      // 1. Try atomic database RPC assign_coordinator
+      const { data: rpcRes, error: rpcErr } = await adminClient.rpc('assign_coordinator', {
+        p_email: emailLower,
+        p_full_name: (fullName as string).trim(),
+        p_bus_id: busId
+      });
+
+      if (rpcErr) {
+        console.warn('assign_coordinator RPC failed, falling back to direct logic:', rpcErr);
+        // Fallback: update profile if exists, else upsert pending
+        const { data: targetProfile } = await adminClient.from('profiles').select('id').eq('email', emailLower).maybeSingle();
+        if (targetProfile) {
+          const { error: updErr } = await adminClient.from('profiles')
+            .update({ role: 'coordinator', bus_id: busId, full_name: (fullName as string).trim(), status: 'active' })
+            .eq('id', targetProfile.id);
+          if (updErr) return response(request, { message: updErr.message || 'Could not update coordinator profile.' }, 500);
+        } else {
+          // Check auth.users for existing account without profile
+          let authUserId: string | null = null;
+          try {
+            const { data: usersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+            const foundUser = usersData?.users?.find(u => u.email?.toLowerCase() === emailLower);
+            if (foundUser) authUserId = foundUser.id;
+          } catch (_) {}
+
+          if (authUserId) {
+            await adminClient.from('profiles').upsert({
+              id: authUserId,
+              email: emailLower,
+              full_name: (fullName as string).trim(),
+              role: 'coordinator',
+              register_number: emailLower.split('@')[0].toUpperCase(),
+              bus_id: busId,
+              status: 'active'
+            });
+          } else {
+            const { error: pendErr } = await adminClient.from('pending_coordinator_assignments')
+              .upsert({
+                email: emailLower,
+                full_name: (fullName as string).trim(),
+                bus_id: busId,
+                status: 'active'
+              });
+
+            if (pendErr) {
+              if (pendErr.code === '42P01' || pendErr.message?.includes('does not exist')) {
+                return response(request, { message: 'Database setup required: Please run the latest SQL migration in Supabase SQL Editor.' }, 500);
+              }
+              return response(request, { message: pendErr.message || 'Could not save pending coordinator.' }, 500);
+            }
+          }
+        }
       }
 
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });

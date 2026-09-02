@@ -90,7 +90,67 @@ begin
 end;
 $$;
 
--- 4. Dynamic profile resolver and auto-healer RPC current_app_profile
+-- 4. RPC for assigning coordinator atomically by admin
+create or replace function public.assign_coordinator(p_email text, p_full_name text, p_bus_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_normalized_email text := lower(trim(p_email));
+  v_auth_id uuid;
+begin
+  if public.current_user_role() <> 'admin' then
+    raise exception 'Admin access required';
+  end if;
+
+  -- 1. Insert/update pending_coordinator_assignments
+  insert into public.pending_coordinator_assignments (email, full_name, bus_id, status)
+  values (v_normalized_email, coalesce(trim(p_full_name), ''), p_bus_id, 'active')
+  on conflict (email) do update set
+    full_name = excluded.full_name,
+    bus_id = excluded.bus_id,
+    status = 'active';
+
+  -- 2. If profile exists in public.profiles, update it
+  update public.profiles
+  set
+    role = 'coordinator',
+    bus_id = p_bus_id,
+    full_name = coalesce(nullif(trim(p_full_name), ''), full_name),
+    status = 'active'
+  where lower(email) = v_normalized_email;
+
+  -- 3. If auth.users entry exists but profile is missing, create profile directly
+  select id into v_auth_id from auth.users where lower(email) = v_normalized_email limit 1;
+  if v_auth_id is not null then
+    insert into public.profiles (id, email, full_name, role, register_number, bus_id, status)
+    values (
+      v_auth_id,
+      v_normalized_email,
+      coalesce(nullif(trim(p_full_name), ''), v_normalized_email),
+      'coordinator',
+      upper(split_part(v_normalized_email, '@', 1)),
+      p_bus_id,
+      'active'
+    )
+    on conflict (id) do update set
+      role = 'coordinator',
+      bus_id = p_bus_id,
+      full_name = coalesce(nullif(trim(p_full_name), ''), public.profiles.full_name),
+      status = 'active';
+
+    delete from public.pending_coordinator_assignments where email = v_normalized_email;
+  end if;
+
+  return jsonb_build_object('success', true, 'message', 'Coordinator assigned successfully.');
+end;
+$$;
+
+grant execute on function public.assign_coordinator(text, text, uuid) to authenticated;
+
+-- 5. Dynamic profile resolver and auto-healer RPC current_app_profile
 create or replace function public.current_app_profile()
 returns table (
   id uuid,
@@ -218,7 +278,7 @@ $$;
 
 grant execute on function public.current_app_profile() to authenticated;
 
--- 5. Update admin_people_records() function to include pending coordinator assignments in the admin directory
+-- 6. Update admin_people_records() function to include pending coordinator assignments in the admin directory
 create or replace function public.admin_people_records()
 returns table (
   id uuid, full_name text, register_number text, email text,
@@ -256,7 +316,7 @@ $$;
 
 grant execute on function public.admin_people_records() to authenticated;
 
--- 6. Repair any existing auth.users rows that were created previously without a profile entry
+-- 7. Repair any existing auth.users rows that were created previously without a profile entry
 do $$
 declare
   u record;
