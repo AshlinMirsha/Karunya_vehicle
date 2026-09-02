@@ -2244,28 +2244,58 @@ const setupStudentManagementControls = (buses) => {
       }
       btnAddCoord.disabled = true;
       btnAddCoord.textContent = 'Adding…';
-      const { data, error } = await supabase.functions.invoke('attendance-api', {
-        body: { action: 'add-coordinator', fullName: name, email, busId }
-      });
+
+      let successMessage = '';
+      let rpcError = null;
+
+      try {
+        const { data: rpcData, error: err } = await supabase.rpc('assign_coordinator', {
+          p_email: email,
+          p_full_name: name,
+          p_bus_id: busId
+        });
+        if (err) {
+          rpcError = err;
+        } else if (rpcData?.message) {
+          successMessage = rpcData.message;
+        }
+      } catch (e) {
+        rpcError = e;
+      }
+
+      let edgeData = null;
+      let edgeError = null;
+      try {
+        const { data: edData, error: edErr } = await supabase.functions.invoke('attendance-api', {
+          body: { action: 'add-coordinator', fullName: name, email, busId }
+        });
+        edgeData = edData;
+        edgeError = edErr;
+      } catch (e) {
+        edgeError = e;
+      }
+
       btnAddCoord.disabled = false;
       btnAddCoord.textContent = 'Add Coordinator';
-      if (error || !data?.message) {
-        let err = data?.message;
-        if (!err && error) {
+
+      if (!successMessage && (edgeError || !edgeData?.message)) {
+        let err = edgeData?.message;
+        if (!err && edgeError) {
           try {
-            if (typeof error.context?.json === 'function') {
-              const resBody = await error.context.json();
+            if (typeof edgeError.context?.json === 'function') {
+              const resBody = await edgeError.context.json();
               err = resBody?.message;
             }
           } catch (_) {}
-          if (!err && error.message && !error.message.includes('non-2xx')) err = error.message;
+          if (!err && edgeError.message && !edgeError.message.includes('non-2xx')) err = edgeError.message;
         }
-        err = err || 'Could not add coordinator.';
+        err = err || rpcError?.message || 'Could not add coordinator.';
         if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
         showToast(err, 'danger');
       } else {
-        if (msg) msg.innerHTML = `<span class="text-success">${data?.message || 'Coordinator updated successfully.'}</span>`;
-        showToast(data?.message || 'Coordinator updated successfully.', 'success');
+        const displayMsg = successMessage || edgeData?.message || 'Coordinator assigned successfully.';
+        if (msg) msg.innerHTML = `<span class="text-success">${displayMsg}</span>`;
+        showToast(displayMsg, 'success');
         document.getElementById('add-coord-name').value = '';
         document.getElementById('add-coord-email').value = '';
         if (typeof globalRefreshAdminViews === 'function') {
