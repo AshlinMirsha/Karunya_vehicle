@@ -389,10 +389,23 @@ Deno.serve(async (request) => {
       if (!UUID_PATTERN.test(String(busId ?? ''))) return response(request, { message: 'A valid bus ID is required.' }, 400);
       const { data: busCheck } = await adminClient.from('buses').select('id, bus_number').eq('id', busId).maybeSingle();
       if (!busCheck) return response(request, { message: 'Bus not found.' }, 404);
-      const emailLower = (email as string).toLowerCase();
-      const { error: updateErr } = await adminClient.from('profiles')
-        .update({ role: 'coordinator', bus_id: busId, full_name: (fullName as string).trim(), status: 'active' })
-        .eq('email', emailLower);
+      const emailLower = (email as string).toLowerCase().trim();
+
+      const { data: targetProfile } = await adminClient.from('profiles').select('id').eq('email', emailLower).maybeSingle();
+      if (targetProfile) {
+        await adminClient.from('profiles')
+          .update({ role: 'coordinator', bus_id: busId, full_name: (fullName as string).trim(), status: 'active' })
+          .eq('id', targetProfile.id);
+      } else {
+        await adminClient.from('pending_coordinator_assignments')
+          .upsert({
+            email: emailLower,
+            full_name: (fullName as string).trim(),
+            bus_id: busId,
+            status: 'active'
+          });
+      }
+
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
 
       await logAdminActivity(adminClient, { id: user.id, name: profile.full_name || user.email || 'Admin', role: profile.role }, {
@@ -413,33 +426,42 @@ Deno.serve(async (request) => {
       const emailLower = (email as string).toLowerCase().trim();
 
       const { data: targetProfile } = await adminClient.from('profiles').select('id, role, bus_id, full_name').eq('email', emailLower).maybeSingle();
-      if (!targetProfile) {
+      const { data: pendingCoord } = await adminClient.from('pending_coordinator_assignments').select('email').eq('email', emailLower).maybeSingle();
+
+      if (!targetProfile && !pendingCoord) {
         return response(request, { message: `Coordinator profile for ${emailLower} was not found.` }, 404);
       }
-      if (targetProfile.role !== 'coordinator') {
-        return response(request, { message: `User ${emailLower} is not currently a coordinator.` }, 400);
+
+      if (pendingCoord) {
+        await adminClient.from('pending_coordinator_assignments').delete().eq('email', emailLower);
       }
 
-      const updatePayload: Record<string, unknown> = { bus_id: null, status: 'inactive' };
-      if (emailLower.endsWith('@karunya.edu.in')) {
-        updatePayload.role = 'student';
-      }
-      const { error: updateErr } = await adminClient.from('profiles')
-        .update(updatePayload)
-        .eq('id', targetProfile.id);
+      if (targetProfile) {
+        if (targetProfile.role !== 'coordinator') {
+          return response(request, { message: `User ${emailLower} is not currently a coordinator.` }, 400);
+        }
 
-      if (updateErr) return response(request, { message: updateErr.message || 'Could not remove coordinator.' }, 500);
+        const updatePayload: Record<string, unknown> = { bus_id: null, status: 'inactive' };
+        if (emailLower.endsWith('@karunya.edu.in')) {
+          updatePayload.role = 'student';
+        }
+        const { error: updateErr } = await adminClient.from('profiles')
+          .update(updatePayload)
+          .eq('id', targetProfile.id);
 
-      const [{ count: sessionCount }, { count: attendanceCount }] = await Promise.all([
-        adminClient.from('attendance_sessions').select('id', { count: 'exact', head: true }).eq('created_by', targetProfile.id),
-        adminClient.from('attendance').select('id', { count: 'exact', head: true }).eq('student_id', targetProfile.id)
-      ]);
+        if (updateErr) return response(request, { message: updateErr.message || 'Could not remove coordinator.' }, 500);
 
-      if ((sessionCount ?? 0) === 0 && (attendanceCount ?? 0) === 0) {
-        await adminClient.from('profiles').delete().eq('id', targetProfile.id);
-        try {
-          await adminClient.auth.admin.deleteUser(targetProfile.id);
-        } catch (_) {}
+        const [{ count: sessionCount }, { count: attendanceCount }] = await Promise.all([
+          adminClient.from('attendance_sessions').select('id', { count: 'exact', head: true }).eq('created_by', targetProfile.id),
+          adminClient.from('attendance').select('id', { count: 'exact', head: true }).eq('student_id', targetProfile.id)
+        ]);
+
+        if ((sessionCount ?? 0) === 0 && (attendanceCount ?? 0) === 0) {
+          await adminClient.from('profiles').delete().eq('id', targetProfile.id);
+          try {
+            await adminClient.auth.admin.deleteUser(targetProfile.id);
+          } catch (_) {}
+        }
       }
 
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
@@ -448,9 +470,9 @@ Deno.serve(async (request) => {
         action: 'COORDINATOR_REMOVED',
         entityType: 'coordinator',
         entityId: emailLower,
-        entityName: targetProfile.full_name || emailLower,
+        entityName: targetProfile?.full_name || emailLower,
         details: { email: emailLower },
-        message: `Admin ${profile.full_name || user.email} removed coordinator privileges for ${targetProfile.full_name || emailLower}.`
+        message: `Admin ${profile.full_name || user.email} removed coordinator privileges for ${targetProfile?.full_name || emailLower}.`
       });
 
       return response(request, { message: 'Coordinator removed successfully.' });
