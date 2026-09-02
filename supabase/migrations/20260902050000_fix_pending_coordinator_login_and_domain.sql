@@ -1,4 +1,4 @@
--- Migration to support pre-assigned bus coordinators and allow @karunya.edu faculty domain sign-ins
+-- Migration to support pre-assigned bus coordinators, restore admin credentials, and allow @karunya.edu faculty domain sign-ins
 
 -- 1. Create table for pending coordinator assignments before their first Google OAuth login
 create table if not exists public.pending_coordinator_assignments (
@@ -22,6 +22,11 @@ alter table public.profiles drop constraint if exists profiles_email_check;
 alter table public.profiles add constraint profiles_email_check check (
   email like '%@karunya.edu.in' or email like '%@karunya.edu'
 );
+
+-- Restore admin roles for admin accounts
+update public.profiles
+set role = 'admin', bus_id = null, status = 'active'
+where lower(email) in ('lohita@karunya.edu.in', 'ashlinmirsha@karunya.edu.in');
 
 -- 3. Update create_profile_for_karunya_user trigger function to consume pending coordinator assignments and allow @karunya.edu emails
 create or replace function public.create_profile_for_karunya_user()
@@ -50,11 +55,9 @@ begin
       assigned_register_number := pending_student.register_number;
       assigned_full_name := coalesce(nullif(pending_student.full_name, ''), assigned_full_name);
       delete from public.pending_student_assignments where email = normalized_email;
-    elsif normalized_email = 'lohita@karunya.edu.in' then
+    elsif normalized_email in ('lohita@karunya.edu.in', 'ashlinmirsha@karunya.edu.in') then
       assigned_role := 'admin';
-    elsif normalized_email = 'ashlinmirsha@karunya.edu.in' then
-      assigned_role := 'coordinator';
-      select id into assigned_bus_id from public.buses where bus_number = '1';
+      assigned_bus_id := null;
     elsif normalized_email in ('manickraja@karunya.edu', 'manickaraja@karunya.edu') then
       assigned_role := 'coordinator';
       select id into assigned_bus_id from public.buses where bus_number = '3';
@@ -226,11 +229,9 @@ begin
         v_assigned_reg_no := v_pending_student.register_number;
         v_assigned_full_name := coalesce(nullif(v_pending_student.full_name, ''), v_assigned_full_name);
         delete from public.pending_student_assignments where email = v_normalized_email;
-      elsif v_normalized_email = 'lohita@karunya.edu.in' then
+      elsif v_normalized_email in ('lohita@karunya.edu.in', 'ashlinmirsha@karunya.edu.in') then
         v_assigned_role := 'admin';
-      elsif v_normalized_email = 'ashlinmirsha@karunya.edu.in' then
-        v_assigned_role := 'coordinator';
-        select b.id into v_assigned_bus_id from public.buses b where b.bus_number = '1';
+        v_assigned_bus_id := null;
       elsif v_normalized_email in ('manickraja@karunya.edu', 'manickaraja@karunya.edu') then
         v_assigned_role := 'coordinator';
         select b.id into v_assigned_bus_id from public.buses b where b.bus_number = '3';
@@ -348,11 +349,9 @@ begin
         assigned_register_number := pending_student.register_number;
         assigned_full_name := coalesce(nullif(pending_student.full_name, ''), assigned_full_name);
         delete from public.pending_student_assignments where email = normalized_email;
-      elsif normalized_email = 'lohita@karunya.edu.in' then
+      elsif normalized_email in ('lohita@karunya.edu.in', 'ashlinmirsha@karunya.edu.in') then
         assigned_role := 'admin';
-      elsif normalized_email = 'ashlinmirsha@karunya.edu.in' then
-        assigned_role := 'coordinator';
-        select id into assigned_bus_id from public.buses where bus_number = '1';
+        assigned_bus_id := null;
       elsif normalized_email in ('manickraja@karunya.edu', 'manickaraja@karunya.edu') then
         assigned_role := 'coordinator';
         select id into assigned_bus_id from public.buses where bus_number = '3';
