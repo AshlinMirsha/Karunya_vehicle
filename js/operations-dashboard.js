@@ -2856,13 +2856,54 @@ const initAdminActivitiesSystem = async () => {
 
   const fetchActivities = async (page = 1, append = false) => {
     const unreadOnly = currentFilter === 'unread';
-    const { data, error } = await supabase.functions.invoke('attendance-api', {
-      body: { action: 'get-admin-activities', page, limit: pageSize, unreadOnly }
-    });
+    let data = null;
+    let error = null;
 
-    if (error || !data) {
+    try {
+      const res = await supabase.functions.invoke('attendance-api', {
+        body: { action: 'get-admin-activities', page, limit: pageSize, unreadOnly }
+      });
+      data = res.data;
+      error = res.error;
+    } catch (e) {
+      error = e;
+    }
+
+    if (error || !data || !Array.isArray(data.activities)) {
+      try {
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+        let q = supabase.from('security_audit_events').select('*', { count: 'exact' });
+        if (unreadOnly) q = q.eq('is_read', false);
+
+        const { data: auditData, count, error: dbErr } = await q.order('created_at', { ascending: false }).range(from, to);
+
+        if (!dbErr && auditData) {
+          const { count: unreadCount } = await supabase.from('security_audit_events').select('*', { count: 'exact', head: true }).eq('is_read', false);
+          data = {
+            activities: auditData.map(e => ({
+              id: e.id,
+              action: e.action || 'SYSTEM_ACTIVITY',
+              entity_type: e.entity_type || 'system',
+              entity_name: e.entity_name || e.action,
+              details: e.details || {},
+              created_at: e.created_at,
+              is_read: e.is_read || false,
+              actor_name: e.actor_name || 'System'
+            })),
+            totalCount: count || auditData.length,
+            unreadCount: unreadCount || 0
+          };
+          error = null;
+        }
+      } catch (e) {
+        console.warn('Direct audit events fetch fallback error:', e);
+      }
+    }
+
+    if (error || !data || !Array.isArray(data.activities)) {
       if (feedList && !append) {
-        feedList.innerHTML = `<div class="alert alert-danger p-3 text-center small">Unable to load recent activities. Please try again.</div>`;
+        feedList.innerHTML = `<div class="glass-panel p-4 text-center text-muted small">No recent system activities recorded yet.</div>`;
       }
       return;
     }

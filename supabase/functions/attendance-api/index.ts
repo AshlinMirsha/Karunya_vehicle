@@ -972,6 +972,40 @@ Deno.serve(async (request) => {
       await adminClient.from('security_audit_events').insert({ actor_id: user.id, action, outcome: 'allowed' });
       return response(request, { message: 'Attendance marked successfully!' });
     }
+
+    if (action === 'get-admin-activities') {
+      const b = body as Record<string, unknown>;
+      const page = Number(b.page) || 1;
+      const limit = Number(b.limit) || 10;
+      const unreadOnly = Boolean(b.unreadOnly);
+
+      let query = adminClient.from('security_audit_events').select('*', { count: 'exact' });
+      if (unreadOnly) {
+        query = query.eq('is_read', false);
+      }
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+      const { data: events, count } = await query.order('created_at', { ascending: false }).range(from, to);
+      const { count: unreadCount } = await adminClient.from('security_audit_events').select('*', { count: 'exact', head: true }).eq('is_read', false);
+
+      const activities = (events || []).map((e: Record<string, unknown>) => ({
+        id: e.id,
+        action: e.action || 'SYSTEM_ACTIVITY',
+        entity_type: e.entity_type || 'system',
+        entity_name: e.entity_name || e.action,
+        details: e.details || {},
+        created_at: e.created_at,
+        is_read: e.is_read || false,
+        actor_name: e.actor_name || 'Admin'
+      }));
+
+      return response(request, {
+        activities,
+        totalCount: count || 0,
+        unreadCount: unreadCount || 0
+      });
+    }
+
     return response(request, { message: 'Unknown action.' }, 400);
   } catch (error) {
     console.error('attendance-api failed', error instanceof Error ? error.message : 'Unknown error');
