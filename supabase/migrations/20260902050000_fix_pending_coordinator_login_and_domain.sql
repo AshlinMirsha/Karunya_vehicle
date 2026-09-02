@@ -164,7 +164,7 @@ $$;
 
 grant execute on function public.assign_coordinator(text, text, uuid) to authenticated;
 
--- 5. Dynamic profile resolver and auto-healer RPC current_app_profile
+-- 5. Dynamic profile resolver and auto-healer RPC current_app_profile (Safe against missing tables)
 create or replace function public.current_app_profile()
 returns table (
   id uuid,
@@ -189,58 +189,97 @@ declare
   v_assigned_full_name text;
   v_pending_student public.pending_student_assignments%rowtype;
   v_pending_coord public.pending_coordinator_assignments%rowtype;
+  v_has_pending_coord_table boolean := false;
+  v_has_pending_student_table boolean := false;
 begin
   if v_user_id is null then
     return;
   end if;
 
-  -- Step A: Sync pending coordinator assignment if user exists in profiles but has pending coord record
-  select email into v_normalized_email from public.profiles where id = v_user_id;
-  if v_normalized_email is null then
-    select lower(au.email) into v_normalized_email from auth.users au where au.id = v_user_id;
+  select exists (
+    select 1 from information_schema.tables where table_schema = 'public' and table_name = 'pending_coordinator_assignments'
+  ) into v_has_pending_coord_table;
+
+  select exists (
+    select 1 from information_schema.tables where table_schema = 'public' and table_name = 'pending_student_assignments'
+  ) into v_has_pending_student_table;
+
+  -- Step A: Sync pending coordinator assignment if table exists
+  if v_has_pending_coord_table then
+    begin
+      select email into v_normalized_email from public.profiles where id = v_user_id;
+      if v_normalized_email is null then
+        select lower(au.email) into v_normalized_email from auth.users au where au.id = v_user_id;
+      end if;
+
+      if v_normalized_email is not null then
+        select * into v_pending_coord from public.pending_coordinator_assignments where email = v_normalized_email;
+        if found then
+          insert into public.profiles (id, email, full_name, role, register_number, bus_id, status)
+          values (
+            v_user_id,
+            v_normalized_email,
+            coalesce(nullif(v_pending_coord.full_name, ''), v_normalized_email),
+            'coordinator',
+            upper(split_part(v_normalized_email, '@', 1)),
+            v_pending_coord.bus_id,
+            'active'
+          )
+          on conflict (id) do update set
+            role = 'coordinator',
+            bus_id = v_pending_coord.bus_id,
+            full_name = case when excluded.full_name <> '' then excluded.full_name else public.profiles.full_name end,
+            status = 'active';
+
+          delete from public.pending_coordinator_assignments where email = v_normalized_email;
+        end if;
+      end if;
+    exception when others then
+      null;
+    end;
   end if;
 
-  if v_normalized_email is not null then
-    select * into v_pending_coord from public.pending_coordinator_assignments where email = v_normalized_email;
-    if found then
-      insert into public.profiles (id, email, full_name, role, register_number, bus_id, status)
-      values (
-        v_user_id,
-        v_normalized_email,
-        coalesce(nullif(v_pending_coord.full_name, ''), v_normalized_email),
-        'coordinator',
-        upper(split_part(v_normalized_email, '@', 1)),
-        v_pending_coord.bus_id,
-        'active'
-      )
-      on conflict (id) do update set
-        role = 'coordinator',
-        bus_id = v_pending_coord.bus_id,
-        full_name = case when excluded.full_name <> '' then excluded.full_name else public.profiles.full_name end,
-        status = 'active';
+  -- Step B: Return existing profile if present
+  if exists (select 1 from public.profiles p where p.id = v_user_id) then
+    return query
+    select
+      p.id,
+      p.email,
+      p.role,
+      p.bus_id,
+      b.bus_number,
+      p.status
+    from public.profiles p
+    left join public.buses b on b.id = p.bus_id
+    where p.id = v_user_id;
+    return;
+  end if;
 
-      delete from public.pending_coordinator_assignments where email = v_normalized_email;
+  -- Step C: Auto-create profile from auth.users if missing
+  select au.email, au.raw_user_meta_data into v_email, v_meta
+  from auth.users au
+  where au.id = v_user_id;
+
+  if v_email is not null then
+    v_normalized_email := lower(v_email);
+    v_assigned_reg_no := upper(split_part(v_normalized_email, '@', 1));
+    v_assigned_full_name := coalesce(v_meta->>'full_name', '');
+
+    if v_has_pending_student_table then
+      begin
+        select * into v_pending_student from public.pending_student_assignments where email = v_normalized_email;
+        if found then
+          v_assigned_bus_id := v_pending_student.bus_id;
+          v_assigned_reg_no := v_pending_student.register_number;
+          v_assigned_full_name := coalesce(nullif(v_pending_student.full_name, ''), v_assigned_full_name);
+          delete from public.pending_student_assignments where email = v_normalized_email;
+        end if;
+      exception when others then null;
+      end;
     end if;
-  end if;
 
-  -- Step B: If profile row still does not exist for auth.uid(), auto-create it from auth.users
-  if not exists (select 1 from public.profiles p where p.id = v_user_id) then
-    select au.email, au.raw_user_meta_data into v_email, v_meta
-    from auth.users au
-    where au.id = v_user_id;
-
-    if v_email is not null then
-      v_normalized_email := lower(v_email);
-      v_assigned_reg_no := upper(split_part(v_normalized_email, '@', 1));
-      v_assigned_full_name := coalesce(v_meta->>'full_name', '');
-
-      select * into v_pending_student from public.pending_student_assignments where email = v_normalized_email;
-      if found then
-        v_assigned_bus_id := v_pending_student.bus_id;
-        v_assigned_reg_no := v_pending_student.register_number;
-        v_assigned_full_name := coalesce(nullif(v_pending_student.full_name, ''), v_assigned_full_name);
-        delete from public.pending_student_assignments where email = v_normalized_email;
-      elsif v_normalized_email = 'lohita@karunya.edu.in' then
+    if v_assigned_bus_id is null then
+      if v_normalized_email = 'lohita@karunya.edu.in' then
         v_assigned_role := 'admin';
         v_assigned_bus_id := null;
       elsif v_normalized_email = 'ashlinmirsha@karunya.edu.in' then
@@ -258,25 +297,24 @@ begin
       elsif v_normalized_email like '%@karunya.edu' then
         v_assigned_role := 'coordinator';
       end if;
-
-      insert into public.profiles (id, email, full_name, role, register_number, bus_id, status)
-      values (
-        v_user_id,
-        v_normalized_email,
-        v_assigned_full_name,
-        v_assigned_role,
-        v_assigned_reg_no,
-        v_assigned_bus_id,
-        case when v_assigned_bus_id is null and v_assigned_role = 'student' then 'pending_assignment' else 'active' end
-      )
-      on conflict (id) do update set
-        role = excluded.role,
-        bus_id = coalesce(public.profiles.bus_id, excluded.bus_id),
-        status = 'active';
     end if;
+
+    insert into public.profiles (id, email, full_name, role, register_number, bus_id, status)
+    values (
+      v_user_id,
+      v_normalized_email,
+      v_assigned_full_name,
+      v_assigned_role,
+      v_assigned_reg_no,
+      v_assigned_bus_id,
+      case when v_assigned_bus_id is null and v_assigned_role = 'student' then 'pending_assignment' else 'active' end
+    )
+    on conflict (id) do update set
+      role = excluded.role,
+      bus_id = coalesce(public.profiles.bus_id, excluded.bus_id),
+      status = 'active';
   end if;
 
-  -- Step C: Return profile
   return query
   select
     p.id,
