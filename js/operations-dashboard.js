@@ -102,8 +102,55 @@ const addOption = (select, value, label) => {
 let globalRefreshAdminViews = null;
 
 const renderAdminDirectory = async (buses) => {
-  const { data: people, error } = await supabase.rpc('admin_people_records');
-  if (error) {
+  let people = null;
+  const { data, error } = await supabase.rpc('admin_people_records');
+  if (!error && Array.isArray(data)) {
+    people = data;
+  } else {
+    console.warn('admin_people_records RPC error, falling back to direct table queries:', error);
+    try {
+      const busMap = new Map((buses || []).map(b => [b.id, b]));
+      const { data: dbProfiles } = await supabase.from('profiles').select('id, full_name, register_number, email, role, status, bus_id');
+      const list = (dbProfiles || []).map(p => ({
+        id: p.id,
+        full_name: p.full_name,
+        register_number: p.register_number,
+        email: p.email,
+        role: p.role,
+        status: p.status,
+        bus_id: p.bus_id,
+        bus_number: busMap.get(p.bus_id)?.bus_number || null,
+        route: busMap.get(p.bus_id)?.route || null
+      }));
+
+      try {
+        const { data: pendingCoords } = await supabase.from('pending_coordinator_assignments').select('*');
+        if (pendingCoords) {
+          pendingCoords.forEach(pc => {
+            if (!list.some(item => item.email === pc.email)) {
+              list.push({
+                id: null,
+                full_name: pc.full_name,
+                register_number: null,
+                email: pc.email,
+                role: 'coordinator',
+                status: 'pending_login',
+                bus_id: pc.bus_id,
+                bus_number: busMap.get(pc.bus_id)?.bus_number || null,
+                route: busMap.get(pc.bus_id)?.route || null
+              });
+            }
+          });
+        }
+      } catch (_) {}
+
+      people = list;
+    } catch (e) {
+      console.warn('Fallback direct directory query failed:', e);
+    }
+  }
+
+  if (!people) {
     showToast('Student and coordinator records could not be loaded.', 'danger');
     return [];
   }
