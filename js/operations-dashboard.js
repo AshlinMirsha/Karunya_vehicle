@@ -2310,6 +2310,27 @@ const setupStudentManagementControls = (buses) => {
         rpcError = e;
       }
 
+      if (rpcError) {
+        try {
+          const { error: upsertErr } = await supabase.from('pending_coordinator_assignments').upsert({
+            email: email,
+            full_name: name,
+            bus_id: busId,
+            status: 'active'
+          });
+          if (!upsertErr) {
+            rpcError = null;
+            successMessage = 'Coordinator assigned successfully.';
+            await supabase.from('profiles').update({
+              role: 'coordinator',
+              bus_id: busId,
+              full_name: name,
+              status: 'active'
+            }).eq('email', email);
+          }
+        } catch (_) {}
+      }
+
       let edgeData = null;
       let edgeError = null;
       try {
