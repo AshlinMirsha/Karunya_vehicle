@@ -224,7 +224,7 @@ const renderAdminBusFleet = async (buses, people = []) => {
     }
   }
 
-  const coordinators = (people || []).filter(p => p.role === 'coordinator');
+  const coordinators = (people || []).filter(p => p.bus_id && (p.role === 'coordinator' || p.role === 'admin'));
 
   section.innerHTML = `
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">

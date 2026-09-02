@@ -1,7 +1,9 @@
 -- Migration to support pre-assigned bus coordinators, allow @karunya.edu faculty domain sign-ins, and configure coordinator assignments:
--- lohita@karunya.edu.in -> ADMIN
--- ashlinmirsha@karunya.edu.in -> COORDINATOR (Bus 1)
--- gerardnigel@karunya.edu -> COORDINATOR (Bus 3)
+-- Bus 1 -> ashlinmirsha@karunya.edu.in (Ashlin Mirsha)
+-- Bus 2 -> karthikr@karunya.edu (Dr. Karthik R)
+-- Bus 3 -> gerardnigel@karunya.edu (Dr. Gerard Nigel) & manickraja@karunya.edu (Dr. Manickaraja)
+-- Bus 4 -> shygiljoy@karunya.edu (Dr. Shygil Joy)
+-- Bus 13 -> titusi@karunya.edu (Dr. Titus I)
 
 -- 1. Create table for pending coordinator assignments before their first Google OAuth login
 create table if not exists public.pending_coordinator_assignments (
@@ -34,32 +36,33 @@ alter table public.profiles add constraint profiles_email_check check (
   email like '%@karunya.edu.in' or email like '%@karunya.edu'
 );
 
--- Pre-assign Dr. Gerard Nigel to Bus 3 in pending_coordinator_assignments
+-- Ensure Bus 13 exists if missing
+insert into public.buses (bus_number, route, capacity, latitude, longitude)
+values ('13', 'Kinathukadavu, Othakal Mandapam', 60, 0.0, 0.0)
+on conflict (bus_number) do update set capacity = coalesce(public.buses.capacity, 60);
+
+-- Pre-assign coordinators to all buses in pending_coordinator_assignments
 insert into public.pending_coordinator_assignments (email, full_name, bus_id, status)
-select 'gerardnigel@karunya.edu', 'Dr. Gerard Nigel', id, 'active'
-from public.buses where bus_number = '3'
+values
+  ('ashlinmirsha@karunya.edu.in', 'Ashlin Mirsha', (select id from public.buses where bus_number = '1' limit 1), 'active'),
+  ('karthikr@karunya.edu', 'Dr. Karthik R', (select id from public.buses where bus_number = '2' limit 1), 'active'),
+  ('gerardnigel@karunya.edu', 'Dr. Gerard Nigel', (select id from public.buses where bus_number = '3' limit 1), 'active'),
+  ('manickraja@karunya.edu', 'Dr. Manickaraja', (select id from public.buses where bus_number = '3' limit 1), 'active'),
+  ('shygiljoy@karunya.edu', 'Dr. Shygil Joy', (select id from public.buses where bus_number = '4' limit 1), 'active'),
+  ('titusi@karunya.edu', 'Dr. Titus I', (select id from public.buses where bus_number = '13' limit 1), 'active')
 on conflict (email) do update set
   full_name = excluded.full_name,
   bus_id = excluded.bus_id,
   status = 'active';
 
 -- Set test and coordinator account roles in public.profiles
-update public.profiles
-set role = 'admin', bus_id = null, status = 'active'
-where lower(email) = 'lohita@karunya.edu.in';
-
-update public.profiles
-set role = 'coordinator',
-    bus_id = (select id from public.buses where bus_number = '1' limit 1),
-    status = 'active'
-where lower(email) = 'ashlinmirsha@karunya.edu.in';
-
-update public.profiles
-set role = 'coordinator',
-    bus_id = (select id from public.buses where bus_number = '3' limit 1),
-    full_name = 'Dr. Gerard Nigel',
-    status = 'active'
-where lower(email) = 'gerardnigel@karunya.edu';
+update public.profiles set role = 'admin', bus_id = null, status = 'active' where lower(email) = 'lohita@karunya.edu.in';
+update public.profiles set role = 'coordinator', bus_id = (select id from public.buses where bus_number = '1' limit 1), status = 'active' where lower(email) = 'ashlinmirsha@karunya.edu.in';
+update public.profiles set role = 'coordinator', bus_id = (select id from public.buses where bus_number = '2' limit 1), full_name = 'Dr. Karthik R', status = 'active' where lower(email) = 'karthikr@karunya.edu';
+update public.profiles set role = 'coordinator', bus_id = (select id from public.buses where bus_number = '3' limit 1), full_name = 'Dr. Gerard Nigel', status = 'active' where lower(email) = 'gerardnigel@karunya.edu';
+update public.profiles set role = 'coordinator', bus_id = (select id from public.buses where bus_number = '3' limit 1), full_name = 'Dr. Manickaraja', status = 'active' where lower(email) in ('manickraja@karunya.edu', 'manickaraja@karunya.edu');
+update public.profiles set role = 'coordinator', bus_id = (select id from public.buses where bus_number = '4' limit 1), full_name = 'Dr. Shygil Joy', status = 'active' where lower(email) = 'shygiljoy@karunya.edu';
+update public.profiles set role = 'coordinator', bus_id = (select id from public.buses where bus_number = '13' limit 1), full_name = 'Dr. Titus I', status = 'active' where lower(email) = 'titusi@karunya.edu';
 
 -- 3. Update create_profile_for_karunya_user trigger function
 create or replace function public.create_profile_for_karunya_user()
@@ -122,12 +125,19 @@ begin
       select id into assigned_bus_id from public.buses where bus_number = '3' limit 1;
     elsif normalized_email in ('manickraja@karunya.edu', 'manickaraja@karunya.edu') then
       assigned_role := 'coordinator';
+      assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Manickaraja');
       select id into assigned_bus_id from public.buses where bus_number = '3' limit 1;
     elsif normalized_email = 'karthikr@karunya.edu' then
       assigned_role := 'coordinator';
+      assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Karthik R');
       select id into assigned_bus_id from public.buses where bus_number = '2' limit 1;
+    elsif normalized_email = 'shygiljoy@karunya.edu' then
+      assigned_role := 'coordinator';
+      assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Shygil Joy');
+      select id into assigned_bus_id from public.buses where bus_number = '4' limit 1;
     elsif normalized_email = 'titusi@karunya.edu' then
       assigned_role := 'coordinator';
+      assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Titus I');
       select id into assigned_bus_id from public.buses where bus_number = '13' limit 1;
     elsif normalized_email like '%@karunya.edu' then
       assigned_role := 'coordinator';
@@ -363,12 +373,19 @@ begin
         select b.id into v_assigned_bus_id from public.buses b where b.bus_number = '3' limit 1;
       elsif v_normalized_email in ('manickraja@karunya.edu', 'manickaraja@karunya.edu') then
         v_assigned_role := 'coordinator';
+        v_assigned_full_name := coalesce(nullif(v_assigned_full_name, ''), 'Dr. Manickaraja');
         select b.id into v_assigned_bus_id from public.buses b where b.bus_number = '3' limit 1;
       elsif v_normalized_email = 'karthikr@karunya.edu' then
         v_assigned_role := 'coordinator';
+        v_assigned_full_name := coalesce(nullif(v_assigned_full_name, ''), 'Dr. Karthik R');
         select b.id into v_assigned_bus_id from public.buses b where b.bus_number = '2' limit 1;
+      elsif v_normalized_email = 'shygiljoy@karunya.edu' then
+        v_assigned_role := 'coordinator';
+        v_assigned_full_name := coalesce(nullif(v_assigned_full_name, ''), 'Dr. Shygil Joy');
+        select b.id into v_assigned_bus_id from public.buses b where b.bus_number = '4' limit 1;
       elsif v_normalized_email = 'titusi@karunya.edu' then
         v_assigned_role := 'coordinator';
+        v_assigned_full_name := coalesce(nullif(v_assigned_full_name, ''), 'Dr. Titus I');
         select b.id into v_assigned_bus_id from public.buses b where b.bus_number = '13' limit 1;
       elsif v_normalized_email like '%@karunya.edu' then
         v_assigned_role := 'coordinator';
@@ -566,12 +583,19 @@ begin
         select id into assigned_bus_id from public.buses where bus_number = '3' limit 1;
       elsif normalized_email in ('manickraja@karunya.edu', 'manickaraja@karunya.edu') then
         assigned_role := 'coordinator';
+        assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Manickaraja');
         select id into assigned_bus_id from public.buses where bus_number = '3' limit 1;
       elsif normalized_email = 'karthikr@karunya.edu' then
         assigned_role := 'coordinator';
+        assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Karthik R');
         select id into assigned_bus_id from public.buses where bus_number = '2' limit 1;
+      elsif normalized_email = 'shygiljoy@karunya.edu' then
+        assigned_role := 'coordinator';
+        assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Shygil Joy');
+        select id into assigned_bus_id from public.buses where bus_number = '4' limit 1;
       elsif normalized_email = 'titusi@karunya.edu' then
         assigned_role := 'coordinator';
+        assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Titus I');
         select id into assigned_bus_id from public.buses where bus_number = '13' limit 1;
       elsif normalized_email like '%@karunya.edu' then
         assigned_role := 'coordinator';
