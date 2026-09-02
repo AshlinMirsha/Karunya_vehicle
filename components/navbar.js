@@ -44,6 +44,11 @@ export function renderNavbar(user = null, activeRole = null) {
                 </button>
               </li>
               <li>
+                <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-white-50 text-hover-white" type="button" data-bs-toggle="modal" data-bs-target="#modalAddCoordinator">
+                  <span>👔</span> Coordinator
+                </button>
+              </li>
+              <li>
                 <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-white-50 text-hover-white" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarStudentMgmt">
                   <span>⚙️</span> Edit Users
                 </button>
