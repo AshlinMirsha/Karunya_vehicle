@@ -20,6 +20,8 @@ async function redirectAuthenticatedUser() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
+  const protectedRedirect = consumeProtectedRedirect();
+
   let profile = null;
   try {
     const { data: rpcProfile } = await supabase.rpc('current_app_profile').maybeSingle();
@@ -42,14 +44,14 @@ async function redirectAuthenticatedUser() {
     profile = { role: metaRole || 'student' };
   }
 
-  const protectedRedirect = consumeProtectedRedirect();
   const roleHome = profile?.role === 'admin' ? '/admin' : profile?.role === 'coordinator' ? '/coordinator' : '/student';
   const safeRedirect = protectedRedirect && (
-    profile?.role === 'admin'
-    || (profile?.role === 'coordinator' && !['/admin', '/dashboard'].includes(protectedRedirect))
-    || (profile?.role === 'student' && !['/admin', '/dashboard', '/coordinator'].includes(protectedRedirect))
-  );
-  window.location.href = safeRedirect ? protectedRedirect : roleHome;
+    (profile?.role === 'admin' && (protectedRedirect.startsWith('/admin') || protectedRedirect.startsWith('/dashboard')))
+    || (profile?.role === 'coordinator' && protectedRedirect.startsWith('/coordinator'))
+    || (profile?.role === 'student' && protectedRedirect.startsWith('/student'))
+  ) ? protectedRedirect : null;
+
+  window.location.href = safeRedirect || roleHome;
 }
 
 redirectAuthenticatedUser().catch(() => {});
