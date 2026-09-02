@@ -128,25 +128,7 @@
           <div id="remove-student-msg" class="mt-2 small"></div>
         </div>
 
-        <div class="card bg-transparent border border-secondary mb-4 p-3">
-          <h6 class="fw-semibold mb-3">Add / update coordinator</h6>
-          <div class="row g-2 align-items-end">
-            <div class="col-md-6"><label class="form-label small" for="add-coord-name">Full name</label><input id="add-coord-name" type="text" class="form-control" placeholder="Dr. John Smith" maxlength="100"></div>
-            <div class="col-md-6"><label class="form-label small" for="add-coord-email">Email</label><input id="add-coord-email" type="email" class="form-control" placeholder="faculty@karunya.edu.in" maxlength="254"></div>
-            <div class="col-md-12"><label class="form-label small" for="add-coord-bus">Bus</label><select id="add-coord-bus" class="form-select"></select></div>
-            <div class="col-md-12 mt-2"><button id="btn-add-coordinator" class="btn btn-glass-primary w-100">Add Coordinator</button></div>
-          </div>
-          <div id="add-coord-msg" class="mt-2 small"></div>
-        </div>
 
-        <div class="card bg-transparent border border-secondary mb-4 p-3">
-          <h6 class="fw-semibold mb-3">Delete / Remove coordinator</h6>
-          <div class="row g-2 align-items-end">
-            <div class="col-md-12"><label class="form-label small" for="remove-coord-email">Coordinator email</label><input id="remove-coord-email" type="email" class="form-control" placeholder="faculty@karunya.edu.in"></div>
-            <div class="col-md-12 mt-2"><button id="btn-remove-coordinator" class="btn btn-outline-danger w-100">Remove Coordinator</button></div>
-          </div>
-          <div id="remove-coord-msg" class="mt-2 small"></div>
-        </div>
 
         <div class="card bg-transparent border border-secondary mb-4 p-3">
           <h6 class="fw-semibold mb-3">Add New Bus Route</h6>
@@ -535,6 +517,47 @@
       </button>
     </div>
   </section>
+
+  <!-- Modal: Coordinator Management -->
+  <div class="modal fade" id="modalAddCoordinator" tabindex="-1" aria-labelledby="modalAddCoordinatorLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content glass-panel text-white border border-secondary">
+        <div class="modal-header border-secondary p-3">
+          <h5 class="modal-title fw-bold" id="modalAddCoordinatorLabel">👔 Coordinator</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-3">
+          <div class="card bg-transparent border border-secondary mb-3 p-3">
+            <h6 class="fw-semibold mb-3">Add / update coordinator</h6>
+            <div class="mb-2">
+              <label class="form-label small" for="add-coord-name">Full name <span class="text-danger">*</span></label>
+              <input id="add-coord-name" type="text" class="form-control" placeholder="Dr. John Smith" maxlength="100">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small" for="add-coord-email">Email <span class="text-danger">*</span></label>
+              <input id="add-coord-email" type="email" class="form-control" placeholder="faculty@karunya.edu.in" maxlength="254">
+            </div>
+            <div class="mb-3">
+              <label class="form-label small" for="add-coord-bus">Bus <span class="text-danger">*</span></label>
+              <select id="add-coord-bus" class="form-select"></select>
+            </div>
+            <button id="btn-add-coordinator" class="btn btn-glass-primary w-100">Add Coordinator</button>
+            <div id="add-coord-msg" class="mt-2 small"></div>
+          </div>
+
+          <div class="card bg-transparent border border-secondary p-3">
+            <h6 class="fw-semibold mb-3 text-danger">Delete / Remove coordinator</h6>
+            <div class="mb-2">
+              <label class="form-label small" for="remove-coord-email">Coordinator email</label>
+              <input id="remove-coord-email" type="email" class="form-control" placeholder="faculty@karunya.edu.in">
+            </div>
+            <button id="btn-remove-coordinator" class="btn btn-outline-danger w-100">Remove Coordinator</button>
+            <div id="remove-coord-msg" class="mt-2 small"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal: Edit Bus Details -->
   <div class="modal fade" id="modalEditBus" tabindex="-1" aria-labelledby="modalEditBusLabel" aria-hidden="true">
