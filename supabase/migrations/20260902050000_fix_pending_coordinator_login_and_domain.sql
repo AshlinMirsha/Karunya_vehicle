@@ -55,7 +55,17 @@ on conflict (email) do update set
   bus_id = excluded.bus_id,
   status = 'active';
 
--- Set test and coordinator account roles in public.profiles
+-- Sync all pre-existing profiles with pending coordinator assignments
+update public.profiles p
+set
+  role = 'coordinator',
+  bus_id = pc.bus_id,
+  full_name = coalesce(nullif(pc.full_name, ''), p.full_name),
+  status = 'active'
+from public.pending_coordinator_assignments pc
+where lower(p.email) = lower(pc.email);
+
+-- Set test and coordinator account roles in public.profiles explicitly
 update public.profiles set role = 'admin', bus_id = null, status = 'active' where lower(email) = 'lohita@karunya.edu.in';
 update public.profiles set role = 'coordinator', bus_id = (select id from public.buses where bus_number = '1' limit 1), status = 'active' where lower(email) = 'ashlinmirsha@karunya.edu.in';
 update public.profiles set role = 'coordinator', bus_id = (select id from public.buses where bus_number = '2' limit 1), full_name = 'Dr. Karthik R', status = 'active' where lower(email) = 'karthikr@karunya.edu';
@@ -286,38 +296,35 @@ begin
     select 1 from information_schema.tables where table_schema = 'public' and table_name = 'pending_student_assignments'
   ) into v_has_pending_student_table;
 
-  -- Step A: Sync pending coordinator assignment if table exists
-  if v_has_pending_coord_table then
+  -- Step A: Sync pending coordinator assignment if user exists in profiles or pending_coordinator_assignments
+  select email into v_normalized_email from public.profiles where id = v_user_id;
+  if v_normalized_email is null then
+    select lower(au.email) into v_normalized_email from auth.users au where au.id = v_user_id;
+  end if;
+
+  if v_normalized_email is not null and v_has_pending_coord_table then
     begin
-      select email into v_normalized_email from public.profiles where id = v_user_id;
-      if v_normalized_email is null then
-        select lower(au.email) into v_normalized_email from auth.users au where au.id = v_user_id;
-      end if;
+      select * into v_pending_coord from public.pending_coordinator_assignments where email = v_normalized_email;
+      if found then
+        insert into public.profiles (id, email, full_name, role, register_number, bus_id, status)
+        values (
+          v_user_id,
+          v_normalized_email,
+          coalesce(nullif(v_pending_coord.full_name, ''), v_normalized_email),
+          'coordinator',
+          upper(split_part(v_normalized_email, '@', 1)),
+          v_pending_coord.bus_id,
+          'active'
+        )
+        on conflict (id) do update set
+          role = 'coordinator',
+          bus_id = v_pending_coord.bus_id,
+          full_name = case when excluded.full_name <> '' then excluded.full_name else public.profiles.full_name end,
+          status = 'active';
 
-      if v_normalized_email is not null then
-        select * into v_pending_coord from public.pending_coordinator_assignments where email = v_normalized_email;
-        if found then
-          insert into public.profiles (id, email, full_name, role, register_number, bus_id, status)
-          values (
-            v_user_id,
-            v_normalized_email,
-            coalesce(nullif(v_pending_coord.full_name, ''), v_normalized_email),
-            'coordinator',
-            upper(split_part(v_normalized_email, '@', 1)),
-            v_pending_coord.bus_id,
-            'active'
-          )
-          on conflict (id) do update set
-            role = 'coordinator',
-            bus_id = v_pending_coord.bus_id,
-            full_name = case when excluded.full_name <> '' then excluded.full_name else public.profiles.full_name end,
-            status = 'active';
-
-          delete from public.pending_coordinator_assignments where email = v_normalized_email;
-        end if;
+        delete from public.pending_coordinator_assignments where email = v_normalized_email;
       end if;
-    exception when others then
-      null;
+    exception when others then null;
     end;
   end if;
 
@@ -424,7 +431,7 @@ $$;
 
 grant execute on function public.current_app_profile() to authenticated;
 
--- 6. Update admin_people_records() function to be safe against missing tables
+-- 6. Update admin_people_records() function to merge profiles with pending assignments seamlessly
 create or replace function public.admin_people_records()
 returns table (
   id uuid, full_name text, register_number text, email text,
@@ -457,165 +464,60 @@ begin
     select 1 from information_schema.tables where table_schema = 'public' and table_name = 'pending_student_assignments'
   ) into v_has_pending_student;
 
-  if v_has_pending_coord and v_has_pending_student then
-    return query
-    select profile.id, profile.full_name, profile.register_number, profile.email,
-      profile.role, profile.status, profile.bus_id, bus.bus_number, bus.route
-    from public.profiles profile
-    left join public.buses bus on bus.id = profile.bus_id
+  return query
+  with resolved_people as (
+    select
+      p.id,
+      coalesce(nullif(pc.full_name, ''), nullif(p.full_name, ''), p.email) as full_name,
+      p.register_number,
+      p.email,
+      case when pc.email is not null then 'coordinator'::public.user_role else p.role end as role,
+      p.status,
+      coalesce(p.bus_id, pc.bus_id) as bus_id
+    from public.profiles p
+    left join public.pending_coordinator_assignments pc on pc.email = lower(p.email)
 
     union all
 
-    select null::uuid as id, pending_coord.full_name, null::text as register_number, pending_coord.email,
-      'coordinator'::public.user_role as role, 'pending_login'::text as status, pending_coord.bus_id, bus.bus_number, bus.route
-    from public.pending_coordinator_assignments pending_coord
-    left join public.buses bus on bus.id = pending_coord.bus_id
-    where pending_coord.email not in (select p.email from public.profiles p)
+    select
+      null::uuid as id,
+      pc.full_name,
+      null::text as register_number,
+      pc.email,
+      'coordinator'::public.user_role as role,
+      'pending_login'::text as status,
+      pc.bus_id
+    from public.pending_coordinator_assignments pc
+    where lower(pc.email) not in (select lower(email) from public.profiles)
 
     union all
 
-    select null::uuid as id, pending_stu.full_name, pending_stu.register_number, pending_stu.email,
-      'student'::public.user_role as role, 'pending_login'::text as status, pending_stu.bus_id, bus.bus_number, bus.route
-    from public.pending_student_assignments pending_stu
-    left join public.buses bus on bus.id = pending_stu.bus_id
-    where pending_stu.email not in (select p.email from public.profiles p)
-
-    order by case role when 'admin' then 1 when 'coordinator' then 2 else 3 end,
-      bus_number nulls last, register_number nulls last, full_name;
-
-  elsif v_has_pending_student then
-    return query
-    select profile.id, profile.full_name, profile.register_number, profile.email,
-      profile.role, profile.status, profile.bus_id, bus.bus_number, bus.route
-    from public.profiles profile
-    left join public.buses bus on bus.id = profile.bus_id
-
-    union all
-
-    select null::uuid as id, pending_stu.full_name, pending_stu.register_number, pending_stu.email,
-      'student'::public.user_role as role, 'pending_login'::text as status, pending_stu.bus_id, bus.bus_number, bus.route
-    from public.pending_student_assignments pending_stu
-    left join public.buses bus on bus.id = pending_stu.bus_id
-    where pending_stu.email not in (select p.email from public.profiles p)
-
-    order by case role when 'admin' then 1 when 'coordinator' then 2 else 3 end,
-      bus_number nulls last, register_number nulls last, full_name;
-
-  else
-    return query
-    select profile.id, profile.full_name, profile.register_number, profile.email,
-      profile.role, profile.status, profile.bus_id, bus.bus_number, bus.route
-    from public.profiles profile
-    left join public.buses bus on bus.id = profile.bus_id
-    order by case role when 'admin' then 1 when 'coordinator' then 2 else 3 end,
-      bus_number nulls last, register_number nulls last, full_name;
-  end if;
+    select
+      null::uuid as id,
+      ps.full_name,
+      ps.register_number,
+      ps.email,
+      'student'::public.user_role as role,
+      'pending_login'::text as status,
+      ps.bus_id
+    from public.pending_student_assignments ps
+    where lower(ps.email) not in (select lower(email) from public.profiles)
+  )
+  select
+    rp.id,
+    rp.full_name,
+    rp.register_number,
+    rp.email,
+    rp.role,
+    rp.status,
+    rp.bus_id,
+    b.bus_number,
+    b.route
+  from resolved_people rp
+  left join public.buses b on b.id = rp.bus_id
+  order by case rp.role when 'admin' then 1 when 'coordinator' then 2 else 3 end,
+    b.bus_number nulls last, rp.register_number nulls last, rp.full_name;
 end;
 $$;
 
 grant execute on function public.admin_people_records() to authenticated;
-
--- 7. Repair existing auth.users rows
-do $$
-declare
-  u record;
-  assigned_bus_id uuid;
-  assigned_role public.user_role;
-  normalized_email text;
-  assigned_register_number text;
-  assigned_full_name text;
-  pending_student public.pending_student_assignments%rowtype;
-  pending_coord public.pending_coordinator_assignments%rowtype;
-  has_pending_coord boolean := false;
-  has_pending_student boolean := false;
-begin
-  select exists (
-    select 1 from information_schema.tables where table_schema = 'public' and table_name = 'pending_coordinator_assignments'
-  ) into has_pending_coord;
-
-  select exists (
-    select 1 from information_schema.tables where table_schema = 'public' and table_name = 'pending_student_assignments'
-  ) into has_pending_student;
-
-  for u in select id, email, raw_user_meta_data from auth.users where id not in (select id from public.profiles) loop
-    normalized_email := lower(u.email);
-    assigned_role := 'student';
-    assigned_bus_id := null;
-    assigned_register_number := upper(split_part(normalized_email, '@', 1));
-    assigned_full_name := coalesce(u.raw_user_meta_data->>'full_name', '');
-
-    if has_pending_coord then
-      begin
-        select * into pending_coord from public.pending_coordinator_assignments where email = normalized_email;
-        if found then
-          assigned_role := 'coordinator';
-          assigned_bus_id := pending_coord.bus_id;
-          assigned_full_name := coalesce(nullif(pending_coord.full_name, ''), assigned_full_name);
-          delete from public.pending_coordinator_assignments where email = normalized_email;
-        end if;
-      exception when others then null;
-      end;
-    end if;
-
-    if assigned_bus_id is null and has_pending_student then
-      begin
-        select * into pending_student from public.pending_student_assignments where email = normalized_email;
-        if found then
-          assigned_bus_id := pending_student.bus_id;
-          assigned_register_number := pending_student.register_number;
-          assigned_full_name := coalesce(nullif(pending_student.full_name, ''), assigned_full_name);
-          delete from public.pending_student_assignments where email = normalized_email;
-        end if;
-      exception when others then null;
-      end;
-    end if;
-
-    if assigned_bus_id is null then
-      if normalized_email = 'lohita@karunya.edu.in' then
-        assigned_role := 'admin';
-        assigned_bus_id := null;
-      elsif normalized_email = 'ashlinmirsha@karunya.edu.in' then
-        assigned_role := 'coordinator';
-        select id into assigned_bus_id from public.buses where bus_number = '1' limit 1;
-      elsif normalized_email = 'gerardnigel@karunya.edu' then
-        assigned_role := 'coordinator';
-        assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Gerard Nigel');
-        select id into assigned_bus_id from public.buses where bus_number = '3' limit 1;
-      elsif normalized_email in ('manickraja@karunya.edu', 'manickaraja@karunya.edu') then
-        assigned_role := 'coordinator';
-        assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Manickaraja');
-        select id into assigned_bus_id from public.buses where bus_number = '3' limit 1;
-      elsif normalized_email = 'karthikr@karunya.edu' then
-        assigned_role := 'coordinator';
-        assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Karthik R');
-        select id into assigned_bus_id from public.buses where bus_number = '2' limit 1;
-      elsif normalized_email = 'shygiljoy@karunya.edu' then
-        assigned_role := 'coordinator';
-        assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Shygil Joy');
-        select id into assigned_bus_id from public.buses where bus_number = '4' limit 1;
-      elsif normalized_email = 'titusi@karunya.edu' then
-        assigned_role := 'coordinator';
-        assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Titus I');
-        select id into assigned_bus_id from public.buses where bus_number = '13' limit 1;
-      elsif normalized_email like '%@karunya.edu' then
-        assigned_role := 'coordinator';
-      end if;
-    end if;
-
-    insert into public.profiles (id, email, full_name, role, register_number, bus_id, status)
-    values (
-      u.id,
-      normalized_email,
-      assigned_full_name,
-      assigned_role,
-      assigned_register_number,
-      assigned_bus_id,
-      case when assigned_bus_id is null and assigned_role = 'student' then 'pending_assignment' else 'active' end
-    )
-    on conflict (id) do update set
-      role = excluded.role,
-      bus_id = coalesce(public.profiles.bus_id, excluded.bus_id),
-      status = 'active';
-  end loop;
-end;
-$$;

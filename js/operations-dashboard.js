@@ -111,38 +111,41 @@ const renderAdminDirectory = async (buses) => {
     try {
       const busMap = new Map((buses || []).map(b => [b.id, b]));
       const { data: dbProfiles } = await supabase.from('profiles').select('id, full_name, register_number, email, role, status, bus_id');
-      const list = (dbProfiles || []).map(p => ({
-        id: p.id,
-        full_name: p.full_name,
-        register_number: p.register_number,
-        email: p.email,
-        role: p.role,
-        status: p.status,
-        bus_id: p.bus_id,
-        bus_number: busMap.get(p.bus_id)?.bus_number || null,
-        route: busMap.get(p.bus_id)?.route || null
-      }));
+      const { data: pendingCoords } = await supabase.from('pending_coordinator_assignments').select('*').catch(() => ({ data: null }));
+      const pendingMap = new Map((pendingCoords || []).map(pc => [pc.email.toLowerCase(), pc]));
 
-      try {
-        const { data: pendingCoords } = await supabase.from('pending_coordinator_assignments').select('*');
-        if (pendingCoords) {
-          pendingCoords.forEach(pc => {
-            if (!list.some(item => item.email === pc.email)) {
-              list.push({
-                id: null,
-                full_name: pc.full_name,
-                register_number: null,
-                email: pc.email,
-                role: 'coordinator',
-                status: 'pending_login',
-                bus_id: pc.bus_id,
-                bus_number: busMap.get(pc.bus_id)?.bus_number || null,
-                route: busMap.get(pc.bus_id)?.route || null
-              });
-            }
+      const list = (dbProfiles || []).map(p => {
+        const pc = pendingMap.get(p.email?.toLowerCase());
+        const effectiveBusId = p.bus_id || pc?.bus_id || null;
+        const effectiveRole = pc ? 'coordinator' : p.role;
+        return {
+          id: p.id,
+          full_name: pc?.full_name || p.full_name,
+          register_number: p.register_number,
+          email: p.email,
+          role: effectiveRole,
+          status: p.status,
+          bus_id: effectiveBusId,
+          bus_number: busMap.get(effectiveBusId)?.bus_number || null,
+          route: busMap.get(effectiveBusId)?.route || null
+        };
+      });
+
+      (pendingCoords || []).forEach(pc => {
+        if (!list.some(item => item.email.toLowerCase() === pc.email.toLowerCase())) {
+          list.push({
+            id: null,
+            full_name: pc.full_name,
+            register_number: null,
+            email: pc.email,
+            role: 'coordinator',
+            status: 'pending_login',
+            bus_id: pc.bus_id,
+            bus_number: busMap.get(pc.bus_id)?.bus_number || null,
+            route: busMap.get(pc.bus_id)?.route || null
           });
         }
-      } catch (_) {}
+      });
 
       people = list;
     } catch (e) {
