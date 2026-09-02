@@ -227,7 +227,49 @@ const renderAdminBusFleet = async (buses, people = []) => {
     }
   }
 
-  const coordinators = (people || []).filter(p => p.bus_id && (p.role === 'coordinator' || p.role === 'admin'));
+  let allCoords = [];
+  try {
+    const { data: dbCoords } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, role, bus_id')
+      .not('bus_id', 'is', null);
+
+    if (dbCoords && dbCoords.length) {
+      allCoords.push(...dbCoords.filter(p => p.role === 'coordinator' || p.role === 'admin' || p.bus_id));
+    }
+  } catch (e) {
+    console.warn('Could not fetch coordinators from profiles table:', e);
+  }
+
+  try {
+    const { data: pendingCoords } = await supabase
+      .from('pending_coordinator_assignments')
+      .select('*');
+
+    if (pendingCoords && pendingCoords.length) {
+      pendingCoords.forEach(pc => {
+        const existingIdx = allCoords.findIndex(c => c.email.toLowerCase() === pc.email.toLowerCase());
+        if (existingIdx !== -1) {
+          allCoords[existingIdx].bus_id = allCoords[existingIdx].bus_id || pc.bus_id;
+          allCoords[existingIdx].full_name = allCoords[existingIdx].full_name || pc.full_name;
+        } else {
+          allCoords.push({
+            id: null,
+            full_name: pc.full_name,
+            email: pc.email,
+            role: 'coordinator',
+            bus_id: pc.bus_id
+          });
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('Could not fetch pending coordinators:', e);
+  }
+
+  if (!allCoords.length && people && people.length) {
+    allCoords = people.filter(p => p.bus_id && (p.role === 'coordinator' || p.role === 'admin'));
+  }
 
   section.innerHTML = `
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
@@ -263,9 +305,9 @@ const renderAdminBusFleet = async (buses, people = []) => {
 
   tbody.replaceChildren(...buses.map((bus) => {
     const tr = document.createElement('tr');
-    const busCoords = coordinators.filter(c => c.bus_id === bus.id);
+    const busCoords = allCoords.filter(c => c.bus_id === bus.id);
     const coordDisplay = busCoords.length
-      ? busCoords.map(c => `<span class="badge bg-warning text-dark me-1">${c.full_name || c.email}</span>`).join('')
+      ? busCoords.map(c => `<span class="badge bg-warning text-dark me-1" title="${c.email}">${c.full_name || c.email}</span>`).join('')
       : `<span class="text-muted small">Unassigned</span>`;
 
     tr.innerHTML = `
