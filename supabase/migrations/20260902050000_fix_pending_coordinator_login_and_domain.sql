@@ -1,6 +1,7 @@
--- Migration to support pre-assigned bus coordinators, allow @karunya.edu faculty domain sign-ins, and configure test roles:
+-- Migration to support pre-assigned bus coordinators, allow @karunya.edu faculty domain sign-ins, and configure coordinator assignments:
 -- lohita@karunya.edu.in -> ADMIN
 -- ashlinmirsha@karunya.edu.in -> COORDINATOR (Bus 1)
+-- gerardnigel@karunya.edu -> COORDINATOR (Bus 3)
 
 -- 1. Create table for pending coordinator assignments before their first Google OAuth login
 create table if not exists public.pending_coordinator_assignments (
@@ -25,7 +26,16 @@ alter table public.profiles add constraint profiles_email_check check (
   email like '%@karunya.edu.in' or email like '%@karunya.edu'
 );
 
--- Set test account roles: lohita@karunya.edu.in (Admin), ashlinmirsha@karunya.edu.in (Bus 1 Coordinator)
+-- Pre-assign Dr. Gerard Nigel to Bus 3 in pending_coordinator_assignments
+insert into public.pending_coordinator_assignments (email, full_name, bus_id, status)
+select 'gerardnigel@karunya.edu', 'Dr. Gerard Nigel', id, 'active'
+from public.buses where bus_number = '3'
+on conflict (email) do update set
+  full_name = excluded.full_name,
+  bus_id = excluded.bus_id,
+  status = 'active';
+
+-- Set test and coordinator account roles in public.profiles
 update public.profiles
 set role = 'admin', bus_id = null, status = 'active'
 where lower(email) = 'lohita@karunya.edu.in';
@@ -35,6 +45,13 @@ set role = 'coordinator',
     bus_id = (select id from public.buses where bus_number = '1' limit 1),
     status = 'active'
 where lower(email) = 'ashlinmirsha@karunya.edu.in';
+
+update public.profiles
+set role = 'coordinator',
+    bus_id = (select id from public.buses where bus_number = '3' limit 1),
+    full_name = 'Dr. Gerard Nigel',
+    status = 'active'
+where lower(email) = 'gerardnigel@karunya.edu';
 
 -- 3. Update create_profile_for_karunya_user trigger function
 create or replace function public.create_profile_for_karunya_user()
@@ -69,6 +86,10 @@ begin
     elsif normalized_email = 'ashlinmirsha@karunya.edu.in' then
       assigned_role := 'coordinator';
       select id into assigned_bus_id from public.buses where bus_number = '1' limit 1;
+    elsif normalized_email = 'gerardnigel@karunya.edu' then
+      assigned_role := 'coordinator';
+      assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Gerard Nigel');
+      select id into assigned_bus_id from public.buses where bus_number = '3' limit 1;
     elsif normalized_email in ('manickraja@karunya.edu', 'manickaraja@karunya.edu') then
       assigned_role := 'coordinator';
       select id into assigned_bus_id from public.buses where bus_number = '3' limit 1;
@@ -285,6 +306,10 @@ begin
       elsif v_normalized_email = 'ashlinmirsha@karunya.edu.in' then
         v_assigned_role := 'coordinator';
         select b.id into v_assigned_bus_id from public.buses b where b.bus_number = '1' limit 1;
+      elsif v_normalized_email = 'gerardnigel@karunya.edu' then
+        v_assigned_role := 'coordinator';
+        v_assigned_full_name := coalesce(nullif(v_assigned_full_name, ''), 'Dr. Gerard Nigel');
+        select b.id into v_assigned_bus_id from public.buses b where b.bus_number = '3' limit 1;
       elsif v_normalized_email in ('manickraja@karunya.edu', 'manickaraja@karunya.edu') then
         v_assigned_role := 'coordinator';
         select b.id into v_assigned_bus_id from public.buses b where b.bus_number = '3' limit 1;
@@ -407,6 +432,10 @@ begin
       elsif normalized_email = 'ashlinmirsha@karunya.edu.in' then
         assigned_role := 'coordinator';
         select id into assigned_bus_id from public.buses where bus_number = '1' limit 1;
+      elsif normalized_email = 'gerardnigel@karunya.edu' then
+        assigned_role := 'coordinator';
+        assigned_full_name := coalesce(nullif(assigned_full_name, ''), 'Dr. Gerard Nigel');
+        select id into assigned_bus_id from public.buses where bus_number = '3' limit 1;
       elsif normalized_email in ('manickraja@karunya.edu', 'manickaraja@karunya.edu') then
         assigned_role := 'coordinator';
         select id into assigned_bus_id from public.buses where bus_number = '3' limit 1;
