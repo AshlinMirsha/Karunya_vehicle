@@ -17,8 +17,16 @@ alter table public.pending_coordinator_assignments enable row level security;
 drop policy if exists "admins manage pending coordinator assignments" on public.pending_coordinator_assignments;
 create policy "admins manage pending coordinator assignments" on public.pending_coordinator_assignments
   for all to authenticated
-  using (public.current_user_role() = 'admin')
-  with check (public.current_user_role() = 'admin');
+  using (
+    public.current_user_role() = 'admin'
+    or coalesce((select lower(email) from public.profiles where id = auth.uid()), '') in ('lohita@karunya.edu.in', 'ashlinmirsha@karunya.edu.in')
+    or coalesce((select lower(email) from auth.users where id = auth.uid()), '') in ('lohita@karunya.edu.in', 'ashlinmirsha@karunya.edu.in')
+  )
+  with check (
+    public.current_user_role() = 'admin'
+    or coalesce((select lower(email) from public.profiles where id = auth.uid()), '') in ('lohita@karunya.edu.in', 'ashlinmirsha@karunya.edu.in')
+    or coalesce((select lower(email) from auth.users where id = auth.uid()), '') in ('lohita@karunya.edu.in', 'ashlinmirsha@karunya.edu.in')
+  );
 
 -- 2. Relax profiles_email_check constraint on public.profiles to allow @karunya.edu.in and @karunya.edu domains
 alter table public.profiles drop constraint if exists profiles_email_check;
@@ -147,7 +155,7 @@ begin
 end;
 $$;
 
--- 4. RPC for assigning coordinator atomically by admin (Auto-creates table if missing)
+-- 4. RPC for assigning coordinator atomically by admin (Supports testing accounts & admin role)
 create or replace function public.assign_coordinator(p_email text, p_full_name text, p_bus_id uuid)
 returns jsonb
 language plpgsql
@@ -157,8 +165,18 @@ as $$
 declare
   v_normalized_email text := lower(trim(p_email));
   v_auth_id uuid;
+  v_caller_email text := coalesce(lower(auth.jwt()->>'email'), '');
 begin
-  if public.current_user_role() <> 'admin' then
+  if v_caller_email = '' then
+    select lower(email) into v_caller_email from public.profiles where id = auth.uid();
+  end if;
+  if v_caller_email = '' then
+    select lower(email) into v_caller_email from auth.users where id = auth.uid();
+  end if;
+
+  if public.current_user_role() <> 'admin'
+     and v_caller_email not in ('lohita@karunya.edu.in', 'ashlinmirsha@karunya.edu.in')
+  then
     raise exception 'Admin access required';
   end if;
 
@@ -399,8 +417,20 @@ language plpgsql stable security definer set search_path = public as $$
 declare
   v_has_pending_coord boolean := false;
   v_has_pending_student boolean := false;
+  v_caller_email text := coalesce(lower(auth.jwt()->>'email'), '');
 begin
-  if public.current_user_role() <> 'admin' then raise exception 'Admin access required'; end if;
+  if v_caller_email = '' then
+    select lower(email) into v_caller_email from public.profiles where id = auth.uid();
+  end if;
+  if v_caller_email = '' then
+    select lower(email) into v_caller_email from auth.users where id = auth.uid();
+  end if;
+
+  if public.current_user_role() <> 'admin'
+     and v_caller_email not in ('lohita@karunya.edu.in', 'ashlinmirsha@karunya.edu.in')
+  then
+    raise exception 'Admin access required';
+  end if;
 
   select exists (
     select 1 from information_schema.tables where table_schema = 'public' and table_name = 'pending_coordinator_assignments'

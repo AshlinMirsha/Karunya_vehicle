@@ -2278,18 +2278,8 @@ const setupStudentManagementControls = (buses) => {
       btnAddCoord.disabled = false;
       btnAddCoord.textContent = 'Add Coordinator';
 
-      if (!successMessage && (edgeError || !edgeData?.message)) {
-        let err = edgeData?.message;
-        if (!err && edgeError) {
-          try {
-            if (typeof edgeError.context?.json === 'function') {
-              const resBody = await edgeError.context.json();
-              err = resBody?.message;
-            }
-          } catch (_) {}
-          if (!err && edgeError.message && !edgeError.message.includes('non-2xx')) err = edgeError.message;
-        }
-        err = err || rpcError?.message || 'Could not add coordinator.';
+      if (rpcError) {
+        const err = rpcError?.message || edgeError?.message || 'Could not add coordinator.';
         if (msg) msg.innerHTML = `<span class="text-danger">${err}</span>`;
         showToast(err, 'danger');
       } else {
