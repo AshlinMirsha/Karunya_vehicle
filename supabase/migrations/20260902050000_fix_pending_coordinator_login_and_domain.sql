@@ -74,6 +74,13 @@ update public.profiles set role = 'coordinator', bus_id = (select id from public
 update public.profiles set role = 'coordinator', bus_id = (select id from public.buses where bus_number = '4' limit 1), full_name = 'Dr. Shygil Joy', status = 'active' where lower(email) = 'shygiljoy@karunya.edu';
 update public.profiles set role = 'coordinator', bus_id = (select id from public.buses where bus_number = '13' limit 1), full_name = 'Dr. Titus I', status = 'active' where lower(email) = 'titusi@karunya.edu';
 
+-- Clean up pending coordinator entries for profiles that now exist
+delete from public.pending_coordinator_assignments pc
+where exists (
+  select 1 from public.profiles p where lower(p.email) = lower(pc.email)
+);
+
+
 -- 3. Update create_profile_for_karunya_user trigger function
 create or replace function public.create_profile_for_karunya_user()
 returns trigger language plpgsql security definer set search_path = public as $$
