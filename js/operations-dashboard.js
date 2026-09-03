@@ -229,43 +229,54 @@ const renderAdminBusFleet = async (buses, people = []) => {
 
   let allCoords = [];
   try {
-    const { data: dbCoords } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, role, bus_id')
-      .eq('role', 'coordinator')
-      .not('bus_id', 'is', null);
-
-    if (dbCoords && dbCoords.length) {
-      allCoords.push(...dbCoords.filter(p => p.role === 'coordinator' || p.role === 'admin'));
+    const { data: rpcCoords, error: rpcErr } = await supabase.rpc('get_bus_coordinators');
+    if (!rpcErr && Array.isArray(rpcCoords) && rpcCoords.length) {
+      allCoords = rpcCoords;
     }
   } catch (e) {
-    console.warn('Could not fetch coordinators from profiles table:', e);
+    console.warn('get_bus_coordinators RPC unavailable, falling back to direct table queries:', e);
   }
 
-  try {
-    const { data: pendingCoords } = await supabase
-      .from('pending_coordinator_assignments')
-      .select('*');
+  if (!allCoords.length) {
+    try {
+      const { data: dbCoords } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, role, bus_id')
+        .eq('role', 'coordinator')
+        .not('bus_id', 'is', null);
 
-    if (pendingCoords && pendingCoords.length) {
-      pendingCoords.forEach(pc => {
-        const existingIdx = allCoords.findIndex(c => c.email.toLowerCase() === pc.email.toLowerCase());
-        if (existingIdx !== -1) {
-          allCoords[existingIdx].bus_id = allCoords[existingIdx].bus_id || pc.bus_id;
-          allCoords[existingIdx].full_name = allCoords[existingIdx].full_name || pc.full_name;
-        } else {
-          allCoords.push({
-            id: null,
-            full_name: pc.full_name,
-            email: pc.email,
-            role: 'coordinator',
-            bus_id: pc.bus_id
-          });
-        }
-      });
+      if (dbCoords && dbCoords.length) {
+        allCoords.push(...dbCoords.filter(p => p.role === 'coordinator' || p.role === 'admin'));
+      }
+    } catch (e) {
+      console.warn('Could not fetch coordinators from profiles table:', e);
     }
-  } catch (e) {
-    console.warn('Could not fetch pending coordinators:', e);
+
+    try {
+      const { data: pendingCoords } = await supabase
+        .from('pending_coordinator_assignments')
+        .select('*');
+
+      if (pendingCoords && pendingCoords.length) {
+        pendingCoords.forEach(pc => {
+          const existingIdx = allCoords.findIndex(c => c.email.toLowerCase() === pc.email.toLowerCase());
+          if (existingIdx !== -1) {
+            allCoords[existingIdx].bus_id = allCoords[existingIdx].bus_id || pc.bus_id;
+            allCoords[existingIdx].full_name = allCoords[existingIdx].full_name || pc.full_name;
+          } else {
+            allCoords.push({
+              id: null,
+              full_name: pc.full_name,
+              email: pc.email,
+              role: 'coordinator',
+              bus_id: pc.bus_id
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Could not fetch pending coordinators:', e);
+    }
   }
 
   if (!allCoords.length && people && people.length) {
