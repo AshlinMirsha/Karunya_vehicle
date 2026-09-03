@@ -323,7 +323,7 @@ const renderAdminBusFleet = async (buses, people = []) => {
 
   tbody.replaceChildren(...buses.map((bus) => {
     const tr = document.createElement('tr');
-    const busCoords = allCoords.filter(c => c.bus_id === bus.id);
+    const busCoords = allCoords.filter(c => c.bus_id && bus.id && (String(c.bus_id).toLowerCase() === String(bus.id).toLowerCase()));
     const coordDisplay = busCoords.length
       ? busCoords.map(c => `<span class="badge bg-warning text-dark me-1" title="${c.email}">${c.full_name || c.email}</span>`).join('')
       : `<span class="text-muted small">Unassigned</span>`;
