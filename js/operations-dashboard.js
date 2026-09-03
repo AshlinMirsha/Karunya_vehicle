@@ -232,10 +232,11 @@ const renderAdminBusFleet = async (buses, people = []) => {
     const { data: dbCoords } = await supabase
       .from('profiles')
       .select('id, full_name, email, role, bus_id')
+      .eq('role', 'coordinator')
       .not('bus_id', 'is', null);
 
     if (dbCoords && dbCoords.length) {
-      allCoords.push(...dbCoords.filter(p => p.role === 'coordinator' || p.role === 'admin' || p.bus_id));
+      allCoords.push(...dbCoords.filter(p => p.role === 'coordinator' || p.role === 'admin'));
     }
   } catch (e) {
     console.warn('Could not fetch coordinators from profiles table:', e);
