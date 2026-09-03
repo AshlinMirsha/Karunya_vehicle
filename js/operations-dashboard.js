@@ -117,10 +117,10 @@ const renderAdminDirectory = async (buses) => {
       const list = (dbProfiles || []).map(p => {
         const pc = pendingMap.get(p.email?.toLowerCase());
         const effectiveBusId = p.bus_id || pc?.bus_id || null;
-        const effectiveRole = pc ? 'coordinator' : p.role;
+        const effectiveRole = p.role === 'coordinator' ? 'coordinator' : (pc ? 'coordinator' : p.role);
         return {
           id: p.id,
-          full_name: pc?.full_name || p.full_name,
+          full_name: p.full_name || pc?.full_name,
           register_number: p.register_number,
           email: p.email,
           role: effectiveRole,
