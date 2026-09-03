@@ -228,60 +228,66 @@ const renderAdminBusFleet = async (buses, people = []) => {
   }
 
   let allCoords = [];
+
+  // Priority 1: Extract coordinators from resolved people array (from admin_people_records SECURITY DEFINER RPC)
+  if (Array.isArray(people) && people.length) {
+    allCoords = people.filter(p => p.bus_id && (p.role === 'coordinator' || p.role === 'admin'));
+  }
+
+  // Priority 2: Merge from get_bus_coordinators RPC
   try {
     const { data: rpcCoords, error: rpcErr } = await supabase.rpc('get_bus_coordinators');
     if (!rpcErr && Array.isArray(rpcCoords) && rpcCoords.length) {
-      allCoords = rpcCoords;
+      rpcCoords.forEach(c => {
+        if (!allCoords.some(item => item.email?.toLowerCase() === c.email?.toLowerCase())) {
+          allCoords.push(c);
+        }
+      });
     }
   } catch (e) {
-    console.warn('get_bus_coordinators RPC unavailable, falling back to direct table queries:', e);
+    console.warn('get_bus_coordinators RPC unavailable:', e);
   }
 
-  if (!allCoords.length) {
-    try {
-      const { data: dbCoords } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, role, bus_id')
-        .eq('role', 'coordinator')
-        .not('bus_id', 'is', null);
+  // Priority 3: Fall back to direct table queries
+  try {
+    const { data: dbCoords } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, role, bus_id')
+      .eq('role', 'coordinator')
+      .not('bus_id', 'is', null);
 
-      if (dbCoords && dbCoords.length) {
-        allCoords.push(...dbCoords.filter(p => p.role === 'coordinator' || p.role === 'admin'));
-      }
-    } catch (e) {
-      console.warn('Could not fetch coordinators from profiles table:', e);
+    if (dbCoords && dbCoords.length) {
+      dbCoords.forEach(c => {
+        if (!allCoords.some(item => item.email?.toLowerCase() === c.email?.toLowerCase())) {
+          allCoords.push(c);
+        }
+      });
     }
+  } catch (e) {}
 
-    try {
-      const { data: pendingCoords } = await supabase
-        .from('pending_coordinator_assignments')
-        .select('*');
+  try {
+    const { data: pendingCoords } = await supabase
+      .from('pending_coordinator_assignments')
+      .select('*');
 
-      if (pendingCoords && pendingCoords.length) {
-        pendingCoords.forEach(pc => {
-          const existingIdx = allCoords.findIndex(c => c.email.toLowerCase() === pc.email.toLowerCase());
-          if (existingIdx !== -1) {
-            allCoords[existingIdx].bus_id = allCoords[existingIdx].bus_id || pc.bus_id;
-            allCoords[existingIdx].full_name = allCoords[existingIdx].full_name || pc.full_name;
-          } else {
-            allCoords.push({
-              id: null,
-              full_name: pc.full_name,
-              email: pc.email,
-              role: 'coordinator',
-              bus_id: pc.bus_id
-            });
-          }
-        });
-      }
-    } catch (e) {
-      console.warn('Could not fetch pending coordinators:', e);
+    if (pendingCoords && pendingCoords.length) {
+      pendingCoords.forEach(pc => {
+        const existingIdx = allCoords.findIndex(c => c.email.toLowerCase() === pc.email.toLowerCase());
+        if (existingIdx !== -1) {
+          allCoords[existingIdx].bus_id = allCoords[existingIdx].bus_id || pc.bus_id;
+          allCoords[existingIdx].full_name = allCoords[existingIdx].full_name || pc.full_name;
+        } else {
+          allCoords.push({
+            id: null,
+            full_name: pc.full_name,
+            email: pc.email,
+            role: 'coordinator',
+            bus_id: pc.bus_id
+          });
+        }
+      });
     }
-  }
-
-  if (!allCoords.length && people && people.length) {
-    allCoords = people.filter(p => p.bus_id && (p.role === 'coordinator' || p.role === 'admin'));
-  }
+  } catch (e) {}
 
   section.innerHTML = `
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
