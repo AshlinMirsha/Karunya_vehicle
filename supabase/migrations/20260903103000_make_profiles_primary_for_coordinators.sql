@@ -26,8 +26,8 @@ to authenticated
 using (
   role = 'coordinator'
   or public.current_user_role() = 'admin'
-  or coalesce((select lower(email) from public.profiles where id = auth.uid()), '') in ('lohita@karunya.edu.in', 'ashlinmirsha@karunya.edu.in')
-  or coalesce((select lower(email) from auth.users where id = auth.uid()), '') in ('lohita@karunya.edu.in', 'ashlinmirsha@karunya.edu.in')
+  or coalesce((select lower(p.email) from public.profiles p where p.id = auth.uid()), '') in ('lohita@karunya.edu.in', 'ashlinmirsha@karunya.edu.in')
+  or coalesce((select lower(au.email) from auth.users au where au.id = auth.uid()), '') in ('lohita@karunya.edu.in', 'ashlinmirsha@karunya.edu.in')
 );
 
 -- 4. Update admin_people_records RPC so public.profiles takes priority over pending table
@@ -41,10 +41,10 @@ declare
   v_caller_email text := coalesce(lower(auth.jwt()->>'email'), '');
 begin
   if v_caller_email = '' then
-    select lower(email) into v_caller_email from public.profiles where id = auth.uid();
+    select lower(p.email) into v_caller_email from public.profiles p where p.id = auth.uid();
   end if;
   if v_caller_email = '' then
-    select lower(email) into v_caller_email from auth.users where id = auth.uid();
+    select lower(au.email) into v_caller_email from auth.users au where au.id = auth.uid();
   end if;
 
   if public.current_user_role() <> 'admin'
@@ -77,7 +77,7 @@ begin
       'pending_login'::text as status,
       pc.bus_id
     from public.pending_coordinator_assignments pc
-    where lower(pc.email) not in (select lower(email) from public.profiles)
+    where lower(pc.email) not in (select lower(p.email) from public.profiles p)
 
     union all
 
@@ -90,7 +90,7 @@ begin
       'pending_login'::text as status,
       ps.bus_id
     from public.pending_student_assignments ps
-    where lower(ps.email) not in (select lower(email) from public.profiles)
+    where lower(ps.email) not in (select lower(p.email) from public.profiles p)
   )
   select
     rp.id,

@@ -111,7 +111,7 @@ const renderAdminDirectory = async (buses) => {
     try {
       const busMap = new Map((buses || []).map(b => [b.id, b]));
       const { data: dbProfiles } = await supabase.from('profiles').select('id, full_name, register_number, email, role, status, bus_id');
-      const { data: pendingCoords } = await supabase.from('pending_coordinator_assignments').select('*').catch(() => ({ data: null }));
+      const { data: pendingCoords } = await supabase.from('pending_coordinator_assignments').select('*');
       const pendingMap = new Map((pendingCoords || []).map(pc => [pc.email.toLowerCase(), pc]));
 
       const list = (dbProfiles || []).map(p => {

@@ -32,7 +32,7 @@ begin
     'coordinator'::public.user_role as role,
     pc.bus_id
   from public.pending_coordinator_assignments pc
-  where lower(pc.email) not in (select lower(email) from public.profiles where role in ('coordinator', 'admin'));
+  where lower(pc.email) not in (select lower(p.email) from public.profiles p where p.role in ('coordinator', 'admin'));
 end;
 $$;
 
