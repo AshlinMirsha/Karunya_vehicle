@@ -46,7 +46,8 @@ async function redirectAuthenticatedUser() {
 
   const roleHome = profile?.role === 'admin' ? '/admin' : profile?.role === 'coordinator' ? '/coordinator' : '/student';
   const safeRedirect = protectedRedirect && (
-    (profile?.role === 'admin' && (protectedRedirect.startsWith('/admin') || protectedRedirect.startsWith('/dashboard')))
+    protectedRedirect.startsWith('/checkin')
+    || (profile?.role === 'admin' && (protectedRedirect.startsWith('/admin') || protectedRedirect.startsWith('/dashboard')))
     || (profile?.role === 'coordinator' && protectedRedirect.startsWith('/coordinator'))
     || (profile?.role === 'student' && protectedRedirect.startsWith('/student'))
   ) ? protectedRedirect : null;
