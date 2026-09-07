@@ -103,6 +103,15 @@ test('43 students are assigned to Bus No. 4', async () => {
   assert.match(migration, /pending_student_assignments/);
 });
 
+test('7 students are assigned to Bus No. 7', async () => {
+  const migration = await read('supabase/migrations/20260907170000_assign_bus_seven_students.sql');
+  assert.match(migration, /mohanbharathik@karunya\.edu\.in/);
+  assert.match(migration, /shinyrubavathy@karunya\.edu\.in/);
+  assert.match(migration, /bus_number = '7'/);
+  assert.match(migration, /pending_student_assignments/);
+});
+
+
 test('check-in scanner requests a camera stream and supports QR decoding fallback', async () => {
   const scanner = await read('js/qr-scanner.js');
   const page = await read('pages/checkin.html');
