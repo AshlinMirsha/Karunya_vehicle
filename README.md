@@ -5,7 +5,7 @@
 [![Backend](https://img.shields.io/badge/Backend-Supabase_PostgreSQL-emerald?style=for-the-badge&logo=supabase)](https://supabase.com/)
 [![Runtime](https://img.shields.io/badge/Runtime-Deno_TypeScript-blue?style=for-the-badge&logo=deno)](https://deno.land/)
 
-A high-performance, enterprise-grade, dynamic QR-code-based Bus Attendance Portal for **Karunya Institute of Technology and Sciences**. Built on a **Zero-Trust Security Model**, it features domain-restricted Supabase OAuth 2.0 authentication, dynamic cryptographic QR code session generation, server-side GPS verification, row-level security (RLS), and multi-role dashboards for Students, Bus Coordinators, and System Administrators.
+**Ashlin Mirsha,Lohit,Benesha** Presents high-performance, enterprise-grade, dynamic QR-code-based Bus Attendance Portal for **Karunya Institute of Technology and Sciences**. Built on a **Zero-Trust Security Model**, it features domain-restricted Supabase OAuth 2.0 authentication, dynamic cryptographic QR code session generation, server-side GPS verification, row-level security (RLS), and multi-role dashboards for Students, Bus Coordinators, and System Administrators.
 
 ---
 
