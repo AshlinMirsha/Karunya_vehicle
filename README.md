@@ -1,42 +1,118 @@
 # Karunya Bus Attendance Management System
 
-[![Build & Contracts Verification](https://img.shields.io/badge/Contracts-Passing-success?style=for-the-badge&logo=github)](https://github.com/)
-[![Hosting](https://img.shields.io/badge/Hosting-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/)
-[![Backend](https://img.shields.io/badge/Backend-Supabase_PostgreSQL-emerald?style=for-the-badge&logo=supabase)](https://supabase.com/)
-[![Runtime](https://img.shields.io/badge/Runtime-Deno_TypeScript-blue?style=for-the-badge&logo=deno)](https://deno.land/)
+[![Build & Contracts Verification](https://img.shields.io/badge/Contracts-Passing-success?style=for-the-badge\&logo=github)](https://github.com/)
+[![Hosting](https://img.shields.io/badge/Hosting-Vercel-black?style=for-the-badge\&logo=vercel)](https://vercel.com/)
+[![Backend](https://img.shields.io/badge/Backend-Supabase_PostgreSQL-emerald?style=for-the-badge\&logo=supabase)](https://supabase.com/)
+[![Runtime](https://img.shields.io/badge/Runtime-Deno_TypeScript-blue?style=for-the-badge\&logo=deno)](https://deno.land/)
 
-**Ashlin Mirsha,Lohit,Benesha** Presents high-performance, enterprise-grade, dynamic QR-code-based Bus Attendance Portal for **Karunya Institute of Technology and Sciences**. Built on a **Zero-Trust Security Model**, it features domain-restricted Supabase OAuth 2.0 authentication, dynamic cryptographic QR code session generation, server-side GPS verification, row-level security (RLS), and multi-role dashboards for Students, Bus Coordinators, and System Administrators.
+**Ashlin Mirsha, Lohit, and Benesha** present the Karunya Bus Attendance Management System, a dynamic QR based attendance platform built for **Karunya Institute of Technology and Sciences**.
 
----
+The system is designed to make bus attendance faster, easier to manage, and more secure. It uses Google OAuth authentication, dynamic QR sessions, server side location verification, PostgreSQL row level security, and role based dashboards for students, bus coordinators, and administrators.
 
-## 🌟 Key Features
+Security is treated as a core part of the system rather than something added later. Attendance validation and authorization are handled on the server, while the database provides an additional layer of access control.
 
-- **Domain-Restricted Authentication**: Strictly locks platform sign-ins to official `@karunya.edu.in` accounts and pre-approved `@karunya.edu` faculty accounts via Supabase Google OAuth 2.0.
-- **Dynamic Cryptographic QR Sessions**: On-demand session generation (*Morning*, *Evening*, *Special*) producing high-entropy 64-character random hex tokens hashed using `SHA-256(QR_SECRET + ":" + token)` with a 5-hour TTL.
-- **Zero-Trust Edge Enforcement**: Zero client-side trust. All verification (JWT identity, token hash matching, bus route membership, same-day duplicate check) runs securely inside Deno Edge Functions.
-- **Live Fleet Geolocation & Auditability**: Captures student GPS coordinates upon check-in and provides live bus location tracking for coordinators and administrators.
-- **Multi-Role Operations Dashboards**:
-  - **Student Portal**: Profile summary, assigned bus details, designated boarding point, scanner portal, and historical check-in audit log.
-  - **Coordinator Console**: Dynamic QR generator, live passenger count, roster management, manual attendance overrides with mandatory remark logging, and automated Excel/Print matrix reports.
-  - **Admin Control Center**: System-wide session stats, global bus route provisioning, student/coordinator reassignments, and security audit event monitoring.
-- **Modern Glassmorphism UI**: Zero-framework, responsive HTML5/CSS3 client with dark-mode Glassmorphism aesthetics, toast notifications, native `BarcodeDetector` API QR scanner, and SheetJS Excel export engine.
+## Key Features
 
----
+### Domain Restricted Authentication
 
-## 🛠 Tech Stack
+Users sign in through Google OAuth using Supabase Auth.
 
-| Layer | Component | Technology |
-| :--- | :--- | :--- |
-| **Frontend** | Client Application | HTML5, Vanilla CSS3 (Glassmorphism), JavaScript ES Modules |
-| **Hosting** | Edge CDN | Vercel Serverless Platform |
-| **API Gateway** | Edge Functions | Supabase Edge Functions (Deno Runtime / TypeScript) |
-| **Database** | Database Engine | Supabase PostgreSQL 15 (RLS, PL/pgSQL RPCs, Triggers) |
-| **Authentication** | OAuth Provider | Supabase Auth (Google OAuth 2.0 Domain Locked) |
-| **Testing** | Contract Tests | Node.js Native Test Runner (`node --test`) |
+Access is restricted to official `@karunya.edu.in` accounts and approved `@karunya.edu` faculty accounts. This prevents unauthorized accounts from registering with the system.
 
----
+### Dynamic QR Attendance Sessions
 
-## 🏗 System Architecture
+Bus coordinators can create attendance sessions for different periods such as:
+
+* Morning
+* Evening
+* Special
+
+Each session generates a high entropy 64 character random token. The backend stores a SHA-256 hash derived from the QR secret and token instead of storing the token itself.
+
+Sessions also have a limited lifetime of five hours.
+
+### Server Side Attendance Validation
+
+The client is not trusted to decide whether an attendance request is valid.
+
+The Supabase Edge Function performs the important checks on the server, including:
+
+* JWT authentication
+* User identity verification
+* QR token validation
+* Bus assignment verification
+* Same day duplicate attendance checks
+* Rate limiting
+* Request validation
+
+This keeps important security decisions away from the browser.
+
+### GPS Based Verification and Fleet Tracking
+
+The system captures the student's GPS coordinates during check-in.
+
+Coordinators and administrators can also view live bus location information, allowing the system to provide better visibility into bus operations.
+
+### Student Dashboard
+
+Students have access to a dedicated portal where they can view:
+
+* Profile information
+* Assigned bus
+* Designated boarding point
+* QR scanner
+* Previous attendance records
+* Check-in history
+
+### Coordinator Dashboard
+
+Bus coordinators can manage day to day attendance operations from a single dashboard.
+
+Features include:
+
+* Dynamic QR generation
+* Live passenger count
+* Bus passenger roster
+* Manual attendance corrections
+* Mandatory remarks for manual overrides
+* Attendance reports
+* Excel export
+* Printable attendance matrices
+
+### Administrator Dashboard
+
+Administrators have access to system wide management features.
+
+They can manage:
+
+* Bus routes
+* Student assignments
+* Coordinator assignments
+* Attendance sessions
+* System statistics
+* Security audit events
+
+### Responsive Interface
+
+The frontend is built using standard HTML, CSS, and JavaScript without a large frontend framework.
+
+The interface uses a glassmorphism inspired design, responsive layouts, dark mode support, toast notifications, and the browser's native `BarcodeDetector` API where available.
+
+SheetJS is used for generating Excel attendance reports.
+
+## Tech Stack
+
+| Layer          | Component          | Technology                                  |
+| :------------- | :----------------- | :------------------------------------------ |
+| Frontend       | Client Application | HTML5, Vanilla CSS3, JavaScript ES Modules  |
+| Hosting        | Edge CDN           | Vercel                                      |
+| API            | Edge Functions     | Supabase Edge Functions, Deno, TypeScript   |
+| Database       | Database Engine    | Supabase PostgreSQL 15                      |
+| Security       | Database Security  | Row Level Security, PL/pgSQL RPCs, Triggers |
+| Authentication | OAuth Provider     | Supabase Auth, Google OAuth 2.0             |
+| Testing        | Contract Tests     | Node.js Native Test Runner                  |
+
+## System Architecture
 
 ```mermaid
 graph TD
@@ -68,105 +144,260 @@ graph TD
     DB --- RPC
 ```
 
----
+## Getting Started
 
-## 🚀 Getting Started & Deployment Guide
+### Prerequisites
 
-### 1. Prerequisites
-- **Node.js**: v18.0.0 or higher
-- **Supabase CLI**: Installed globally (`npm install -g supabase`)
-- **Vercel CLI**: Installed globally (`npm install -g vercel`)
+Make sure the following tools are installed:
 
-### 2. Local Environment Setup
-Clone the repository and inspect project structure:
+* Node.js 18 or higher
+* Supabase CLI
+* Vercel CLI
+
+Install the Supabase and Vercel CLIs if they are not already available:
+
+```bash
+npm install -g supabase
+npm install -g vercel
+```
+
+### Clone the Repository
+
 ```bash
 git clone https://github.com/karunya/karunya-bus-attendance.git
 cd karunya-bus-attendance
 ```
 
-Create a `.env` file based on `.env.example`:
+### Configure the Environment
+
+Create a `.env` file using `.env.example` as a reference:
+
 ```env
 VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=<your-anon-key>
 ```
 
-### 3. Run Contract Tests
-Validate all security contracts, JWT protections, scanner fallbacks, and database policies:
+Use the appropriate Supabase project URL and anonymous key for your environment.
+
+### Run the Contract Tests
+
+The project includes a release contract test suite covering important application and security requirements.
+
+Run the tests with:
+
 ```bash
 node --test tests/release-contracts.test.mjs
 ```
 
-### 4. Deploy Supabase Backend
-Link your Supabase project and set environment secrets:
+### Configure Supabase
+
+Link the local project to your Supabase project:
+
 ```bash
 supabase link --project-ref <your-project-ref>
+```
+
+Set the QR secret used by the attendance API:
+
+```bash
 supabase secrets set QR_SECRET="your_secure_random_qr_secret_key"
 ```
 
-Deploy database migrations and Edge Functions:
+### Deploy the Database and Edge Function
+
+Apply the database migrations:
+
 ```bash
 supabase db push
+```
+
+Deploy the attendance API:
+
+```bash
 supabase functions deploy attendance-api
 ```
 
-### 5. Deploy Frontend to Vercel
-Deploy to production via Vercel CLI:
+### Deploy the Frontend
+
+Deploy the frontend to Vercel:
+
 ```bash
 vercel --prod
 ```
 
----
+After deployment, configure the required environment variables in the Vercel project settings.
 
-## 🛡 Security Specifications
+## Security
 
-1. **Authentication Lock**: All client calls require a valid JWT bearer token. Only `@karunya.edu.in` accounts pass database trigger registration.
-2. **Cryptographic Protection**: QR tokens exist in plaintext only transiently in client memory during dynamic display. The backend stores exclusively salted `SHA-256` digests.
-3. **Bus Route Isolation**: Students assigned to Bus $N$ scanning a QR code for Bus $M$ ($N \neq M$) are immediately rejected by the API (`HTTP 400`).
-4. **Rate Limiting**: Sliding window rate limits managed via `consume_attendance_rate_limit` RPC block flood attempts (`HTTP 429`).
-5. **Timezone Accuracy**: Strict IST (`+05:30`) date calculations prevent UTC midnight shift errors.
+Security is built into the attendance flow at multiple levels.
 
----
+### Authentication
 
-## 📁 Repository Structure
+Every protected API request requires a valid Supabase JWT.
 
+Only authorized Karunya accounts can register and access the system.
+
+### QR Token Protection
+
+QR tokens are generated dynamically and are kept in plaintext only while they are being used by the client.
+
+The backend stores a SHA-256 digest derived from the QR secret and token:
+
+```text
+SHA-256(QR_SECRET + ":" + token)
 ```
+
+This means the original QR token does not need to be stored in the database.
+
+### Bus Assignment Validation
+
+Attendance is tied to a specific bus.
+
+For example, if a student is assigned to Bus N and attempts to use a QR session belonging to Bus M, the server rejects the request.
+
+The validation happens on the backend rather than relying on values supplied by the browser.
+
+### Rate Limiting
+
+Attendance requests are protected using a sliding window rate limiter.
+
+The `consume_attendance_rate_limit` database function is used to prevent repeated or excessive check-in attempts.
+
+Requests that exceed the configured limit receive an HTTP `429` response.
+
+### Duplicate Attendance Protection
+
+The backend checks whether the student has already recorded attendance for the relevant day and session.
+
+This prevents repeated scans from creating multiple attendance records.
+
+### Timezone Handling
+
+Attendance dates are calculated using Indian Standard Time (`+05:30`).
+
+This prevents issues where UTC date boundaries could cause an attendance record to be assigned to the wrong day.
+
+### Database Security
+
+Supabase PostgreSQL Row Level Security policies provide an additional authorization layer at the database level.
+
+Database functions, triggers, and policies are used to enforce important system rules independently of the frontend.
+
+## Repository Structure
+
+```text
 .
-├── SYSTEM_ARCHITECTURE.md        # Technical System Architecture Specification
-├── USER_USE_CASE_FLOW.md         # End-to-End Persona & Use Case Flow Document
-├── README.md                     # Project Overview & Deployment Guide
-├── DEPLOYMENT.md                 # Extended Operations Deployment Manual
-├── vercel.json                   # Vercel CDN Routing, Headers, Honeypot Rewrites
-├── components/                   # Shared UI Components (Navbar, Toast)
-├── js/                           # Client JavaScript Modules
-│   ├── admin.js                  # Admin Module Wrapper
-│   ├── auth.js                   # Authentication & Session Redirect Utilities
-│   ├── coordinator.js            # Coordinator Module Wrapper
-│   ├── login-page.js             # OAuth Login Page Controller
-│   ├── operations-dashboard.js   # Unified Operations Console (Admin/Coordinator)
-│   ├── qr-scanner.js             # Camera QR Reader & Check-in Submission
-│   ├── reports.js                # Attendance Matrix Reports & SheetJS Exporter
-│   └── student.js                # Student Portal Controller
-├── pages/                        # HTML Page Views
-│   ├── admin.html                # Admin Central Console View
-│   ├── checkin.html              # QR Scanner & Check-in View
-│   ├── coordinator.html          # Coordinator Dashboard View
-│   ├── index.html                # OAuth Login Landing Page
-│   ├── student.html              # Student Dashboard View
-│   └── system-portal.html        # Honeypot Security Audit View
-├── supabase/                     # Supabase Backend Configuration
-│   ├── client.js                 # Supabase JS SDK Client Instance
-│   ├── config.toml               # Supabase CLI Project Configuration
+├── SYSTEM_ARCHITECTURE.md
+├── USER_USE_CASE_FLOW.md
+├── README.md
+├── DEPLOYMENT.md
+├── vercel.json
+│
+├── components/
+│   ├── Navbar
+│   └── Toast
+│
+├── js/
+│   ├── admin.js
+│   ├── auth.js
+│   ├── coordinator.js
+│   ├── login-page.js
+│   ├── operations-dashboard.js
+│   ├── qr-scanner.js
+│   ├── reports.js
+│   └── student.js
+│
+├── pages/
+│   ├── admin.html
+│   ├── checkin.html
+│   ├── coordinator.html
+│   ├── index.html
+│   ├── student.html
+│   └── system-portal.html
+│
+├── supabase/
+│   ├── client.js
+│   ├── config.toml
+│   │
 │   ├── functions/
-│   │   ├── attendance-api/       # Main Deno Edge Function (API Gateway)
-│   │   └── decoy-api/            # Security Incident Honeypot Alert Function
-│   └── migrations/               # PostgreSQL Database Migrations (70+ files)
+│   │   ├── attendance-api/
+│   │   └── decoy-api/
+│   │
+│   └── migrations/
+│       └── 70+ migration files
+│
 └── tests/
-    └── release-contracts.test.mjs # Release Contract Verification Suite
+    └── release-contracts.test.mjs
 ```
 
----
+## Project Components
 
-## 📄 License & Attribution
+### Frontend
 
-Designed and maintained for **Karunya Institute of Technology and Sciences**.  
-Developed using standard web APIs, Supabase Cloud Infrastructure, and Vercel CDN Hosting.
+The frontend contains separate interfaces for each type of user.
+
+The main pages are:
+
+* `index.html` for authentication
+* `student.html` for students
+* `checkin.html` for QR based attendance
+* `coordinator.html` for bus coordinators
+* `admin.html` for administrators
+* `system-portal.html` for the security honeypot interface
+
+### Backend
+
+The main backend logic is implemented through the `attendance-api` Supabase Edge Function.
+
+It acts as the API gateway between the frontend and database and handles authentication, attendance validation, QR verification, rate limiting, and other security checks.
+
+The `decoy-api` function supports the project's honeypot and security monitoring functionality.
+
+### Database
+
+The database is built on Supabase PostgreSQL and contains the application's core data and authorization logic.
+
+More than 70 migration files are maintained in the repository to track database changes over time.
+
+## Testing
+
+Before deploying a release, run:
+
+```bash
+node --test tests/release-contracts.test.mjs
+```
+
+The contract tests verify important application requirements including:
+
+* Authentication requirements
+* JWT protection
+* QR validation
+* Scanner behavior
+* Rate limiting
+* Database security policies
+* API contracts
+* Security related application behavior
+
+A deployment should only be considered ready after the contract suite passes successfully.
+
+## Deployment
+
+The application is split into two main deployment layers.
+
+**Frontend**
+
+The static frontend is deployed through Vercel and served through its edge network.
+
+**Backend**
+
+Authentication, database operations, and attendance validation are handled through Supabase.
+
+The Edge Function runs on the Deno runtime and communicates with the PostgreSQL database.
+
+This separation keeps the frontend lightweight while moving security sensitive operations to the backend.
+
+## License and Attribution
+
+Designed and maintained for **Karunya Institute of Technology and Sciences**.
+
+Developed by **Ashlin Mirsha, Lohit, and Benesha** using standard web technologies, Supabase infrastructure, PostgreSQL, Deno, and Vercel.
