@@ -500,20 +500,6 @@ Deno.serve(async (request) => {
       }
 
       if (targetProfile) {
-        if (targetProfile.role !== 'coordinator') {
-          return response(request, { message: `User ${emailLower} is not currently a coordinator.` }, 400);
-        }
-
-        const updatePayload: Record<string, unknown> = { bus_id: null, status: 'inactive' };
-        if (emailLower.endsWith('@karunya.edu.in')) {
-          updatePayload.role = 'student';
-        }
-        const { error: updateErr } = await adminClient.from('profiles')
-          .update(updatePayload)
-          .eq('id', targetProfile.id);
-
-        if (updateErr) return response(request, { message: updateErr.message || 'Could not remove coordinator.' }, 500);
-
         const [{ count: sessionCount }, { count: attendanceCount }] = await Promise.all([
           adminClient.from('attendance_sessions').select('id', { count: 'exact', head: true }).eq('created_by', targetProfile.id),
           adminClient.from('attendance').select('id', { count: 'exact', head: true }).eq('student_id', targetProfile.id)
@@ -524,6 +510,12 @@ Deno.serve(async (request) => {
           try {
             await adminClient.auth.admin.deleteUser(targetProfile.id);
           } catch (_) {}
+        } else {
+          const { error: updateErr } = await adminClient.from('profiles')
+            .update({ role: 'student', bus_id: null, status: 'inactive' })
+            .eq('id', targetProfile.id);
+
+          if (updateErr) return response(request, { message: updateErr.message || 'Could not remove coordinator.' }, 500);
         }
       }
 
