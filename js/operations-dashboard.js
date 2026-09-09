@@ -481,6 +481,12 @@ const renderStudentRoster = async () => {
                 <input class="form-control" type="file" id="csv-file-input" accept=".csv,text/csv">
               </div>
 
+              ${ROLE === 'admin' ? `
+              <div class="mb-3">
+                <label for="csv-target-bus" class="form-label small fw-semibold">Target Bus (optional if bus_number column is in CSV)</label>
+                <select id="csv-target-bus" class="form-select"></select>
+              </div>` : ''}
+
               <div id="csv-preview-container" class="mb-3" hidden>
                 <div class="d-flex justify-content-between align-items-center mb-2">
                   <span class="small fw-semibold text-light" id="csv-preview-count">CSV Preview</span>
@@ -1319,13 +1325,14 @@ export async function initOperationsDashboard(expectedRole) {
         newBuses = dbBuses ?? [];
       }
 
-      ['add-student-bus', 'move-student-bus', 'add-coord-bus', 'delete-bus-select', 'filter-bus', 'rpt-dr-bus'].forEach((id) => {
+      ['add-student-bus', 'move-student-bus', 'add-coord-bus', 'delete-bus-select', 'filter-bus', 'rpt-dr-bus', 'csv-target-bus'].forEach((id) => {
         const select = document.getElementById(id);
         if (select) {
           const currentVal = select.value;
           select.replaceChildren();
           if (id === 'filter-bus') addOption(select, '', 'All buses');
           else if (id === 'rpt-dr-bus') addOption(select, '', 'All Buses');
+          else if (id === 'csv-target-bus') addOption(select, '', '-- Select Target Bus (or auto-detect via bus_number in CSV) --');
           (newBuses || []).forEach((b) => addOption(select, b.id, `Bus ${b.bus_number} — ${b.route}`));
           if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
             select.value = currentVal;
@@ -2656,7 +2663,7 @@ const setupCSVImportHandlers = () => {
   const isValidRegNo = (v) => typeof v === 'string' && /^[A-Z0-9]+$/i.test(v.trim()) && v.trim().length <= 30;
 
   const downloadTemplate = () => {
-    const csvContent = "student_name,student_id,email\nAshika Braicy,24CS001,ashika@karunya.edu.in\nBenesha Mercy,24CS002,benesha@karunya.edu.in\nAngel Achsah,24CS003,angel@karunya.edu.in\n";
+    const csvContent = "student_name,student_id,email,bus_number\nAshika Braicy,24CS001,ashika@karunya.edu.in,1\nBenesha Mercy,24CS002,benesha@karunya.edu.in,2\nAngel Achsah,24CS003,angel@karunya.edu.in,13\n";
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -2823,8 +2830,11 @@ const setupCSVImportHandlers = () => {
       submitBtn.textContent = 'Importing…';
       if (msg) msg.innerHTML = `<div class="alert alert-info p-2 small">Importing student records into database…</div>`;
 
+      const targetBusSelect = document.getElementById('csv-target-bus') || document.getElementById('filter-bus');
+      const selectedBusId = targetBusSelect?.value || null;
+
       const { data, error } = await supabase.functions.invoke('attendance-api', {
-        body: { action: 'import-students-csv', students: parsedRows }
+        body: { action: 'import-students-csv', students: parsedRows, busId: selectedBusId || undefined }
       });
 
       submitBtn.disabled = false;

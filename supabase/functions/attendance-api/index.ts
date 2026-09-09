@@ -145,21 +145,23 @@ Deno.serve(async (request) => {
         return response(request, { message: 'Admin or Coordinator access required.' }, 403);
       }
 
-      let targetBusId: string | null = null;
+      const { data: allBuses } = await adminClient.from('buses').select('id, bus_number');
+      const busByNumber = new Map<string, string>();
+      (allBuses ?? []).forEach((b) => {
+        if (b.bus_number) {
+          busByNumber.set(String(b.bus_number).trim().toLowerCase(), b.id);
+        }
+      });
+
+      let fallbackBusId: string | null = null;
       if (profile.role === 'coordinator') {
         if (!profile.bus_id) {
           return response(request, { message: 'You are not currently assigned to a bus.' }, 400);
         }
-        targetBusId = profile.bus_id;
+        fallbackBusId = profile.bus_id;
       } else {
-        targetBusId = (body.busId as string) || profile.bus_id;
-        if (!targetBusId || !UUID_PATTERN.test(targetBusId)) {
-          return response(request, { message: 'A valid target bus ID is required.' }, 400);
-        }
+        fallbackBusId = (body.busId as string) || profile.bus_id || null;
       }
-
-      const { data: busCheck } = await adminClient.from('buses').select('id, bus_number').eq('id', targetBusId).maybeSingle();
-      if (!busCheck) return response(request, { message: 'Assigned bus not found.' }, 404);
 
       const { students } = body as { students?: Array<Record<string, unknown>> };
       if (!Array.isArray(students) || students.length === 0) {
@@ -205,10 +207,12 @@ Deno.serve(async (request) => {
         const rawName = item.student_name ?? item.full_name ?? item.name ?? '';
         const rawId = item.student_id ?? item.register_number ?? item.reg_no ?? item.roll_no ?? '';
         const rawEmail = item.email ?? item.student_email ?? '';
+        const rawBusNo = item.bus_number ?? item.bus ?? item.bus_no ?? '';
 
         const name = String(rawName).trim();
         const regNo = String(rawId).trim().toUpperCase();
         const email = String(rawEmail).trim().toLowerCase();
+        const busStr = String(rawBusNo).trim();
 
         if (!name && !regNo && !email) {
           continue;
@@ -232,6 +236,27 @@ Deno.serve(async (request) => {
           continue;
         }
 
+        let targetBusId: string | null = null;
+        if (busStr && busByNumber.has(busStr.toLowerCase())) {
+          targetBusId = busByNumber.get(busStr.toLowerCase())!;
+        } else if (busStr && UUID_PATTERN.test(busStr)) {
+          targetBusId = busStr;
+        } else {
+          targetBusId = fallbackBusId;
+        }
+
+        if (!targetBusId || !UUID_PATTERN.test(targetBusId)) {
+          invalidRows++;
+          rowErrors.push({ row: rowNum, error: 'Target bus not specified (select a Bus in UI dropdown or include bus_number in CSV)', student_id: regNo, email });
+          continue;
+        }
+
+        if (profile.role === 'coordinator' && targetBusId !== profile.bus_id) {
+          invalidRows++;
+          rowErrors.push({ row: rowNum, error: 'Coordinators can only import students to their assigned bus', student_id: regNo, email });
+          continue;
+        }
+
         const matchedProfile = profileByEmail.get(email) ?? profileByRegNo.get(regNo);
         const matchedPending = pendingByEmail.get(email) ?? pendingByRegNo.get(regNo);
 
@@ -239,7 +264,7 @@ Deno.serve(async (request) => {
 
         if (currentBusId === targetBusId) {
           alreadyExisting++;
-          rowErrors.push({ row: rowNum, error: `Student ${regNo} is already assigned to your bus`, student_id: regNo, email });
+          rowErrors.push({ row: rowNum, error: `Student ${regNo} is already assigned to bus`, student_id: regNo, email });
           continue;
         }
 
