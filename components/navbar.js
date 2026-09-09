@@ -166,6 +166,7 @@ export function renderNavbar(user = null, activeRole = null) {
   });
   easterEggDialog?.querySelector('.brand-easter-egg-close')?.addEventListener('click', () => easterEggDialog.close());
 
+  const logoutBtn = document.getElementById('btn-logout-nav');
   logoutBtn?.addEventListener('click', async () => {
     logoutBtn.disabled = true;
     logoutBtn.setAttribute('aria-busy', 'true');
