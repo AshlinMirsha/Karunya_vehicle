@@ -181,8 +181,10 @@ const renderAdminDirectory = async (buses) => {
     }
     body.replaceChildren(...filtered.map((person) => {
       const tr = document.createElement('tr');
+      const isInactive = person.status === 'inactive' || person.status === 'pending_login' || !person.bus_id;
+      const actionBtnLabel = isInactive ? 'Remove' : 'Deactivate';
       const actionCell = person.role === 'coordinator'
-        ? `<button class="btn btn-outline-danger btn-sm btn-remove-coord-row" data-email="${person.email}">Remove</button>`
+        ? `<button class="btn ${isInactive ? 'btn-outline-danger' : 'btn-outline-warning'} btn-sm btn-remove-coord-row" data-email="${person.email}">${actionBtnLabel}</button>`
         : '—';
 
       tr.innerHTML = `
@@ -192,13 +194,14 @@ const renderAdminDirectory = async (buses) => {
         <td>${person.email}</td>
         <td>${person.bus_number ? `Bus ${person.bus_number}` : 'Unassigned'}</td>
         <td>${person.route || '—'}</td>
-        <td><span class="badge bg-secondary">${person.status}</span></td>
+        <td><span class="badge ${person.status === 'active' ? 'bg-success' : 'bg-secondary'}">${person.status}</span></td>
         <td class="text-end">${actionCell}</td>
       `;
 
       if (person.role === 'coordinator') {
         tr.querySelector('.btn-remove-coord-row')?.addEventListener('click', async () => {
-          if (confirm(`Remove coordinator privileges for ${person.full_name || person.email}?`)) {
+          const promptText = isInactive ? `Permanently remove coordinator record for ${person.full_name || person.email}?` : `Deactivate coordinator privileges for ${person.full_name || person.email}?`;
+          if (confirm(promptText)) {
             await handleRemoveCoordinator(person.email);
           }
         });
