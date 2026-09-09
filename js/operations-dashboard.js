@@ -481,7 +481,7 @@ const renderStudentRoster = async () => {
                 <input class="form-control" type="file" id="csv-file-input" accept=".csv,text/csv">
               </div>
 
-              ${ROLE === 'admin' ? `
+              ${currentAppProfile?.role === 'admin' ? `
               <div class="mb-3">
                 <label for="csv-target-bus" class="form-label small fw-semibold">Target Bus (optional if bus_number column is in CSV)</label>
                 <select id="csv-target-bus" class="form-select"></select>
