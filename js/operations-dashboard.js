@@ -928,6 +928,7 @@ export async function initOperationsDashboard(expectedRole) {
     window.currentAppProfile = profile;
 
     renderNavbar(user, expectedRole === 'admin' ? 'Admin' : 'Coordinator');
+    void renderStudentRoster();
     const canGenerateQr = expectedRole === 'coordinator';
     document.getElementById('qr-panel')?.toggleAttribute('hidden', !canGenerateQr);
 

@@ -166,17 +166,32 @@ export function renderNavbar(user = null, activeRole = null) {
   });
   easterEggDialog?.querySelector('.brand-easter-egg-close')?.addEventListener('click', () => easterEggDialog.close());
 
-  const logoutBtn = document.getElementById('btn-logout-nav');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', async () => {
-      logoutBtn.disabled = true;
-      logoutBtn.setAttribute('aria-busy', 'true');
-      logoutBtn.querySelector('span').textContent = 'Switching…';
-      const { error } = await supabase.auth.signOut({ scope: 'local' });
-      if (!error) { window.location.replace('/'); return; }
-      logoutBtn.disabled = false;
-      logoutBtn.removeAttribute('aria-busy');
-      logoutBtn.querySelector('span').textContent = 'Try again';
+  logoutBtn?.addEventListener('click', async () => {
+    logoutBtn.disabled = true;
+    logoutBtn.setAttribute('aria-busy', 'true');
+    logoutBtn.querySelector('span').textContent = 'Switching…';
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (!error) { window.location.replace('/'); return; }
+    logoutBtn.disabled = false;
+    logoutBtn.removeAttribute('aria-busy');
+    logoutBtn.querySelector('span').textContent = 'Try again';
+  });
+
+  if (!window._navOffcanvasListenerBound) {
+    window._navOffcanvasListenerBound = true;
+    document.addEventListener('click', (e) => {
+      const trigger = e.target.closest('[data-bs-target="#sidebarAssignedStudents"], [data-bs-target="#sidebarStudentMgmt"]');
+      if (!trigger) return;
+
+      const targetId = trigger.getAttribute('data-bs-target');
+      if (!targetId) return;
+
+      const targetEl = document.querySelector(targetId);
+      if (targetEl && window.bootstrap?.Offcanvas) {
+        e.preventDefault();
+        const instance = window.bootstrap.Offcanvas.getOrCreateInstance(targetEl);
+        instance.show();
+      }
     });
   }
 }
